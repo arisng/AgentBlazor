@@ -36,6 +36,10 @@ builder.Services.AddAgentBlazor(options =>
         apiKey: builder.Configuration["OpenAI:ApiKey"]!,
         model: builder.Configuration["OpenAI:Model"]!);
 
+    // Optional: pin provider-level ChatOptions (e.g. GPT-5.6-family tools need
+    // ReasoningEffort.None to avoid HTTP 400 reasoning_effort rejections):
+    // options.ConfigureChatOptions(o => o.Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None });
+
     options.ConfigureBuilder(agentBuilder =>
     {
         agentBuilder.AddWorkflow<SupportInboxCapabilities>("support-inbox", agent =>
