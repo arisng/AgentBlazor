@@ -135,6 +135,8 @@ Tools are assembled for the LLM in this exact order:
 
 All are projected as `AITool` objects into `ChatOptions.Tools`. For workflow agents, `ChatToolMode.RequireAny` is used (forces the LLM to use at least one tool per turn).
 
+> **Note (tools + reasoning effort):** some model families (e.g. `gpt-5.6-luna`) reject tool-bearing chat-completions requests with HTTP 400 naming `reasoning_effort` unless effort is explicitly pinned. The fix is consumer-side, not tool-side: pin `ReasoningEffort.None` via `ConfigureChatOptions` — see the **`ab-provider-config` skill**.
+
 ## Tool Execution Dispatch
 
 | Tool Type | Handler in Runtime | Delegates To |
@@ -156,3 +158,10 @@ public interface IAgentServiceToolRegistry
 ```
 
 Default implementation: `InMemoryAgentServiceToolRegistry`. When you call `AddTool()`, the tools are registered into an instance that replaces the default at startup.
+
+## Related skills
+
+- **`ab-provider-config`** — provider-level `ChatOptions` configuration (`ConfigureChatOptions`); the consumer seam that can pin reasoning effort for tool-bearing models
+- **`ab-agent-registration`** — how agents are registered and which tools they project
+- **`ab-capability-authoring`** — how `[AgentAction]` capability methods become tools
+- **`ab-in-chat-features`** — how generated-UI tools render in chat

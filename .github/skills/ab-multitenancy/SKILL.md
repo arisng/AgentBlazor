@@ -301,3 +301,10 @@ The tenant must survive the whole turn pipeline. Relying only on `SessionId` emb
 | **Conversation store** | Custom `IConversationStore` with `TenantId` filtering OR `TenantId` embedded in session key |
 | **Application data** | Finbuckle `MultiTenantDbContext` + `WithPerTenantConnectionString` |
 | **BFF → API** | Typed `HttpClient` with `X-Tenant-Id` header + OAuth OBO |
+
+## Related skills
+
+- **`ab-provider-config`** — consumer-side `ChatOptions` configuration. Note: `ConfigureChatOptions` (v0.2.23+) applies only to the singleton `IChatClient` registered by `UseOpenAI()`/`UseAzureOpenAI()`/`UseOllama()`. The multi-tenant proxy pattern replaces that singleton, so the hook is **bypassed** — pin per-tenant `ChatOptions` inside your `TenantAwareChatClient` factory instead (see the skill's [Multi-Tenant Per-Tenant Pinning](../ab-provider-config/SKILL.md#multi-tenant-per-tenant-pinning)).
+- **`ab-middleware-authoring`** — `IAgentTurnMiddleware` for per-tenant cost control and audit
+- **`ab-conversation-store`** — per-tenant `IConversationStore` implementations
+- **`ab-entity-design`** — EF Core entities for multitenant conversation storage

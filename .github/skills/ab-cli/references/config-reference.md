@@ -65,3 +65,5 @@ agentblazor analyze ./MySolution.slnx --host MyBlazorApp
 ```
 
 Avoid the LLM entirely: `agentblazor analyze ./MySolution.slnx --host MyBlazorApp --static-only`.
+
+> **Note (provider options after scaffold):** `agentblazor scaffold --provider openai` writes a baseline `options.UseOpenAI(apiKey, model)` block in `Program.cs`. That block is a plain provider registration — it does **not** include provider-level `ChatOptions` configuration. If your model family needs one (e.g. pinning `ReasoningEffort.None` for gpt-5.6-family tools), extend the scaffolded block manually with `options.ConfigureChatOptions(...)` (AgentBlazor 0.2.23+) — see the **`ab-provider-config` skill**. Scaffolding is append-only/non-destructive, so re-running `scaffold` after your manual edit is safe and inert.

@@ -119,6 +119,10 @@ Middlewares execute in registration order (first = outermost). See `ab-middlewar
 services.AddAgentBlazor(options =>
 {
     options.UseOpenAI(apiKey);
+    // Optional: pin provider-level ChatOptions (e.g. gpt-5.6-family tools need
+    // ReasoningEffort.None to avoid HTTP 400 reasoning_effort rejections) —
+    // see the ab-provider-config skill.
+    // options.ConfigureChatOptions(o => o.Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None });
     options.ConfigureBuilder(builder =>
     {
         // Standalone agent — has access to global service tools + components
@@ -150,3 +154,10 @@ Agent registrations are currently held in-memory only (`AgentRegistrationBuilder
 - Data schema references with foreign keys to schema registrations
 - Multitenancy considerations for per-tenant agent registrations
 - Migration strategy for evolving agent configurations alongside code changes
+
+## Related skills
+
+- **`ab-provider-config`** — provider-level `ChatOptions` configuration (`ConfigureChatOptions`), the seam that adjusts the transport options the agents' instructions/tools ride on
+- **`ab-capability-authoring`** — authoring `[AgentCapability]`/`[AgentAction]` classes for workflow agents
+- **`ab-tool-registration`** — global service/MCP tools and per-agent filtering
+- **`ab-cli`** — onboarding existing solutions with `agentblazor init`/`analyze`/`scaffold`
