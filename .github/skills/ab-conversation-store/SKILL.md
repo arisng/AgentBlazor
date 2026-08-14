@@ -1,6 +1,8 @@
 ---
 name: ab-conversation-store
-description: "Implement conversation history storage for AgentBlazor agents. Use when choosing between built-in InMemoryConversationStore, JsonFileConversationStore, or writing a custom durable implementation with EF Core + SQL Server (or any other database). Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, ConversationOptions, AppendTurnAsync, GetHistoryAsync, ClearSessionAsync, GetActiveSessionsAsync, SetUserIdAsync, GetSessionsForUserAsync, ConversationTurn, ConversationHistory, PersistAcrossRestarts, MaxTurnsPerSession, MaxHistoryInPrompt, SessionTimeout."
+description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; when enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore against SQL Server/Postgres; or when writing EF Core action-history entities and registrations. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, ConversationOptions, AppendTurnAsync, GetHistoryAsync, ClearSessionAsync, GetActiveSessionsAsync, SetUserIdAsync, GetSessionsForUserAsync, ConversationTurn, ConversationHistory, SessionTimeout, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, NullActionHistoryStore, UseProLicense, agent action persistence, persist actions, action history SQL."
+metadata:
+    version: 0.2.0
 ---
 
 # Conversation Store — AgentBlazor
@@ -74,16 +76,50 @@ builder.Services.Configure<ConversationOptions>(options =>
     options.MaxSessions = 10000;
     options.EnableAutoCleanup = true;
     options.CleanupInterval = TimeSpan.FromHours(1);
-    options.IncludeActionResultsInHistory = true;
+    options.IncludeActionResultsInHistory = true;   // declared in this version; verify it is consumed in your library version
     options.PersistAcrossRestarts = false;   // true for JsonFile
 });
 ```
+
+## Enable & persist agent actions to a database
+
+Turns are one thing; **actions** are a separate, dedicated persistence layer. After every turn, the runtime auto-records one `ActionHistoryEntry` per executed action (completed `SemanticCapability` / `UiAction` steps) through `IActionHistoryStore` — session id, user id, timestamp, user message, action id, agent id, JSON args, and result fields. Note: the current adapter records only completed/successful steps, so `Succeeded` is always `true` and `Duration`/`Route`/`ErrorMessage` are left null.
+
+### Option A — quick enable (Pro/Enterprise, SQLite file)
+
+```csharp
+options.UseProLicense(proLicenseKey, dataDirectory: "data");
+// → data/agentblazor-history.db, table `action_history` (durable, no code)
+```
+
+### Option B — shared SQL database (any tier)
+
+Implement `IActionHistoryStore` with EF Core + SQL Server/Postgres. **There is no `UseActionHistoryStore` builder method** — registration is raw DI and **order matters**:
+
+```csharp
+// BEFORE AddAgentBlazor() — first registration wins over the library's
+// TryAddSingleton<IActionHistoryStore, NullActionHistoryStore>():
+builder.Services.AddSingleton<IActionHistoryStore, EfCoreActionHistoryStore>();
+
+// ...or AFTER, using Replace:
+builder.Services.Replace(ServiceDescriptor.Singleton<IActionHistoryStore, EfCoreActionHistoryStore>());
+```
+
+Rules that make or break Option B:
+
+- **Singleton lifetime only** — the adapter (a Singleton) resolves the store from the root provider on first construction (typically at startup for hosted agents). A Scoped/Transient registration is resolved from the root: it **throws under `ValidateScopes` (Development)** or degrades to a root-lifetime instance (Production) — there is no silent Null fallback.
+- Use `IDbContextFactory<T>` so the Singleton never captures a scoped `DbContext`.
+- **Never throw** — the adapter catches and logs warnings; a failing store must not break the turn.
+- No FK to the session table — action history is append-only analytics that survives `ClearSessionAsync`.
+
+Full walkthrough — entity, DbContext, store, registration, migrations, multi-tenant isolation: [SQL action history](references/sql-action-history.md).
 
 ## Reference files
 
 - [InMemory store](references/in-memory.md) — implementation details, defaults, cleanup
 - [JsonFile store](references/json-file.md) — file format, load/save, atomic writes
 - [EF Core + SQL Server custom store](references/ef-core-sqlserver.md) — full implementation with entities, DbContext, migrations
+- [SQL action history](references/sql-action-history.md) — enable + persist agent actions (`IActionHistoryStore`) to SQL Server/Postgres, any tier
 - [Fresh-scope context bridging](references/fresh-scope-context-bridging.md) — seeding fresh AsyncLocal/circuit context into singleton stores/proxies (the BFF proxy rewrite path)
 
 ## Server-side UserId rule
@@ -96,6 +132,8 @@ The store API must **never trust a client-supplied UserId**. Resolve it server-s
 
 ## Usage-record model (ConversationId-keyed)
 
+> **Scope note:** this is the **BFF/API-layer usage contract** (e.g. Playground.Lifeline's `AgentUsageRecords`). The library's own `IUsageAnalyticsService` (`SqliteUsageAnalyticsService`) instead derives aggregates directly from the `action_history` table — these are two different things.
+
 LLM usage analytics are stored separately from conversation turns (`AgentUsageRecord`):
 
 - Keyed by the conversation **wire key** (`ConversationId`, the same opaque `"N"`-format GUID as the session) plus `TurnSequence` (per-turn GUID idempotency key); unique index on `(ConversationId, TurnSequence)`.
@@ -106,7 +144,7 @@ LLM usage analytics are stored separately from conversation turns (`AgentUsageRe
 
 When a BFF (e.g. `Playground.Lifeline`) wires AgentBlazor's paid store interfaces to its own backend via service proxies (`AgentChatActionHistoryBffStore`, `AgentChatAuditBffService`, `AgentChatUsageBffService`), the DI lifetime must **match how AgentBlazor resolves the interface** — decompile/verify rather than guess:
 
-- **`IActionHistoryStore` → Singleton.** `ChatClientRuntimeAdapter` registers it via `TryAddSingleton` and resolves it from the root provider at startup. A Scoped or Transient proxy registration is **overridden by the library's own `TryAddSingleton` Null-fallback** unless you register your proxy first (order matters — register proxies **before** `AddAgentBlazor()`).
+- **`IActionHistoryStore` → Singleton.** `AddAgentBlazor()` registers `TryAddSingleton<IActionHistoryStore, NullActionHistoryStore>()`; the adapter consumes it via constructor injection and resolves it from the root provider on first construction (typically startup). Register proxies **before** `AddAgentBlazor()` so `TryAdd` keeps yours; registering after requires `Replace`. A Scoped/Transient proxy registration is *not* ignored — it is resolved from the root and **throws under `ValidateScopes` (Development)** or degrades to a root-lifetime instance (Production).
 - **`IAuditLogService` / `IUsageAnalyticsService` → Scoped.** These are resolved per execution-scope, so per-request Scoped proxies are safe and are the correct lifetime.
 - **Graceful no-op contracts.** Every interface member must have a real or clearly-documented no-op implementation — the store must never break the agent turn (mirror the library's Null-store convention).
 
