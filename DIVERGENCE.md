@@ -21,6 +21,8 @@ on every sync. The smaller the surface, the cheaper the merge.
 | `src/AgentBlazor.Hosting/AgentBlazorRegistrationOptions.cs` | Adds fork-local `ConfigureChatOptions(Action<ChatOptions>)` provider hook (clone-first wrapper) fixing gpt-5.6-family 400 `reasoning_effort` tool rejections | Low — additive API on an existing file; upstream may touch the same class |
 | `tests/AgentBlazor.IntegrationTests/WireCapture/`, `ProviderWireCaptureTests.cs`, `ReasoningEffortOptionsTests.cs`, `Gpt56LiveReasoningTests.cs` | Fork-authored wire-capture harness + regression + opt-in live tests for the reasoning-effort fix | None (new files) |
 | `docs/releases/0.2.23-internal.1.md` | Fork release notes for `0.2.23-internal.1` (private build; ignored by `.gitignore` `[Rr]eleases/` — commit with `git add -f`) | None (new file) |
+| `scripts/publish-private-feed.ps1` | Fork-local private-feed publisher enforcing the per-version folder layout under `AGENTBLAZOR_LOCAL_FEED` (version folder = archive + exact-version source, root = flat mirror of current version) | None (new file) |
+| `docs/internal/private-feed-publishing.md` | Fork-local guide for the private feed layout, publishing, and consumption | None (new file) |
 | `Directory.Build.props` (`<Version>0.2.23-internal.1</Version>`) | Private-only semver suffix so upstream merge cannot collide with a future public `0.2.23` | Expected conflict on every sync — version line diverges from upstream |
 
 ## Local-only (never commit)
