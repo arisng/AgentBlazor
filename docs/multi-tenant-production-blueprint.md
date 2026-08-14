@@ -405,6 +405,8 @@ public sealed class TenantChatClientFactory : ITenantChatClientFactory
 
 AgentBlazor's `AgentBlazorRegistrationOptions.UseOpenAI()` / `UseOllama()` register a singleton `IChatClient`. For multi-tenancy, you need to bypass these and supply the runtime adapter directly, or use the `UseRuntimeAdapter<T>()` hook.
 
+> **Note (v0.2.23+):** `AgentBlazorRegistrationOptions.ConfigureChatOptions()` applies only to the singleton `IChatClient` registered by `UseOpenAI()` / `UseAzureOpenAI()` / `UseOllama()`. When you replace the client with a per-tenant proxy (as below), the hook is bypassed — pin `ChatOptions` per-tenant inside your factory instead. For example, GPT-5.6-family models reject function tools with HTTP 400 (`reasoning_effort`) unless effort is pinned: `o.Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None }` (requires `using Microsoft.Extensions.AI;`).
+
 ```csharp
 // In Program.cs — per-tenant provider registration
 builder.Services.AddScoped<ITenantChatClientFactory, TenantChatClientFactory>();
