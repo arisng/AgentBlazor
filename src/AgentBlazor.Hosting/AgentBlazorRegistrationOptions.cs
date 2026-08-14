@@ -10,6 +10,7 @@ using AgentBlazor.Core.Paid.Analytics;
 using AgentBlazor.Core.Paid.Audit;
 using AgentBlazor.Core.Paid.Suggestions;
 using Azure.Core;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -22,6 +23,7 @@ public sealed class AgentBlazorRegistrationOptions
     private Action<IServiceCollection>? _serviceRegistration;
     private Action<AgentBlazorOptions>? _optionsConfiguration;
     private Action<AgentBlazorBuilder>? _builderConfiguration;
+    private Action<Microsoft.Extensions.AI.ChatOptions>? _chatOptionsConfiguration;
     private readonly List<AgentServiceTool> _serviceTools = [];
     private readonly List<Func<IServiceCollection, IServiceCollection>> _mcpRegistrations = [];
     private readonly List<Func<AgentTurnContext, Func<CancellationToken, Task>, CancellationToken, Task>> _middlewares = [];
@@ -154,6 +156,29 @@ public sealed class AgentBlazorRegistrationOptions
     {
         ArgumentNullException.ThrowIfNull(configure);
         _optionsConfiguration += configure;
+    }
+
+    /// <summary>
+    /// Applies a configuration callback to the <see cref="Microsoft.Extensions.AI.ChatOptions"/>
+    /// sent to the registered chat provider on every request (streaming and non-streaming).
+    /// Repeated calls accumulate and run in registration order.
+    ///
+    /// This is the provider-level options hook — it applies to every consumer of the registered
+    /// <see cref="Microsoft.Extensions.AI.IChatClient"/>, including the agent runtime and the
+    /// paid suggestion/insight services. Use it to pin model-level options such as reasoning
+    /// effort, e.g. <c>o =&gt; o.Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None }</c>
+    /// for the GPT-5.6 model family, which rejects function tools on /v1/chat/completions unless
+    /// the request pins a non-default reasoning effort.
+    ///
+    /// Requires a provider or an <see cref="Microsoft.Extensions.AI.IChatClient"/> registered at
+    /// the time <see cref="ApplyProvider"/> runs (i.e. via UseOpenAI / UseAzureOpenAI / UseOllama /
+    /// AddOriginAI, or a pre-existing registration). Multitenant setups that replace the singleton
+    /// with a proxy should apply the options per-tenant inside their proxy construction instead.
+    /// </summary>
+    public void ConfigureChatOptions(Action<Microsoft.Extensions.AI.ChatOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _chatOptionsConfiguration += configure;
     }
 
     public void ConfigureBuilder(Action<AgentBlazorBuilder> configure)
@@ -295,6 +320,64 @@ public sealed class AgentBlazorRegistrationOptions
                 return new AgentMiddlewarePipeline(resolvedMiddlewares);
             }));
         }
+
+        if (_chatOptionsConfiguration is not null)
+        {
+            ApplyChatOptionsConfiguration(services);
+        }
+    }
+
+    private void ApplyChatOptionsConfiguration(IServiceCollection services)
+    {
+        var descriptor = services.LastOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.AI.IChatClient));
+        if (descriptor is null)
+        {
+            // Runtime-adapter-only or multitenant-proxy setups: no singleton IChatClient exists to wrap.
+            return;
+        }
+
+        var configure = _chatOptionsConfiguration ?? throw new InvalidOperationException(
+            "ConfigureChatOptions was invoked without a configuration delegate.");
+        services.Replace(ServiceDescriptor.Singleton<Microsoft.Extensions.AI.IChatClient>(sp =>
+        {
+            var inner = ResolveInnerChatClient(sp, descriptor);
+            // MEAI's ConfigureOptionsChatClient (10.4.0) invokes the callback with a per-request
+            // clone of the caller's options, so the pin lands on the wire without mutating the
+            // caller's ChatOptions instance (verified by the wire-capture regression suite).
+            return inner.AsBuilder()
+                .ConfigureOptions(o =>
+                {
+                    if (o is not null)
+                    {
+                        configure(o);
+                    }
+                })
+                .Build();
+        }));
+    }
+
+    private static Microsoft.Extensions.AI.IChatClient ResolveInnerChatClient(
+        IServiceProvider serviceProvider,
+        ServiceDescriptor descriptor)
+    {
+        if (descriptor.ImplementationFactory is not null)
+        {
+            return (Microsoft.Extensions.AI.IChatClient)descriptor.ImplementationFactory(serviceProvider);
+        }
+
+        if (descriptor.ImplementationInstance is not null)
+        {
+            return (Microsoft.Extensions.AI.IChatClient)descriptor.ImplementationInstance;
+        }
+
+        if (descriptor.ImplementationType is not null)
+        {
+            return (Microsoft.Extensions.AI.IChatClient)ActivatorUtilities.GetServiceOrCreateInstance(
+                serviceProvider,
+                descriptor.ImplementationType);
+        }
+
+        throw new InvalidOperationException("The registered IChatClient descriptor has no implementation to resolve.");
     }
 
     private AgentBlazorTier? _licensedTier;
