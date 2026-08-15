@@ -467,3 +467,4 @@ Current note:
 - Tier model: `docs/pricing-tiers.md`
 - Pro tier operations: `docs/pro-tier-operations.md`
 - Runtime realignment plan: `docs/runtime-realignment-plan.md`
+- Chat markdown rendering plan (2026-08-15): `docs/internal/markdown-rendering-plan-2026-08-15.md`

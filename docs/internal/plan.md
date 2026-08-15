@@ -1,8 +1,13 @@
 # AgentBlazor Plan (Living Document)
 
-Last updated: 2026-04-23
+Last updated: 2026-08-15
 Owner: AgentBlazor core team
 Status: Active working plan
+
+## Active Workstreams
+
+- Chat markdown rendering (Markdig + mermaid): plan and status tracker at
+  `docs/internal/markdown-rendering-plan-2026-08-15.md`.
 
 ## Current Status Snapshot
 
