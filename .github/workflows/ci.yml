@@ -49,6 +49,18 @@ jobs:
       - name: Build
         run: dotnet build AgentBlazor.slnx -c Release --no-restore -nologo
 
+      # The build auto-regenerates wwwroot/AgentBlazor.min.css from the compiled scoped
+      # CSS bundle. Fail if that regenerated file differs from what is committed, so the
+      # shipped stylesheet can never drift from the .razor.css sources.
+      - name: Verify AgentBlazor.min.css is committed fresh
+        shell: pwsh
+        run: |
+          git diff --exit-code -- src/AgentBlazor.Components/wwwroot/AgentBlazor.min.css
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::AgentBlazor.min.css regenerated during the build does not match the committed file. Run ./scripts/regenerate-min-css.ps1 and commit the result."
+            exit 1
+          }
+
       - name: Test
         run: dotnet test AgentBlazor.slnx -c Release --no-build -nologo
 
