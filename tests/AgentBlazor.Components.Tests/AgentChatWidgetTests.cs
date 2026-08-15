@@ -76,10 +76,15 @@ public sealed class AgentChatWidgetTests : TestContext
 
         var css = File.ReadAllText(cssPath);
 
-        Assert.Contains(
-            ".ab-chat-widget__window{opacity:0;visibility:hidden;pointer-events:none;",
-            css,
-            StringComparison.Ordinal);
+        // AgentBlazor.min.css is generated from the compiled scoped-CSS bundle (see
+        // scripts/regenerate-min-css.ps1), so declaration order is not part of the
+        // contract. Extract the bare .ab-chat-widget__window rule (a selector that
+        // starts at a rule boundary, not the descendant/glass variants) and assert the
+        // closed-state declarations live in it.
+        var windowRule = FindBareSelectorRule(css, ".ab-chat-widget__window{");
+        Assert.NotNull(windowRule);
+        Assert.Contains("opacity:0;visibility:hidden;pointer-events:none;", windowRule, StringComparison.Ordinal);
+
         Assert.Contains(
             ".ab-chat-widget--open .ab-chat-widget__window{opacity:1;visibility:visible;pointer-events:auto;",
             css,
@@ -88,6 +93,24 @@ public sealed class AgentChatWidgetTests : TestContext
             ".ab-chat-widget--open .ab-chat-widget__bubble{opacity:0;visibility:hidden;pointer-events:none;",
             css,
             StringComparison.Ordinal);
+    }
+
+    private static string? FindBareSelectorRule(string css, string selector)
+    {
+        var index = 0;
+        while ((index = css.IndexOf(selector, index, StringComparison.Ordinal)) >= 0)
+        {
+            var previous = index > 0 ? css[index - 1] : '\0';
+            if (previous is '}' or '{' or ';' or '\0')
+            {
+                var end = css.IndexOf('}', index);
+                return css.Substring(index, end - index);
+            }
+
+            index += selector.Length;
+        }
+
+        return null;
     }
 
     [Fact]
