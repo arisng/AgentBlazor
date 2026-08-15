@@ -67,7 +67,9 @@ public partial class AgentMarkdownContent : ComponentBase
                 {
                     enableMermaid = options?.EnableMermaid ?? true,
                     enableSyntaxHighlighting = options?.EnableSyntaxHighlighting ?? true,
+                    enableCodeCopy = options?.EnableCodeCopy ?? true,
                     mermaidScriptUrl = options?.MermaidScriptUrl,
+                    nomnomlScriptUrl = options?.NomnomlScriptUrl,
                     highlightScriptUrl = options?.HighlightScriptUrl,
                     // Stable hash of the markdown SOURCE (not the rendered DOM,
                     // which is mutated by enhancement). The client guard uses it

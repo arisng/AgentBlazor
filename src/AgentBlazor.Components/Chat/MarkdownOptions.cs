@@ -19,11 +19,24 @@ public sealed class MarkdownOptions
     public string? MermaidScriptUrl { get; set; }
 
     /// <summary>
+    /// Override URL for the nomnoml script (renders <c>.nomnoml</c> fences,
+    /// gated by <see cref="EnableMermaid"/>). Defaults to the cdnjs UMD build
+    /// (nomnoml 1.7.0 nomnoml.min.js). Leave null to use the default.
+    /// </summary>
+    public string? NomnomlScriptUrl { get; set; }
+
+    /// <summary>
     /// Override URL for the highlight.js script. Defaults to the cdnjs UMD
     /// build (highlight.js 11.11.1 highlight.min.js, all languages). Leave
     /// null to use the default.
     /// </summary>
     public string? HighlightScriptUrl { get; set; }
+
+    /// <summary>
+    /// Add a copy button to fenced code blocks (client pass, uses
+    /// <c>navigator.clipboard</c> with an execCommand fallback). Default true.
+    /// </summary>
+    public bool EnableCodeCopy { get; set; } = true;
 
     /// <summary>
     /// Sanitize rendered HTML with the allowlist sanitizer. Default true.

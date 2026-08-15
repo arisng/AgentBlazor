@@ -51,13 +51,15 @@
 }
 
 /* Code-block panel: highlighted blocks get `language-*` classes from the
-   Phase 3 client pass; the panel itself is styled here. */
+   Phase 3 client pass; the panel itself is styled here. Position:relative so
+   the Phase 4 copy button can anchor to the panel's top-right corner. */
 .ab-chat-surface__item-text--markdown ::deep pre {
     background: var(--ab-chat-bg-subtle, #f1f5f9);
     border: 1px solid var(--ab-chat-border, #e2e8f0);
     border-radius: var(--ab-chat-radius-sm, 8px);
     margin: 0.5em 0;
     overflow-x: auto;
+    position: relative;
 }
 
 .ab-chat-surface__item-text--markdown ::deep pre > code {
@@ -67,6 +69,54 @@
     border-radius: 0;
     font-size: 0.875em;
     line-height: 1.55;
+}
+
+/* Copy button (Phase 4 client pass). Ghost button anchored to the panel
+   corner; never intercepts text selection. The [data-copied] state is set by
+   the JS for ~1.6s after a successful copy. */
+.ab-chat-surface__item-text--markdown ::deep .ab-copy-btn {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    z-index: 1;
+    font: 500 0.6875rem/1 var(--ab-chat-font, inherit);
+    font-family: var(--ab-chat-font, ui-sans-serif, system-ui, sans-serif);
+    color: var(--ab-chat-text-muted, #64748b);
+    background: color-mix(in srgb, var(--ab-chat-bg, #ffffff) 82%, transparent);
+    border: 1px solid var(--ab-chat-border, #e2e8f0);
+    border-radius: var(--ab-chat-radius-sm, 6px);
+    padding: 0.3rem 0.55rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.ab-chat-surface__item-text--markdown ::deep pre:hover .ab-copy-btn,
+.ab-chat-surface__item-text--markdown ::deep .ab-copy-btn:focus-visible,
+.ab-chat-surface__item-text--markdown ::deep .ab-copy-btn[data-copied="true"] {
+    opacity: 1;
+}
+
+.ab-chat-surface__item-text--markdown ::deep .ab-copy-btn:hover {
+    color: var(--ab-chat-accent, #3b82f6);
+    border-color: var(--ab-chat-accent, #3b82f6);
+}
+
+.ab-chat-surface__item-text--markdown ::deep .ab-copy-btn[data-copied="true"] {
+    color: #16a34a;
+    border-color: #16a34a;
+}
+
+.ab-chat-surface__item-text--markdown ::deep .ab-copy-btn:focus-visible {
+    outline: 2px solid var(--ab-chat-accent, #3b82f6);
+    outline-offset: 1px;
+}
+
+@media (hover: none) {
+    /* Touch: buttons are invisible until hover, so keep them always visible. */
+    .ab-chat-surface__item-text--markdown ::deep .ab-copy-btn {
+        opacity: 1;
+    }
 }
 
 .ab-chat-surface__item-text--markdown ::deep blockquote {
