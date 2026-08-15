@@ -5,7 +5,6 @@
 @using AgentBlazor.Core.Models
 @using AgentBlazor.Core.Paid
 @using AgentBlazor.Options
-@using Markdig
 @implements IDisposable
 @using AgentBlazor.Core.Runtime.Agents
 @using AgentBlazor.Core.Runtime.Components
@@ -108,7 +107,7 @@
                     </div>
                     @if (item.Role == "assistant" || item.IsProactive)
                     {
-                        <div class="ab-chat-surface__item-text ab-chat-surface__item-text--markdown">@RenderMarkdown(item.Text)</div>
+                        <AgentMarkdownContent Content="@item.Text" Enhance />
                     }
                     else
                     {
@@ -225,7 +224,7 @@
                     }
                     @if (!string.IsNullOrWhiteSpace(_streamingResponseText))
                     {
-                        <div class="ab-chat-surface__item-text ab-chat-surface__item-text--markdown">@RenderMarkdown(_streamingResponseText)</div>
+                        <AgentMarkdownContent Content="@_streamingResponseText" />
                     }
                 </article>
             }
@@ -471,15 +470,9 @@
 </ErrorBoundary>
 
 @code {
-    private static readonly MarkdownPipeline _mdPipeline =
-        new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
     private static readonly IReadOnlyDictionary<string, object?> EmptyActionArgs =
         new Dictionary<string, object?>();
     private static readonly string[] AgentRouteMetadataKeys = ["route", "routes", "route_prefix", "route_prefixes"];
-
-    private static MarkupString RenderMarkdown(string? text) =>
-        new(string.IsNullOrWhiteSpace(text) ? string.Empty :
-            Markdown.ToHtml(text ?? string.Empty, _mdPipeline));
 
     private ErrorBoundary? _errorBoundary;
 
