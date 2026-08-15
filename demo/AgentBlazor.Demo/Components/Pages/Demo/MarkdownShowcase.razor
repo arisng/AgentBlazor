@@ -1,0 +1,166 @@
+@page "/demo/markdown-showcase"
+@layout DemoLayout
+@using AgentBlazor.Components
+@using AgentBlazor.Components.Chat
+@using MudBlazor
+
+<PageTitle>Markdown Showcase — AgentBlazor</PageTitle>
+
+<section class="md-showcase">
+    <header class="md-showcase__hero">
+        <p class="wf-shell__eyebrow">Chat markdown</p>
+        <h1>Markdown rendering showcase</h1>
+        <p>
+            Everything the agent timeline renders through
+            <code>AgentMarkdownContent</code> + the client enhance pass:
+            mermaid diagrams, syntax-highlighted code with copy buttons,
+            GitHub-style alerts, task lists, and tables.
+        </p>
+    </header>
+
+    <div class="md-showcase__row">
+        <article class="md-showcase__card md-showcase__card--chat" data-theme="dark">
+            <h2 class="md-showcase__card-title">Rendered output</h2>
+            <div class="md-showcase__bubble">
+                <AgentMarkdownContent Content="@ShowcaseMarkdown" Enhance />
+            </div>
+        </article>
+
+        <details class="md-showcase__card md-showcase__card--source">
+            <summary>Markdown source</summary>
+            <pre class="md-showcase__source"><code>@ShowcaseMarkdown</code></pre>
+        </details>
+    </div>
+</section>
+
+@code {
+    // Exercised features: headings, emphasis, links, blockquote, lists,
+    // task list, table, alerts, fenced code (highlighted + copy button),
+    // mermaid + nomnoml diagrams, hr.
+    private const string ShowcaseMarkdown = """
+        # Heading 1
+
+        ## Heading 2
+
+        ### Heading 3
+
+        Support for **bold**, *italic*, ~~strikethrough~~, `inline code`, and
+        [links](https://agentblazor.com). This text exercises the sanitizer:
+        any raw HTML an agent tries to inject (`<script>` tags, `javascript:`
+        URLs, `data:` images, event handlers) is stripped before render.
+
+        > Blockquote: "the timeline renders sanitized markdown, never raw
+        > model HTML."
+
+        ## Lists
+
+        - Unordered item
+        - Nested
+          - Deeper
+        - Another
+
+        1. Ordered item
+        2. Second item
+
+        ## Task list
+
+        - [x] Sanitized rendering shipped
+        - [x] Mermaid diagrams render client-side
+        - [x] Syntax highlighting + copy buttons
+        - [ ] KaTeX math (deferred)
+
+        ## Table
+
+        | Feature | Status | Notes |
+        | --- | --- | --- |
+        | Markdig pipeline | ✅ | `UseAdvancedExtensions().DisableHtml()` |
+        | Sanitizer | ✅ | allowlist, strips `data:`/`javascript:`/events |
+        | Mermaid | ✅ | lazy UMD load, `securityLevel: strict` |
+        | Copy button | ✅ | `navigator.clipboard` + fallback |
+
+        ## Alerts
+
+        > [!NOTE]
+        > Useful information that users should know, even when skimming.
+
+        > [!TIP]
+        > Helpful advice for doing things better or more easily.
+
+        > [!IMPORTANT]
+        > Key information users need to know to achieve their goal.
+
+        > [!WARNING]
+        > Urgent info that needs immediate user attention to avoid problems.
+
+        > [!CAUTION]
+        > Advises about risks or negative outcomes.
+
+        ## Code
+
+        ```csharp
+        public sealed class MarkdownOptions
+        {
+            public bool EnableMermaid { get; set; } = true;
+            public bool EnableSyntaxHighlighting { get; set; } = true;
+            public bool EnableCodeCopy { get; set; } = true;
+            public bool Sanitize { get; set; } = true;
+        }
+        ```
+
+        ```javascript
+        const agent = await AgentBlazor.markdown.enhance(container, {
+          sourceHash: hashOf(markdownSource),
+          enableMermaid: true,
+        });
+        // Returns a promise so you can re-request scrollToBottom.
+        ```
+
+        ```bash
+        dotnet add package AgentBlazor
+        npm run test:markdown-enhance   # 7 e2e checks
+        ```
+
+        ```json
+        {
+          "pipeline": "Markdig + AngleSharp allowlist",
+          "client": "mermaid@11 + highlight.js 11.11.1",
+          "delivery": "lazy script-tag UMD (no dynamic import)"
+        }
+        ```
+
+        ## Mermaid
+
+        ```mermaid
+        graph TD
+            A[Markdown source] --> B[Markdig pipeline]
+            B --> C[Allowlist sanitizer]
+            C --> D[MarkupString]
+            D --> E{Enhance?}
+            E -- yes --> F[Mermaid + highlight.js + copy]
+            E -- no --> G[Streaming bubble, plain]
+        ```
+
+        ```mermaid
+        sequenceDiagram
+            participant U as User
+            participant S as ChatSurface
+            participant J as JS enhance
+            U->>S: send prompt
+            S->>J: enhance call
+            J-->>S: promise
+        ```
+
+        ## Nomnoml
+
+        ```nomnoml
+        [AgentBlazor] -> [ChatSurface]
+        [AgentBlazor] -> [MarkdownOptions]
+        [ChatSurface] -> [AgentMarkdownContent]
+        ```
+
+        ---
+
+        That's the full tour. Code blocks get a **Copy** button on hover —
+        try it above.
+        """;
+}
