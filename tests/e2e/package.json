@@ -10,6 +10,7 @@
     "install:browsers": "playwright install --with-deps chromium",
     "test:real-usability": "node ./scripts/real-usability-runner.cjs",
     "test:markdown-enhance": "playwright test --config=markdown-enhance.config.cjs",
+    "test:markdown-demo": "playwright test --config=markdown-demo.config.cjs",
     "test:paid-dashboard": "node ./scripts/paid-dashboard-runner.cjs",
     "test:external-chat-widget": "node ./scripts/external-chat-widget-runner.cjs",
     "test:external-chat-surfaces": "node ./scripts/external-chat-widget-runner.cjs",

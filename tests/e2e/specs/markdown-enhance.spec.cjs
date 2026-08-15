@@ -102,6 +102,7 @@ test.describe("AgentBlazor.markdown.enhance", () => {
         sourceHash: "off",
         enableMermaid: false,
         enableSyntaxHighlighting: false,
+        enableCodeCopy: false,
       });
       return {
         ok,
@@ -113,5 +114,151 @@ test.describe("AgentBlazor.markdown.enhance", () => {
     expect(result.ok).toBe(false);
     expect(result.svg).toBe(0);
     expect(result.spans).toBe(0);
+  });
+
+  test("renders nomnoml fences to SVG with a11y", async ({ page }) => {
+    await page.setContent(`<html><body><div id="container">
+      <div class="nomnoml">[AgentBlazor] -&gt; [ChatSurface]</div>
+    </div></body></html>`);
+    await page.addScriptTag({ path: MIN_JS });
+
+    const result = await page.evaluate(async () => {
+      const c = document.getElementById("container");
+      const ok = await window.AgentBlazor.markdown.enhance(c, { sourceHash: "nn1" });
+      const svg = c.querySelector(".nomnoml svg");
+      return {
+        ok,
+        svg: svg !== null,
+        role: svg?.getAttribute("role") || null,
+        aria: svg?.getAttribute("aria-label") || null,
+        processed: c.getAttribute("data-ab-processed"),
+      };
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.svg).toBe(true);
+    expect(result.role).toBe("img");
+    expect(result.aria).toContain("nomnoml");
+    expect(result.processed).toBe("nn1");
+  });
+
+  test("wires copy buttons on code blocks and copies code to clipboard", async ({ page }) => {
+    await page.setContent(`<html><body><div id="container">
+      <pre><code class="language-csharp">int answer = 42;</code></pre>
+    </div></body></html>`);
+    // about:blank is not a secure context, so navigator.clipboard does not
+    // exist — shim it to capture what our wiring hands to writeText.
+    // (page.setContent is not a navigation, so addInitScript would not run.)
+    await page.evaluate(() => {
+      Object.defineProperty(window.navigator, "clipboard", {
+        value: {
+          writeText: (t) => {
+            window.__abCopied = t;
+            return Promise.resolve();
+          },
+        },
+        configurable: true,
+      });
+    });
+    await page.addScriptTag({ path: MIN_JS });
+
+    const wired = await page.evaluate(async () => {
+      const c = document.getElementById("container");
+      await window.AgentBlazor.markdown.enhance(c, { sourceHash: "copy1" });
+      return {
+        buttons: c.querySelectorAll(".ab-copy-btn").length,
+        label: c.querySelector(".ab-copy-btn")?.getAttribute("aria-label") || null,
+      };
+    });
+    expect(wired.buttons).toBe(1);
+    expect(wired.label).toBe("Copy code");
+
+    await page.click("#container .ab-copy-btn");
+    // Button flashes "Copied!" with data-copied for ~1.6s.
+    await expect(page.locator("#container .ab-copy-btn")).toHaveText("Copied!");
+    await expect(page.locator("#container .ab-copy-btn")).toHaveAttribute("data-copied", "true");
+
+    const copied = await page.evaluate(() => window.__abCopied);
+    expect(copied.trim()).toBe("int answer = 42;");
+  });
+
+  test("enableCodeCopy=false does not wire copy buttons", async ({ page }) => {
+    await page.setContent(`<html><body><div id="container">
+      <pre><code class="language-js">const x = 1;</code></pre>
+    </div></body></html>`);
+    await page.addScriptTag({ path: MIN_JS });
+
+    const result = await page.evaluate(async () => {
+      const c = document.getElementById("container");
+      await window.AgentBlazor.markdown.enhance(c, { sourceHash: "nocc", enableCodeCopy: false });
+      return c.querySelectorAll(".ab-copy-btn").length;
+    });
+    expect(result).toBe(0);
+  });
+
+  test("Markdig-style pre.mermaid renders and never gets a copy button", async ({ page }) => {
+    // Markdig UseDiagrams emits <pre class="mermaid"> (verified on the live
+    // demo page). The copy-button pass must skip diagram containers — wiring
+    // one appends "Copy" to the diagram source and mermaid's parse fails.
+    await page.setContent(`<html><body><div id="container">
+      <pre class="mermaid">graph TD&#10;    A[Markdown source] --> B[Markdig pipeline]&#10;    B --> C[Allowlist sanitizer]&#10;    C --> D[MarkupString]&#10;    D --> E{Enhance?}</pre>
+      <pre><code class="language-csharp">int x = 1;</code></pre>
+    </div></body></html>`);
+    await page.addScriptTag({ path: MIN_JS });
+
+    const result = await page.evaluate(async () => {
+      const c = document.getElementById("container");
+      const ok = await window.AgentBlazor.markdown.enhance(c, { sourceHash: "pre-md" });
+      return {
+        ok,
+        svg: c.querySelectorAll(".mermaid svg").length,
+        mermaidButtons: c.querySelectorAll("pre.mermaid .ab-copy-btn").length,
+        codeButtons: c.querySelectorAll('pre:not(.mermaid) .ab-copy-btn').length,
+      };
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.svg).toBe(1); // diagram renders (source uncorrupted)
+    expect(result.mermaidButtons).toBe(0); // no copy button on diagrams
+    expect(result.codeButtons).toBe(1); // real code blocks still get one
+  });
+
+  test("fallback hash ignores copy buttons: re-enhance without sourceHash stays idempotent", async ({ page }) => {
+    // The copy button mutates the DOM, so the no-sourceHash fallback must
+    // exclude it from the hash — otherwise the second call re-enhances and
+    // duplicates buttons/diagrams.
+    await page.setContent(`<html><body><div id="container">
+      <div class="mermaid">graph TD&#10;A --> B</div>
+      <pre><code class="language-csharp">void X() { }</code></pre>
+    </div></body></html>`);
+    await page.addScriptTag({ path: MIN_JS });
+
+    const first = await page.evaluate(async () => {
+      const c = document.getElementById("container");
+      const ok = await window.AgentBlazor.markdown.enhance(c, {});
+      return {
+        ok,
+        svg: c.querySelectorAll(".mermaid svg").length,
+        buttons: c.querySelectorAll(".ab-copy-btn").length,
+        processed: c.getAttribute("data-ab-processed"),
+      };
+    });
+    expect(first.ok).toBe(true);
+    expect(first.svg).toBe(1);
+    expect(first.buttons).toBe(1);
+
+    const second = await page.evaluate(async () => {
+      const c = document.getElementById("container");
+      const ok = await window.AgentBlazor.markdown.enhance(c, {});
+      return {
+        ok,
+        svg: c.querySelectorAll(".mermaid svg").length,
+        buttons: c.querySelectorAll(".ab-copy-btn").length,
+        processed: c.getAttribute("data-ab-processed"),
+      };
+    });
+    expect(second.ok).toBe(false); // guard short-circuits (hash is stable)
+    expect(second.svg).toBe(1); // no double render
+    expect(second.buttons).toBe(1); // no duplicate buttons
   });
 });
