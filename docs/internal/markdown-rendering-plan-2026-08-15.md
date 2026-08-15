@@ -2,7 +2,7 @@
 
 Created: 2026-08-15
 Owner: AgentBlazor core team
-Status: Approved plan — Phase 1 (Foundation) implemented
+Status: Approved plan — Phase 1 (Foundation) + Phase 2 (Component + wiring) implemented
 Last updated: 2026-08-15
 
 ## Summary
@@ -171,26 +171,36 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 
 ### Phase 2 — Component + wiring (depends on Phase 1)
 
-6. New `src/AgentBlazor.Components/Chat/AgentMarkdownContent.razor`
-   (+ `.razor.css`, code-behind): params `Content`, `Enhance`, optional `Class`;
-   `OnAfterRenderAsync` invokes `AgentBlazor.markdown.enhance(element, options)`
-   in try/catch **only when `Enhance=true`**.
-7. `AgentChatSurface.razor`:
-   - timeline items (line ~80) → `<AgentMarkdownContent Content="@item.Text" Enhance />`,
-   - streaming bubble (lines 226–228) → `<AgentMarkdownContent Content="@_streamingResponseText" />`
+6. ✅ New `src/AgentBlazor.Components/Chat/AgentMarkdownContent.razor`
+   (+ `.razor.css`, code-behind `AgentMarkdownContent.razor.cs`): params
+   `Content`, `Enhance`, optional `Class`; `OnAfterRenderAsync` invokes
+   `AgentBlazor.markdown.enhance(element, options)` in try/catch **only when
+   `Enhance=true`**. Server-side idempotency guard (`_lastEnhancedContent`)
+   guarantees exactly one enhance call per distinct Content value even when
+   the parent re-renders (mirrors the Phase 3 client content-hash guard).
+   Wrapper classes unchanged (`ab-chat-surface__item-text
+   ab-chat-surface__item-text--markdown`) for back-compat with e2e selectors.
+7. ✅ `AgentChatSurface.razor`:
+   - timeline items → `<AgentMarkdownContent Content="@item.Text" Enhance />`,
+   - streaming bubble → `<AgentMarkdownContent Content="@_streamingResponseText" />`
      (no enhance → no diagram/highlight thrash mid-stream; final message is a
      timeline item, so diagrams render once at the end),
-   - delete old `_mdPipeline` / `RenderMarkdown` (lines 476–482).
-8. **Greenfield** CSS in `AgentMarkdownContent.razor.css` with `::deep`
+   - deleted old `_mdPipeline` / `RenderMarkdown` and `@using Markdig`.
+8. ✅ **Greenfield** CSS in `AgentMarkdownContent.razor.css` with `::deep`
    (e.g. `.ab-chat-surface__item-text--markdown ::deep h1`): refined headings,
-   code-block panel with language label, tables, blockquote, task-list
-   checkboxes, `.mermaid` centering + `overflow-x: auto`, alert blocks,
-   links/hr/images — all consuming `--ab-chat-*` tokens, respecting
-   `prefers-reduced-motion`. Wrapper class unchanged for back-compat. Visual
-   smoke check required (no unit test asserts CSS application).
-9. bunit tests `AgentMarkdownContentTests.cs`: sanitized `MarkupString` renders;
-   JS invoked when `Enhance=true`, not when false; **exactly one** enhance
-   invocation per final message (`JSInterop.Mode = Loose`, `WaitForAssertion`).
+   code-block panel, tables, blockquote, task-list checkboxes (`:has(:checked)`
+   strikethrough), GitHub-style alerts (note/tip/important/warning/caution),
+   `.mermaid`/`.nomnoml` centering + `overflow-x: auto`, links/hr/images —
+   all consuming `--ab-chat-*` tokens with fallbacks, respecting
+   `prefers-reduced-motion`. Code-block **language label** deferred to the
+   Phase 3 client pass (CSS can't cleanly strip the `language-` prefix).
+   The dead markdown block in `AgentChatSurface.razor.css` was deleted.
+   Visual smoke check required (no unit test asserts CSS application).
+9. ✅ bunit tests `AgentMarkdownContentTests.cs` (10 tests): sanitized
+   `MarkupString` renders (headings/bold, mermaid div, script escaped); JS
+   invoked when `Enhance=true` exactly once, not when false; same-content
+   re-render does not re-enhance; content change enhances again;
+   Strict-mode missing JS swallowed without crash; `Class` param applied.
 
 ### Phase 3 — Client enhancement (depends on Phase 2)
 
@@ -285,7 +295,7 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 - `Directory.Packages.props`, `src/AgentBlazor.Components/AgentBlazor.Components.csproj`
 - New: `src/AgentBlazor.Components/Markdown/AgentMarkdownRendering.cs` (+
   `AgentHtmlSanitizer.cs`), `src/AgentBlazor.Components/Chat/AgentMarkdownContent.razor`
-  (+ `.razor.css`), tests under `tests/AgentBlazor.Components.Tests/`
+  (+ `.razor.css`, + `.razor.cs`), tests under `tests/AgentBlazor.Components.Tests/`
 - All `**/packages.lock.json` (regenerate in Phase 1)
 
 ## Follow-up Status Tracker
@@ -293,7 +303,7 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 | Phase | Status | Started | Completed | Notes |
 |---|---|---|---|---|
 | 1 — Foundation | ✅ completed | 2026-08-15 | 2026-08-15 | Markdig 1.3.2, AngleSharp 1.2.0 sanitizer (see deviation, step 2), renderer, 17 unit tests, lock files regenerated |
-| 2 — Component + wiring | not started | | | AgentMarkdownContent, `::deep` CSS, surface wiring |
+| 2 — Component + wiring | ✅ completed | 2026-08-15 | 2026-08-15 | AgentMarkdownContent (+code-behind), `::deep` CSS, surface wiring, 10 bunit tests, dead CSS removed |
 | 3 — Client enhancement | not started | | | mermaid/hljs lazy pass, MarkdownOptions |
 | 4 — Polish | not started | | | copy button, demo page, e2e, release notes |
 
