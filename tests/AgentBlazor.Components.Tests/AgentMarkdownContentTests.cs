@@ -178,6 +178,53 @@ public sealed class AgentMarkdownContentTests : TestContext
     }
 
     [Fact]
+    public void MarkdownOptions_NomnomlScriptUrl_SerializedIntoEnhanceCall()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "**bold**")
+            .Add(static component => component.Enhance, true)
+            .Add(static component => component.MarkdownOptions, new MarkdownOptions
+            {
+                NomnomlScriptUrl = "https://example.com/nomnoml.js",
+            }));
+
+        var args = JSInterop.Invocations["AgentBlazor.markdown.enhance"][0].Arguments;
+        var json = JsonSerializer.Serialize(args[1]);
+        Assert.Contains("https://example.com/nomnoml.js", json);
+    }
+
+    [Fact]
+    public void MarkdownOptions_EnableCodeCopyDefaultTrue_SerializedIntoEnhanceCall()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "**bold**")
+            .Add(static component => component.Enhance, true));
+
+        var args = JSInterop.Invocations["AgentBlazor.markdown.enhance"][0].Arguments;
+        var json = JsonSerializer.Serialize(args[1]);
+        Assert.Contains("\"enableCodeCopy\":true", json);
+    }
+
+    [Fact]
+    public void MarkdownOptions_EnableCodeCopyFalse_SerializedIntoEnhanceCall()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "**bold**")
+            .Add(static component => component.Enhance, true)
+            .Add(static component => component.MarkdownOptions, new MarkdownOptions { EnableCodeCopy = false }));
+
+        var args = JSInterop.Invocations["AgentBlazor.markdown.enhance"][0].Arguments;
+        var json = JsonSerializer.Serialize(args[1]);
+        Assert.Contains("\"enableCodeCopy\":false", json);
+    }
+
+    [Fact]
     public void MarkdownOptions_SanitizeTrue_Default_StripsMarkdigIdAndStyle()
     {
         // {style=...} parses via generic attributes; auto-identifiers inject
