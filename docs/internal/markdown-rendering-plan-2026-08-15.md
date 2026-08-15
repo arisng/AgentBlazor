@@ -358,6 +358,18 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
   (+ `.razor.css`, + `.razor.cs`), `src/AgentBlazor.Components/Chat/MarkdownOptions.cs`,
   tests under `tests/AgentBlazor.Components.Tests/`, e2e under
   `tests/e2e/specs/markdown-enhance.spec.cjs` + `markdown-enhance.config.cjs`,
+
+## Related Follow-up
+
+- **2026-08-15 — shipped `AgentBlazor.min.css` regeneration pipeline** (postmortem
+  + lesson learned): [min-css-regeneration-2026-08-15.md](min-css-regeneration-2026-08-15.md).
+  The un-scoped stylesheet shipped via `AgentBlazorAssetPaths.Css` had fossilized
+  (literal `#1f2933`, missing ~12 component families). Now auto-regenerated from
+  the compiled scoped-CSS bundle on every build (MSBuild hook before
+  fingerprinting), with a CI freshness gate and a hardened, order-independent
+  `PackagedCss` test. The `ab-chat-surface__item-text` /
+  `ab-chat-surface__item-text--markdown` back-compat classes (finding #4, e2e
+  selectors) are preserved — they come from the markup, not the stylesheet.
   `tests/e2e/specs/markdown-demo.spec.cjs` + `markdown-demo.config.cjs`
 - New (Phase 4): `demo/AgentBlazor.Demo/Components/Pages/Demo/MarkdownShowcase.razor`
   (+ `.razor.css`), `docs/releases/0.2.24-internal.1.md`
