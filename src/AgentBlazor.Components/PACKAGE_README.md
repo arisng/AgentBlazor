@@ -86,10 +86,48 @@ public sealed class SupportInboxCapabilities
 </AgentBlazorShell>
 ```
 
+## Markdown rendering in chat
+
+Assistant and proactive timeline messages render full markdown with a hard
+security boundary:
+
+1. **Server-side Markdig pipeline** (`UseAdvancedExtensions().DisableHtml()`)
+   — CommonMark 0.31.2, tables, task lists, GitHub-style alerts, math, and
+   mermaid/nomnoml diagram fences. Raw model-authored HTML is escaped, never
+   executed.
+2. **Allowlist sanitizer** — strips everything outside a safe tag/attribute
+   allowlist: `iframe`, `style`/`id`/event attributes, `data:` and
+   `javascript:` URLs are removed (defense-in-depth behind `DisableHtml()`).
+   Set `MarkdownOptions.Sanitize = false` to opt out (raw model HTML is still
+   escaped).
+3. **Client enhance pass** — on final messages only, `AgentBlazor.markdown`
+   lazily loads mermaid and highlight.js (UMD script tags, loaded at most
+   once) to render diagram fences to SVG and syntax-highlight fenced code.
+   Idempotent across Blazor re-diffs via a content-hash guard; broken
+   diagrams degrade to their raw source text.
+
+Pass options through `AgentChatSurface` / `AgentChatWidget` /
+`AgentChatPanel`:
+
+```razor
+<AgentChatWidget MarkdownOptions="@new MarkdownOptions {
+    EnableMermaid = true,          // mermaid + nomnoml fences → SVG
+    EnableSyntaxHighlighting = true, // fenced code via highlight.js
+    EnableCodeCopy = true,         // Copy button on code blocks
+    Sanitize = true,               // allowlist sanitizer on rendered HTML
+    // MermaidScriptUrl / NomnomlScriptUrl / HighlightScriptUrl:
+    // override the CDN defaults (self-hosted fallback).
+}" />
+```
+
+Diagrams follow the chat surface `data-theme` (dark → mermaid `dark` theme).
+The copy button uses `navigator.clipboard` with an `execCommand` fallback.
+
 Docs and demo:
 
 - Repository: https://github.com/ashpeterson/AgentBlazor
 - Hosted demo: https://demo.agentblazor.com/demo/workflows/support-inbox
+- Markdown showcase: https://demo.agentblazor.com/demo/markdown-showcase
 - Structured error reference: https://demo.agentblazor.com/demo/workflows/runtime-probe
 - Quickstart: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/quickstart.md
 - 0.2.5 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.5.md
