@@ -53,4 +53,29 @@
     </ItemGroup>
   </Target>
 
+  <!--
+    Regenerate wwwroot/AgentBlazor.min.css from the Razor SDK's compiled scoped-CSS
+    bundle (obj/&lt;tfm&gt;/scopedcss/bundle/AgentBlazor.styles.css) on every build so the
+    shipped stylesheet can never drift from the component .razor.css sources again.
+
+    Hooks after BundleScopedCssFiles (which produces the bundle) and before
+    GenerateStaticWebAssetsManifest / pack manifest generation, so the regenerated file
+    is fingerprinted and packed with fresh content. The script skips the write when the
+    content is unchanged, keeping fingerprints and build timestamps stable.
+
+    Run scripts/regenerate-min-css.ps1 manually (and commit the result) after editing a
+    .razor.css file. See that script for the full contract.
+  -->
+  <PropertyGroup>
+    <CssGenPsExe Condition="'$(CssGenPsExe)' == '' and '$(OS)' == 'Windows_NT'">powershell.exe</CssGenPsExe>
+    <CssGenPsExe Condition="'$(CssGenPsExe)' == ''">pwsh</CssGenPsExe>
+  </PropertyGroup>
+
+  <Target Name="RegenerateAgentBlazorMinCss"
+          AfterTargets="BundleScopedCssFiles"
+          BeforeTargets="GenerateStaticWebAssetsManifest"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(DisableScopedCssBundling)' != 'true' and Exists('$(_ScopedCssOutputPath)')">
+    <Exec Command="&quot;$(CssGenPsExe)&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\regenerate-min-css.ps1&quot; -ScopedBundle &quot;$(_ScopedCssOutputPath)&quot; -OutputFile &quot;$(MSBuildProjectDirectory)\wwwroot\AgentBlazor.min.css&quot;" />
+  </Target>
+
 </Project>
