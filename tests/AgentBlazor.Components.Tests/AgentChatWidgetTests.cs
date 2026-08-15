@@ -1,5 +1,9 @@
 using AgentBlazor.Components;
+using AgentBlazor.Components.Chat;
+using AgentBlazor.Components.Render;
 using AgentBlazor.Core.Runtime.Agents;
+using AgentBlazor.Core.Runtime.Interfaces;
+using AgentBlazor.Services;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -84,6 +88,22 @@ public sealed class AgentChatWidgetTests : TestContext
             ".ab-chat-widget--open .ab-chat-widget__bubble{opacity:0;visibility:hidden;pointer-events:none;",
             css,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Widget_ForwardsMarkdownOptions_ToSurface()
+    {
+        Services.AddSingleton<IAgentChatWidgetState>(new TestChatWidgetState());
+        Services.AddAgentBlazorServices();
+        Services.AgentBlazor().AddAgent("Test Agent");
+        Services.AddSingleton<IAgentActionRenderRegistry, NoOpActionRenderRegistry>();
+        Services.AddSingleton<IAgentRuntimeAdapter, NoOpRuntimeAdapter>();
+
+        var options = new MarkdownOptions { EnableSyntaxHighlighting = false };
+        var cut = RenderComponent<AgentChatWidget>(parameters => parameters
+            .Add(static widget => widget.MarkdownOptions, options));
+
+        Assert.Same(options, cut.FindComponent<AgentChatSurface>().Instance.MarkdownOptions);
     }
 
     private static string FindRepoRoot()

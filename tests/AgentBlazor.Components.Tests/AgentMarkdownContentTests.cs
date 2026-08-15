@@ -1,5 +1,7 @@
 using System.Linq;
+using System.Text.Json;
 using AgentBlazor.Components;
+using AgentBlazor.Components.Chat;
 using Bunit;
 using Xunit;
 
@@ -137,5 +139,64 @@ public sealed class AgentMarkdownContentTests : TestContext
             .Add(static component => component.Class, "custom-class"));
 
         Assert.Contains("custom-class", cut.Find(".ab-chat-surface__item-text--markdown").ClassName);
+    }
+
+    [Fact]
+    public void MarkdownOptions_EnableMermaidFalse_SerializedIntoEnhanceCall()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "**bold**")
+            .Add(static component => component.Enhance, true)
+            .Add(static component => component.MarkdownOptions, new MarkdownOptions { EnableMermaid = false }));
+
+        var args = JSInterop.Invocations["AgentBlazor.markdown.enhance"][0].Arguments;
+        var json = JsonSerializer.Serialize(args[1]);
+        Assert.Contains("\"enableMermaid\":false", json);
+        Assert.Contains("\"enableSyntaxHighlighting\":true", json);
+    }
+
+    [Fact]
+    public void MarkdownOptions_ScriptUrls_SerializedIntoEnhanceCall()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "**bold**")
+            .Add(static component => component.Enhance, true)
+            .Add(static component => component.MarkdownOptions, new MarkdownOptions
+            {
+                MermaidScriptUrl = "https://example.com/mermaid.js",
+                HighlightScriptUrl = "https://example.com/hljs.js",
+            }));
+
+        var args = JSInterop.Invocations["AgentBlazor.markdown.enhance"][0].Arguments;
+        var json = JsonSerializer.Serialize(args[1]);
+        Assert.Contains("https://example.com/mermaid.js", json);
+        Assert.Contains("https://example.com/hljs.js", json);
+    }
+
+    [Fact]
+    public void MarkdownOptions_SanitizeTrue_Default_StripsMarkdigIdAndStyle()
+    {
+        // {style=...} parses via generic attributes; auto-identifiers inject
+        // id="heading" on every heading. The sanitizer strips both.
+        var cut = RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "## Heading {style=\"color:red\"}"));
+
+        Assert.DoesNotContain("id=\"heading\"", cut.Markup);
+        Assert.DoesNotContain("style=", cut.Markup);
+    }
+
+    [Fact]
+    public void MarkdownOptions_SanitizeFalse_KeepsMarkdigIdAndStyle()
+    {
+        var cut = RenderComponent<AgentMarkdownContent>(parameters => parameters
+            .Add(static component => component.Content, "## Heading {style=\"color:red\"}")
+            .Add(static component => component.MarkdownOptions, new MarkdownOptions { Sanitize = false }));
+
+        Assert.Contains("id=\"heading\"", cut.Markup);
+        Assert.Contains("style=\"color:red\"", cut.Markup);
     }
 }

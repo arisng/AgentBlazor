@@ -281,6 +281,44 @@ public sealed class AgentChatSurfaceTests : TestContext
         });
     }
 
+    [Fact]
+    public void Surface_ForwardsMarkdownOptions_ToTimelineMarkdownContent()
+    {
+        Services.AddAgentBlazorServices();
+        Services.AgentBlazor().AddAgent("Test Agent");
+        Services.AddSingleton<IAgentActionRenderRegistry, TestActionRenderRegistry>();
+
+        var runtimeAdapter = new ReconnectStreamingRuntimeAdapter();
+        Services.AddSingleton<IAgentRuntimeAdapter>(runtimeAdapter);
+
+        var conversationSessionId = AgentConversationScope.BuildSessionKey(
+            "session-md",
+            "Test Agent",
+            isolateByAgent: false);
+        Services.GetRequiredService<IAgentChatActiveRunStore>().Track(new AgentChatActiveRun(
+            conversationSessionId,
+            "md-run-1",
+            "Test Agent",
+            "Show a markdown response",
+            DateTimeOffset.UtcNow));
+
+        var options = new MarkdownOptions { EnableMermaid = false };
+        var cut = RenderComponent<AgentChatSurface>(parameters => parameters
+            .Add(static surface => surface.ShowAgentSelector, false)
+            .Add(static surface => surface.DefaultAgentName, "Test Agent")
+            .Add(static surface => surface.SessionId, "session-md")
+            .Add(static surface => surface.MarkdownOptions, options));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Reconnected response.", cut.Markup);
+        });
+
+        var timelineContent = cut.FindComponents<AgentMarkdownContent>()
+            .Single(component => component.Instance.Enhance);
+        Assert.Same(options, timelineContent.Instance.MarkdownOptions);
+    }
+
     private sealed class CancellableStreamingRuntimeAdapter : IAgentRuntimeAdapter
     {
         private readonly CancellationTokenSource _runCancellation = new();
