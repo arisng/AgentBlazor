@@ -403,9 +403,11 @@
 }
 
 /* Message text */
+/* Fallbacks mirror the light-theme defaults so the class also works standalone
+   (e.g. AgentMarkdownContent rendered outside a .ab-chat-surface). */
 .ab-chat-surface__item-text {
-    color: var(--ab-chat-text);
-    font-size: var(--ab-chat-font-size);
+    color: var(--ab-chat-text, #0f172a);
+    font-size: var(--ab-chat-font-size, 0.9375rem);
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
