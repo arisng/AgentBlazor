@@ -2,7 +2,7 @@
 
 Created: 2026-08-15
 Owner: AgentBlazor core team
-Status: Approved plan — Phase 1 (Foundation) + Phase 2 (Component + wiring) + Phase 3 (Client enhancement) implemented
+Status: Approved plan — Phase 1 (Foundation) + Phase 2 (Component + wiring) + Phase 3 (Client enhancement) + Phase 4 (Polish) implemented
 Last updated: 2026-08-15
 
 ## Summary
@@ -244,13 +244,52 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 
 ### Phase 4 — Polish (independent)
 
-12. Code copy button on code blocks (`navigator.clipboard`).
-13. Demo showcase page exercising markdown features + mermaid.
-14. e2e Playwright check: a mermaid diagram renders to SVG
-    (`tests/e2e` already has runner infra).
-15. `PACKAGE_README.md` + `PackageReleaseNotes` updates documenting sanitizer
-    behavior changes (iframe/`data:`/`mailto:` stripping) and the
-    `MarkdownOptions` surface.
+12. ✅ **Copy button on code blocks** — `MarkdownOptions.EnableCodeCopy` (default
+    true) → `_wireCopyButtons` in `AgentBlazor.min.js`: wraps each `pre` with
+    a ghost `.ab-copy-btn` (hover-revealed, `:focus-visible` + touch always
+    visible, `data-copied` flash). Copies `pre code` text via
+    `navigator.clipboard.writeText` with an `execCommand` fallback.
+    **Bug found by the demo e2e:** Markdig 1.3.2 emits diagrams as
+    `<pre class="mermaid">` (NOT `<div>`), and `_wireCopyButtons` selected all
+    `pre` — the button was appended to diagram containers synchronously
+    BEFORE the async mermaid script resolved, so the diagram source gained a
+    trailing "Copy" line → parse error → diagrams silently failed (the short
+    graph only "worked" because `A --> BCopy` is accidentally valid syntax).
+    Fixed: copy wiring skips `pre.mermaid`/`pre.nomnoml`, and both diagram
+    renderers snapshot their sources synchronously at call time (defense in
+    depth). Regression test added.
+13. ✅ **Demo showcase page** — `demo/AgentBlazor.Demo/Components/Pages/Demo/MarkdownShowcase.razor`
+    (`/demo/markdown-showcase`, DemoLayout, dark bubble so `--ab-chat-*` tokens
+    apply verbatim): headings, lists, task list, table, all five GitHub
+    alerts, 4 fenced code blocks (csharp/js/bash/json), 2 mermaid diagrams
+    (graph TD + sequenceDiagram), 1 nomnoml diagram, raw-source `<details>`.
+    Surfaced on the demo home (`/demo`) as a static "Markdown showcase" card
+    (no agent required).
+14. ✅ **e2e** — two specs, both green:
+    - `tests/e2e/specs/markdown-enhance.spec.cjs` (9 tests, isolated, no
+      server): mermaid/nomnoml → SVG + a11y, copy + clipboard shim, guard
+      idempotency (incl. no-sourceHash fallback), disable flags, and the
+      Markdig-style `<pre class="mermaid">` regression (renders + no copy
+      button). `npm run test:markdown-enhance`.
+    - `tests/e2e/specs/markdown-demo.spec.cjs` (3 tests, boots the REAL demo
+      app in Development on a fixed port, `reuseExistingServer: false` —
+      `dotnet run` can orphan a child process, and a random port differs per
+      config evaluation): full-server render of the showcase (2 mermaid SVGs
+      + nomnoml + hljs + copy buttons), clipboard copy, launchpad link.
+      `npm run test:markdown-demo`.
+    - **Nomnoml is a split bundle**: its UMD does
+      `e(t.nomnoml={}, t.graphre)` — graphre must load first (jsdelivr
+      `graphre@0.1.3/dist/graphre.js`; cdnjs does NOT host graphre), then
+      nomnoml 1.7.0 (cdnjs UMD, `window.nomnoml.renderSvg`). Both chained in
+      `_loadNomnoml`; `NomnomlScriptUrl` overrides only the nomnoml half.
+    - Mermaid renders are executed **sequentially** (not `Promise.all`):
+      parallel `mermaid.render` calls on one `initialize()` raced and one
+      diagram silently failed on a two-diagram page.
+15. ✅ `PACKAGE_README.md` — new "Markdown rendering in chat" section
+    (pipeline → sanitizer → enhance pass, `MarkdownOptions` example,
+    CDN/self-hosted overrides, theme sync). Release notes:
+    `docs/releases/0.2.24-internal.1.md` (sanitizer behavior change,
+    `MarkdownOptions` surface, nomnoml/graphre loading, copy buttons).
 
 ## Recorded Decisions
 
@@ -318,7 +357,10 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
   `AgentHtmlSanitizer.cs`), `src/AgentBlazor.Components/Chat/AgentMarkdownContent.razor`
   (+ `.razor.css`, + `.razor.cs`), `src/AgentBlazor.Components/Chat/MarkdownOptions.cs`,
   tests under `tests/AgentBlazor.Components.Tests/`, e2e under
-  `tests/e2e/specs/markdown-enhance.spec.cjs` + `markdown-enhance.config.cjs`
+  `tests/e2e/specs/markdown-enhance.spec.cjs` + `markdown-enhance.config.cjs`,
+  `tests/e2e/specs/markdown-demo.spec.cjs` + `markdown-demo.config.cjs`
+- New (Phase 4): `demo/AgentBlazor.Demo/Components/Pages/Demo/MarkdownShowcase.razor`
+  (+ `.razor.css`), `docs/releases/0.2.24-internal.1.md`
 - All `**/packages.lock.json` (regenerate in Phase 1)
 
 ## Follow-up Status Tracker
@@ -328,7 +370,7 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 | 1 — Foundation | ✅ completed | 2026-08-15 | 2026-08-15 | Markdig 1.3.2, AngleSharp 1.2.0 sanitizer (see deviation, step 2), renderer, 17 unit tests, lock files regenerated |
 | 2 — Component + wiring | ✅ completed | 2026-08-15 | 2026-08-15 | AgentMarkdownContent (+code-behind), `::deep` CSS, surface wiring, 10 bunit tests, dead CSS removed |
 | 3 — Client enhancement | ✅ completed | 2026-08-15 | 2026-08-15 | `markdown.enhance` JS (script-tag lazy load — see deviation), MarkdownOptions threading, 7 bunit + 4 e2e + 11 smoke checks |
-| 4 — Polish | not started | | | copy button, demo page, e2e, release notes |
+| 4 — Polish | ✅ completed | 2026-08-15 | 2026-08-15 | copy button + `pre.mermaid` bug fix, demo showcase page, 9 isolated + 3 live-server e2e, README + release notes |
 
 When a phase starts, flip its Status to `in progress` and add the date. When it
 finishes, record the completion date and link any e2e/validation report paths
