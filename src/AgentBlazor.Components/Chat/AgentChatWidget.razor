@@ -60,6 +60,7 @@
                              ShowDevTools="@ShowDevTools"
                              AutoShowDevTools="@AutoShowDevTools"
                              Theme="@Theme"
+                             MarkdownOptions="@MarkdownOptions"
                              CssClass="@CssClass" />
         </div>
     </div>
@@ -106,6 +107,9 @@
 
     [Parameter]
     public ChatTheme? Theme { get; set; }
+
+    [Parameter]
+    public MarkdownOptions? MarkdownOptions { get; set; }
 
     [Parameter]
     public string? FormName { get; set; }

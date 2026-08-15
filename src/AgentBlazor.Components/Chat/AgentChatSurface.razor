@@ -107,7 +107,7 @@
                     </div>
                     @if (item.Role == "assistant" || item.IsProactive)
                     {
-                        <AgentMarkdownContent Content="@item.Text" Enhance />
+                        <AgentMarkdownContent Content="@item.Text" Enhance MarkdownOptions="@MarkdownOptions" />
                     }
                     else
                     {
@@ -224,7 +224,7 @@
                     }
                     @if (!string.IsNullOrWhiteSpace(_streamingResponseText))
                     {
-                        <AgentMarkdownContent Content="@_streamingResponseText" />
+                        <AgentMarkdownContent Content="@_streamingResponseText" MarkdownOptions="@MarkdownOptions" />
                     }
                 </article>
             }
@@ -586,6 +586,9 @@
 
     [Parameter]
     public string? CssClass { get; set; }
+
+    [Parameter]
+    public MarkdownOptions? MarkdownOptions { get; set; }
 
     [Parameter]
     public string? SessionId { get; set; }

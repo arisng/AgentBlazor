@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using AgentBlazor.Components.Chat;
 using AgentBlazor.Components.MarkdownRendering;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -37,6 +38,13 @@ public partial class AgentMarkdownContent : ComponentBase
     [Parameter]
     public string? Class { get; set; }
 
+    /// <summary>
+    /// Markdown rendering + enhancement options. When null, defaults apply
+    /// (sanitize on, mermaid + syntax highlighting enabled, CDN script URLs).
+    /// </summary>
+    [Parameter]
+    public MarkdownOptions? MarkdownOptions { get; set; }
+
     private ElementReference _contentElement;
 
     // Server-side idempotency guard mirroring the client content-hash guard:
@@ -44,7 +52,8 @@ public partial class AgentMarkdownContent : ComponentBase
     // must not re-trigger enhancement.
     private string? _lastEnhancedContent;
 
-    private MarkupString RenderedMarkup => AgentMarkdownRendering.RenderMarkup(Content);
+    private MarkupString RenderedMarkup =>
+        AgentMarkdownRendering.RenderMarkup(Content, MarkdownOptions?.Sanitize ?? true);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -53,10 +62,17 @@ public partial class AgentMarkdownContent : ComponentBase
             _lastEnhancedContent = Content;
             try
             {
+                var options = MarkdownOptions;
                 await JSRuntime.InvokeVoidAsync("AgentBlazor.markdown.enhance", _contentElement, new
                 {
-                    enableMermaid = true,
-                    enableSyntaxHighlighting = true,
+                    enableMermaid = options?.EnableMermaid ?? true,
+                    enableSyntaxHighlighting = options?.EnableSyntaxHighlighting ?? true,
+                    mermaidScriptUrl = options?.MermaidScriptUrl,
+                    highlightScriptUrl = options?.HighlightScriptUrl,
+                    // Stable hash of the markdown SOURCE (not the rendered DOM,
+                    // which is mutated by enhancement). The client guard uses it
+                    // so re-diffs/hydration never double-render.
+                    sourceHash = HashSource(Content),
                 });
             }
             catch
@@ -65,5 +81,12 @@ public partial class AgentMarkdownContent : ComponentBase
                 // namespace may not be shipped yet; rendering must not fail.
             }
         }
+    }
+
+    private static string HashSource(string content)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexString(bytes, 0, 8);
     }
 }

@@ -38,9 +38,11 @@ public static class AgentMarkdownRendering
 
     /// <summary>
     /// Renders markdown to sanitized HTML suitable for a Blazor
-    /// <see cref="MarkupString"/>.
+    /// <see cref="MarkupString"/>. When <paramref name="sanitize"/> is false,
+    /// the allowlist sanitizer pass is skipped (raw model HTML is still
+    /// escaped by <c>DisableHtml()</c>).
     /// </summary>
-    public static string Render(string? markdown)
+    public static string Render(string? markdown, bool sanitize = true)
     {
         if (string.IsNullOrWhiteSpace(markdown))
         {
@@ -49,14 +51,15 @@ public static class AgentMarkdownRendering
 
         var html = Markdown.ToHtml(markdown, Pipeline);
         html = EscapeDiagramSources(html);
-        return Sanitizer.Sanitize(html);
+        return sanitize ? Sanitizer.Sanitize(html) : html;
     }
 
     /// <summary>
     /// Renders markdown to a sanitized <see cref="MarkupString"/> for direct
     /// use in component markup.
     /// </summary>
-    public static MarkupString RenderMarkup(string? markdown) => new(Render(markdown));
+    public static MarkupString RenderMarkup(string? markdown, bool sanitize = true) =>
+        new(Render(markdown, sanitize));
 
     private static string EscapeDiagramSources(string html) =>
         DiagramDivRegex.Replace(html, match =>

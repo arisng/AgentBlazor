@@ -31,6 +31,7 @@
                       EnableGeneratedUi="@EnableGeneratedUi"
                       ShowExecutionDetails="@ShowExecutionDetails"
                       Theme="@Theme"
+                      MarkdownOptions="@MarkdownOptions"
                       CssClass="@CssClass" />
 </aside>
 
@@ -52,6 +53,9 @@
 
     [Parameter]
     public ChatTheme? Theme { get; set; }
+
+    [Parameter]
+    public MarkdownOptions? MarkdownOptions { get; set; }
 
     [Parameter]
     public string? FormName { get; set; }
