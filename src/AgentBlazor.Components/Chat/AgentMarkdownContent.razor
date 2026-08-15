@@ -1,0 +1,10 @@
+@namespace AgentBlazor.Components
+@using AgentBlazor.Components.MarkdownRendering
+
+@* Renders sanitized markdown. When Enhance=true, the client enhance pass
+   (AgentBlazor.markdown.enhance — mermaid + highlight.js, shipped in Phase 3)
+   runs exactly once per distinct Content value. *@
+<div class="ab-chat-surface__item-text ab-chat-surface__item-text--markdown @Class"
+     @ref="_contentElement">
+    @RenderedMarkup
+</div>
