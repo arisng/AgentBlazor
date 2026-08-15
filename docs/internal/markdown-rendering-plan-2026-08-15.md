@@ -2,7 +2,7 @@
 
 Created: 2026-08-15
 Owner: AgentBlazor core team
-Status: Approved plan — Phase 1 (Foundation) + Phase 2 (Component + wiring) implemented
+Status: Approved plan — Phase 1 (Foundation) + Phase 2 (Component + wiring) + Phase 3 (Client enhancement) implemented
 Last updated: 2026-08-15
 
 ## Summary
@@ -204,22 +204,43 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 
 ### Phase 3 — Client enhancement (depends on Phase 2)
 
-10. Extend `wwwroot/AgentBlazor.min.js` with `AgentBlazor.markdown.enhance(containerEl, options)`:
-    - lazy dynamic `import()` of mermaid (only if `.mermaid` present) and
+10. ✅ `wwwroot/AgentBlazor.min.js` — new `AgentBlazor.markdown.enhance(containerEl, options)`
+    namespace:
+    - lazy load of mermaid (only if `.mermaid`/`.nomnoml` present) and
       highlight.js (only if `pre code[class*="language-"]`),
-    - URLs from `options` (CDN default, local `_content/AgentBlazor/...` fallback),
-    - `mermaid.initialize({ startOnLoad: false, theme })` once, then
-      `mermaid.run({ nodes, suppressErrors: true })`,
-    - theme read from closest `data-theme` on the container,
-    - **content-hash guard** (`data-ab-processed` = hash of source), idempotent
-      across Blazor re-diffs/hydration,
-    - `role="img"` + `aria-label` on rendered SVG,
-    - graceful fallback to raw source text on import/render failure,
-    - returns a promise so the caller can re-request `scrollToBottom`.
-11. Add `MarkdownOptions` param (EnableMermaid, EnableSyntaxHighlighting, script
-    URLs, Sanitize=true) to `AgentChatSurface`; thread through
-    `AgentChatWidget.razor` / `AgentChatPanel.razor`; serialize into the
-    `enhance` call.
+    - **Deviation:** lazy loading uses **script-tag injection** (UMD builds)
+      instead of dynamic `import()`. Empirically verified during the feedback
+      loop: highlight.js v11 ships only Node CJS (`lib/*`) and a browser-unusable
+      ESM (`es/*` re-exports the CJS build → browsers throw "does not provide an
+      export named 'default'"), and UMD `build/` bundles were dropped in v11.
+      cdnjs serves the real UMD `highlight.min.js` (all languages) and jsdelivr
+      serves mermaid `dist/mermaid.min.js` (UMD, sets `window.mermaid`). Loads at
+      most once (module cache), script failure rejects → fallback keeps raw text.
+    - `mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict',
+      suppressErrorRendering: true })` once, then per-node
+      `mermaid.render()` (per-node so one bad diagram can't kill the rest),
+    - theme read from closest `data-theme` (dark → `dark`, else `default`),
+    - **content-hash guard**: `data-ab-processed` = `sourceHash` passed by the
+      component (stable hash of the markdown SOURCE, not the DOM — the DOM is
+      mutated by enhancement, so textContent hashing would mismatch every
+      re-render; found + fixed by the smoke test in the feedback loop),
+    - `role="img"` + `aria-label="Diagram: mermaid|nomnoml"` on rendered SVG,
+    - graceful fallback: failed diagram leaves the raw source text visible,
+    - returns a Promise (caller can re-request `scrollToBottom`).
+11. ✅ `MarkdownOptions` (`src/AgentBlazor.Components/Chat/MarkdownOptions.cs`,
+    namespace `AgentBlazor.Components.Chat`, matching `ChatTheme`):
+    `EnableMermaid`/`EnableSyntaxHighlighting` (default true),
+    `MermaidScriptUrl`/`HighlightScriptUrl` (default = verified CDN URLs above),
+    `Sanitize` (default true → skips the `AgentHtmlSanitizer` pass when false;
+    raw model HTML is still escaped by `DisableHtml()`). Added to
+    `AgentChatSurface`, threaded through `AgentChatWidget`/`AgentChatPanel`,
+    serialized into the `enhance` call (incl. `sourceHash`). Verified: 7 new
+    bunit tests (options serialization, sanitize toggle incl. a real
+    generic-attributes `style` vector + auto-identifier `id`, surface/widget/
+    panel passthrough) + isolated Playwright spec
+    `tests/e2e/specs/markdown-enhance.spec.cjs` (4 tests, run via
+    `npm run test:markdown-enhance`, no demo server needed) + one-off smoke
+    script `tests/e2e/scripts/markdown-enhance-smoke.cjs` (11 checks).
 
 ### Phase 4 — Polish (independent)
 
@@ -295,7 +316,9 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 - `Directory.Packages.props`, `src/AgentBlazor.Components/AgentBlazor.Components.csproj`
 - New: `src/AgentBlazor.Components/Markdown/AgentMarkdownRendering.cs` (+
   `AgentHtmlSanitizer.cs`), `src/AgentBlazor.Components/Chat/AgentMarkdownContent.razor`
-  (+ `.razor.css`, + `.razor.cs`), tests under `tests/AgentBlazor.Components.Tests/`
+  (+ `.razor.css`, + `.razor.cs`), `src/AgentBlazor.Components/Chat/MarkdownOptions.cs`,
+  tests under `tests/AgentBlazor.Components.Tests/`, e2e under
+  `tests/e2e/specs/markdown-enhance.spec.cjs` + `markdown-enhance.config.cjs`
 - All `**/packages.lock.json` (regenerate in Phase 1)
 
 ## Follow-up Status Tracker
@@ -304,7 +327,7 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 |---|---|---|---|---|
 | 1 — Foundation | ✅ completed | 2026-08-15 | 2026-08-15 | Markdig 1.3.2, AngleSharp 1.2.0 sanitizer (see deviation, step 2), renderer, 17 unit tests, lock files regenerated |
 | 2 — Component + wiring | ✅ completed | 2026-08-15 | 2026-08-15 | AgentMarkdownContent (+code-behind), `::deep` CSS, surface wiring, 10 bunit tests, dead CSS removed |
-| 3 — Client enhancement | not started | | | mermaid/hljs lazy pass, MarkdownOptions |
+| 3 — Client enhancement | ✅ completed | 2026-08-15 | 2026-08-15 | `markdown.enhance` JS (script-tag lazy load — see deviation), MarkdownOptions threading, 7 bunit + 4 e2e + 11 smoke checks |
 | 4 — Polish | not started | | | copy button, demo page, e2e, release notes |
 
 When a phase starts, flip its Status to `in progress` and add the date. When it
