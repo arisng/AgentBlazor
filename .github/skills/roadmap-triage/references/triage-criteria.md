@@ -36,6 +36,8 @@ Run every candidate through these five steps:
 | **Defer** | Maps to a real roadmap item that is not next, or satisfies its checkpoint only after a prerequisite gate | An item for a later roadmap position; a migration the roadmap schedules later; a dependency upgrade blocked until a prior item |
 | **Blocked** | Would be Signal/Defer but its gate cannot run today | CI red on main; compile proof not on committed tree; missing cassette/live payload; absent required package/dependency mapping; pending upstream release |
 
+> **Fork scope (divergence is intentional):** Every candidate is triaged **only against the fork** `arisng/AgentBlazor` (`origin`). Map candidates to the fork's roadmap and checkpoints; never to upstream. "Pending upstream release" and all other upstream references in this file mean upstream **dependencies/libraries**, not the upstream repository `ashpeterson/AgentBlazor`. The upstream repo is a sync source only and is never used to rank or prioritize fork work.
+
 ## Re-deriving signal criteria from the current roadmap
 
 Do **not** maintain a hardcoded phase → criteria table here; it goes stale the moment the roadmap is

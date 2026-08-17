@@ -1,15 +1,19 @@
 ---
 name: roadmap-triage
-description: "Triage open issues, PRs, CI, and upstream signals against the repo's committed roadmap and produce a prioritized next-work-item shortlist, separating signal from noise. Use when asked to triage the issue/PR queue, prioritize work, decide what to focus on, filter noise, map candidates to roadmap items and their checkpoints, or classify items as signal/noise/defer/blocked. Release- and phase-agnostic: reads whatever roadmap is currently committed and derives its work order from that roadmap, not from any fixed release or phase list. Encodes generic signal criteria (maps to a roadmap work item in roadmap priority order, has an empirical checkpoint, is backed by evidence or a concrete gate that will produce it) and noise criteria (no roadmap mapping, no checkpoint, explicitly out of scope, churn). Probe-and-report only; never edits issues, PRs, or CI. Triggers: triage, prioritize issues, next work items, what to focus on, filter noise, signal noise, roadmap phase, checkpoint gate, issue queue."
+description: "Triage open issues, PRs, CI, and dependency signals against this fork's committed roadmap (arisng/AgentBlazor) and produce a prioritized next-work-item shortlist, separating signal from noise. Use when triaging the issue/PR queue, prioritizing work, deciding what to focus on, filtering noise, mapping candidates to roadmap items, or classifying items as signal/noise/defer/blocked. Release- and phase-agnostic: reads whatever roadmap is currently committed and derives work order from it, not a fixed release/phase list. Fork-scoped: triage operates only against arisng/AgentBlazor's roadmap/issues/PRs/CI, never upstream; upstream (ashpeterson/AgentBlazor) is a sync source only, never a planning input. Signal = maps to a roadmap item with an empirical checkpoint and evidence; noise = no roadmap mapping, no checkpoint, out of scope, or churn. Probe-and-report only; never edits issues/PRs/CI. Triggers: triage, prioritize issues, next work items, filter noise, signal noise, roadmap phase, checkpoint gate, issue queue."
 metadata:
-  version: 0.2.0
+  version: 0.3.0
+  fork: https://github.com/arisng/AgentBlazor
+  upstream: https://github.com/ashpeterson/AgentBlazor
 ---
 
 # `roadmap-triage` — Roadmap-First Issue Triage
 
-Turn the repo's issue/PR/CI/upstream stream into a short, prioritized "focus next" list. Every candidate is mapped to the **currently committed roadmap**, classed as **Signal / Noise / Defer / Blocked**, and — if Signal — attached to the roadmap work item and empirical checkpoint it unblocks. This is an encoded-preference workflow: the roadmap's work order, empirical checkpoint gates, and out-of-scope decisions ARE the decision criteria.
+Turn this **fork's** issue/PR/CI/upstream stream into a short, prioritized "focus next" list. Every candidate is mapped to the **currently committed roadmap**, classed as **Signal / Noise / Defer / Blocked**, and — if Signal — attached to the roadmap work item and empirical checkpoint it unblocks. This is an encoded-preference workflow: the roadmap's work order, empirical checkpoint gates, and out-of-scope decisions ARE the decision criteria.
 
 > **Release- and phase-agnostic.** This skill does not encode any specific roadmap, release, provider, or phase list. It reads whatever roadmap is committed at triage time and generalizes its process: ground priorities in empirical research, treat checkpoints as the unit of verification, and filter signal out of noise. If a roadmap is renamed, re-released, or re-phased, this skill needs no change — re-read the roadmap pointer and re-derive.
+
+> **⚠️ Fork-scoped — this is CRITICAL, divergence is intentional.** This skill is authoritative only for the **fork** `arisng/AgentBlazor` (`git remote origin`). Every triage input — the roadmap, research refs, open issues, PRs, CI/nightly runs, and the UAT/verification suite — is **fork-local** and must be resolved against `origin`, never upstream. Upstream (`ashpeterson/AgentBlazor`, `git remote upstream`) exists **only as a sync source** (e.g. via `git-fork-sync`) and is **never** used as a planning, roadmap, or triage input. Do not pull the fork's roadmap or decisions from upstream, and do not file/triage against upstream's issues/PRs. The only upstream-derived signal that is legitimate here is the dependency/release **floor-watch** (see the "Upstream signals" row), which informs pinning but never overrides the fork's own roadmap priorities.
 
 ## Contents
 
@@ -30,11 +34,11 @@ Read these before classifying anything. The committed roadmap and research refs 
 |---|---|---|
 | Roadmap (REQUIRED) | Discover via [Locating the roadmap](#locating-the-roadmap) | Work order (phases/items/milestones), per-item gates, Recorded Decisions, Out of Scope, status tracker |
 | Research refs | `<roadmap dir>/research/*.md` (or wherever the roadmap cites its evidence) | Evidence trail behind every roadmap item |
-| Open issues / PRs | `gh issue list --state open` / `gh pr list --state open` | Candidate inventory |
-| CI + nightly runs | `gh run list`, `gh run view --log-failed` | Gate failures = blockages |
-| UAT / verification state | The repo's UAT or verification suite — e.g. `.github/skills/*-uat-spec/references/buckets/` | Case status, bucket gaps, evidence conventions |
+| Open issues / PRs | `gh issue list --state open` / `gh pr list --state open` (resolves against **origin** = the fork; never upstream) | Candidate inventory |
+| CI + nightly runs | `gh run list`, `gh run view --log-failed` (resolves against **origin** = the fork) | Gate failures = blockages |
+| UAT / verification state | The fork's UAT or verification suite — e.g. `.github/skills/*-uat-spec/references/buckets/` | Case status, bucket gaps, evidence conventions |
 | Package advisories | `dotnet list <proj> package --vulnerable --include-transitive` | NU1903-class findings |
-| Upstream signals | Releases/changelogs of the roadmap's key dependencies; the roadmap's documented cadence and floor-watch points | Floor-watch and cadence triggers |
+| Upstream signals | Release/changelog/watch signals of the roadmap's **dependency** floor-watch points (MAF, Anthropic SDK, openai-dotnet, DeepSeek docs). NOTE: "upstream" here means upstream *libraries/dependencies*, not the upstream repo `ashpeterson/AgentBlazor`; the upstream repo is never a triage input. | Dependency/cadence floor-watch only — informs pins, never overrides fork roadmap priorities |
 
 > **Cite research by repo-relative path** in triage output. If you use shorthand tags (e.g. `R1`), qualify which scheme you mean — the roadmap and any session research index may assign the same tags differently. Paths are committed and unambiguous.
 
@@ -79,7 +83,7 @@ Template for section 4 item shape: see [Report template](references/checkpoint-g
 
 ## Probe-and-report rule
 
-This skill **reads and reports only**. Do not edit issues, PRs, milestones, CI config, or source files unless the user explicitly asks. Triage output is advice; the roadmap's gates decide.
+This skill **reads and reports only**, and **only against the fork** (`arisng/AgentBlazor`, `origin`). Do not edit issues, PRs, milestones, CI config, or source files unless the user explicitly asks — and never any that live on upstream. Triage output is advice; the fork's own roadmap gates decide.
 
 ## Reference Files
 

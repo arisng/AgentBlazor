@@ -70,9 +70,11 @@ bucket-fill convention; missing cases for a landing feature = bucket-gap signal.
 
 ## Upstream floor-watch & cadence
 
+> **Scope note (fork divergence):** "Upstream" throughout this section means upstream **libraries/dependencies** (MAF, Anthropic SDK, openai-dotnet, etc.) that the fork's roadmap pins or depends on — **not** the upstream repository `ashpeterson/AgentBlazor`. The upstream repo is never a triage or planning input; it exists only as a sync source. Watch only the dependency floor-watch signals listed here, and note that they inform pinning but never override the fork's own roadmap priorities.
+
 - **Cadence re-validation:** if the roadmap institutionalizes a dependency-cadence policy (e.g. "revalidate pins ≤ 2 weeks after a GA"), treat a check older than the threshold — or a new release since the last check — as a due item.
-- **Floor-watch triggers (escalate as cross-cutting signals):** any new release/changelog/main-branch-bump of a dependency the roadmap pins or depends on; version-shifts that change the roadmap's resolved dependency graph; a dependency family that climbs as a block across related packages.
-- Re-derive the specific packages, versions, and thresholds from the roadmap's "Known resolved graph" or equivalent section — they change with every release.
+- **Floor-watch triggers (escalate as cross-cutting signals):** any new release/changelog/main-branch-bump of a **dependency** the roadmap pins or depends on; version-shifts that change the roadmap's resolved dependency graph; a dependency family that climbs as a block across related packages.
+- Re-derive the specific packages, versions, and thresholds from the fork's roadmap "Known resolved graph" or equivalent section — they change with every release.
 
 ## Reference-tag disambiguation
 
