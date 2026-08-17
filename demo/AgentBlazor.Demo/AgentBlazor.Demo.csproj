@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <InternalsVisibleTo Include="AgentBlazor.IntegrationTests" />
@@ -22,6 +22,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>1b4284b9-ca40-4260-a5db-41cf85b00636</UserSecretsId>
   </PropertyGroup>
 
 </Project>
