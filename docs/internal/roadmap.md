@@ -1,15 +1,15 @@
-# Strategic Roadmap: KV-Cache-Compliant Context Assembly + MAF Alignment (OpenAI-First)
+# AgentBlazor Strategic Roadmap (Canonical)
 
 Created: 2026-08-17
 Owner: AgentBlazor core team
 Status: In progress (Phase 0) — docs-only phase
 Last updated: 2026-08-17
 
-Refined after rubber-duck review — OpenAI SDK & OpenAI-compatible models (incl. DeepSeek V4) prioritized over Anthropic. Incremental, checkpoint-gated phases; each terminates in an empirical testing audit. Matches repo `docs/internal` convention and release-versioning discipline.
+Canonical, feature-agnostic roadmap for AgentBlazor. Refined after rubber-duck review and a Copilot-SDK integration promotion — **OpenAI SDK & OpenAI-compatible models (incl. DeepSeek V4) and the GitHub Copilot SDK are treated as first-class provider tracks**, with Anthropic last. Incremental, checkpoint-gated: each phase/appendix terminates in an empirical testing audit. Matches repo `docs/internal` convention and release-versioning discipline. This is the durable roadmap entry point; it supersedes the previous date/feature-scoped file name.
 
 ## Summary
 
-Eight incremental phases move AgentBlazor to a fully cache-compliant, provider-schema-aware context-assembly layer. The ordering is deliberate: **OpenAI SDK and OpenAI-compatible providers (DeepSeek V4, vLLM, Ollama, LM Studio) ship first**, Anthropic last — reversing the earlier draft's inversion. The spine (baseline audit → MAF 1.17.0 re-baseline → observability → history window) is provider-agnostic and stays first; provider-specific phases then deliver (a) OpenAI-compatible parity with a first-class **DeepSeek V4** registration, (b) per-provider cache-usage normalization, (c) OpenAI/Azure explicit cache controls (`prompt_cache_key`/retention via the Responses escape hatch), and only then (d) Anthropic `cache_control` breakpoints. Each phase is grounded by an **empirical checkpoint** (CI gate + wire-capture audit + observability assertion + cassette-replayed live smoke), most of which use existing seams (`HttpListenerWireServer`, `ReasoningEffortOptionsTests`, `DemoChatRequestLoggingMiddleware`), and is correlated with a release version per repo convention. The MAF 1.17.0 re-baseline is the highest-value, lowest-risk step: an empirical probe proved the full solution compiles on the probe machine after an AG-UI rename + DI 10.0.9 + `AGUI.*` restore mapping (CI re-verification remains a gate).
+Incremental phases move AgentBlazor to a fully cache-compliant, provider-schema-aware context-assembly layer and add a first-class **GitHub Copilot SDK agent-mode** (an `IAgent` provider, not an `IChatClient`). The spine (baseline audit → MAF 1.17.0 re-baseline → observability → history window) is provider-agnostic and stays first; Copilot SDK integration is **promoted to a dedicated provider track that ships right after the MAF 1.17.0 re-baseline it requires**. Provider-specific phases then deliver (a) OpenAI-compatible parity with a first-class **DeepSeek V4** registration, (b) per-provider cache-usage normalization, (c) Copilot agent-mode in the library + demo, (d) OpenAI/Azure explicit cache controls (`prompt_cache_key`/retention via the Responses escape hatch), and only then (e) Anthropic `cache_control` breakpoints. Each phase is grounded by an **empirical checkpoint** (CI gate + wire-capture audit + observability assertion + cassette-replayed live smoke), most of which use existing seams (`HttpListenerWireServer`, `ReasoningEffortOptionsTests`, `DemoChatRequestLoggingMiddleware`), and is correlated with a release version per repo convention. The MAF 1.17.0 re-baseline is the highest-value, lowest-risk step: an empirical probe proved the full solution compiles on the probe machine after an AG-UI rename + DI 10.0.9 + `AGUI.*` restore mapping (CI re-verification remains a gate).
 
 ## Research References (durable evidence trail)
 
@@ -23,7 +23,10 @@ This roadmap stands on session-durable research artifacts; condensed copies are 
 | R4 | MAF release cadence & floor matrix | `docs/internal/research/maf-cadence-and-floors.md` | MAF `dotnet/Directory.Packages.props` per tag | 2026-08-17 | MAF GA cadence ≈ 7.3 days; previews tag to the same GA minor; no LTS/backport; floors: 1.14→DI/STJ 10.0.9 + `AGUI.*` split; 1.16/1.17→MEAI 10.7 |
 | R5 | Rubber-duck review of earlier roadmap draft | `docs/internal/research/rubber-duck-roadmap-review.md` | this session (audit trail) | 2026-08-17 | Priority inversion (Anthropic-first), factual fixes, gate hardening, docs-convention gaps — incorporated below |
 
-Phase citations use R1–R5 (not machine-local paths); footnote links point at the repo-relative artifacts.
+| R7 | (reserved for future provider research) | — | — | — | — |
+| R8 | GitHub Copilot SDK integration research (full artifact) | `docs/internal/research/copilot-sdk-integration.md` | github/copilot-sdk; microsoft/agent-framework | 2026-08-17 | Copilot SDK for .NET is an `IAgent` (JSON-RPC/CLI runtime), not an `IChatClient`; official MAF adapter `Microsoft.Agents.AI.GitHub.Copilot 1.17.0`; automatic runtime-managed caching (`cacheReadTokens`/`cacheWriteTokens`); requires MAF 1.17.0 + MEAI 10.7.0 + Hosting `1.17.0-preview.260804.1`; 4 AgentBlazor customization points (IAgentRuntimeAdapter, approval bridge, elicitation/reasoning/picker, multi-tenant auth/lifecycle) |
+
+Phase citations use R1–R8 (roadmap scheme; not machine-local paths); footnote links point at the repo-relative artifacts. Where the session research index assigns the same tag differently, this roadmap's scheme governs. `copilot-sdk-integration.md` is the **full** research artifact, committed verbatim as a durable reference.
 
 ## Current State (verified 2026-08-17)
 
@@ -38,6 +41,7 @@ Phase citations use R1–R5 (not machine-local paths); footnote links point at t
 2. **DeepSeek V4 is a first-class provider target:** models `deepseek-v4-flash` / `deepseek-v4-pro`; base URL `https://api.deepseek.com` (SDK appends `/chat/completions`); `deepseek-chat`/`deepseek-reasoner` **discontinued 2026-07-24**. Context caching is automatic/on-by-default, no opt-in, no `prompt_cache_key`/retention. Cache-hit price ≈ **30–31× cheaper** than miss (V4 peak/off-peak). Thinking mode is on by default (effort `high`); `reasoning_content` already flows through MEAI to AgentBlazor's reasoning events.[^ds]
 3. **Customization on top of MAF stays thin:** MAF ships no caching code — it merges `AdditionalProperties`/`RawRepresentationFactory` verbatim and passes messages through. AgentBlazor adds: (OpenAI/OpenAI-compatible) schema-normalization shim + Responses escape-hatch cache controls; (Anthropic, last) a leaf `WithCacheControl` decorator + system-prompt-as-message via `AIContextProvider`. Everything else (history merge, compaction, session state) is MAF-owned.[^maf][^recipe]
 4. **Byte-identical stable prefix is the invariant**: static system → deterministic tools → append-only history (token-budgeted window) → dynamic tail (`Runtime context:` sorted, last). Verified positive (identical prefix ⇒ cached tokens > 0) **and negative** (mutate a middle block ⇒ cached tokens drop to 0).[^ctx]
+5. **GitHub Copilot SDK is a dependency of the MAF provider track, not a fork**: integrate via the official `Microsoft.Agents.AI.GitHub.Copilot` adapter (`AsAIAgent()` → `GitHubCopilotAgent : AIAgent`), which **requires the Phase-1 MAF 1.17.0 graph** (MAF 1.17.0 + MEAI 10.7.0 + Hosting `1.17.0-preview.260804.1`). Keep customization thin and on-top-only: an `IAgentRuntimeAdapter` (Copilot is an `IAgent`, not an `IChatClient`), an approval bridge (`ApprovalRequiredAIFunction` to honor `[AgentAction(RequiresApproval)]`), an elicitation/reasoning/model-picker bridge (the MAF adapter maps these only as raw representation), and a multi-tenant session/token + process-lifecycle layer. Copilot caching is **runtime-managed and automatic** (reports `cacheReadTokens`/`cacheWriteTokens`); AgentBlazor's stable-prefix strategy continues to maximize `cacheReadTokens`, and Copilot's own `InfiniteSessions` compaction must be budgeted so it does not rewrite the prefix.[^cpd]
 
 ## Rubber-Duck Review Findings (audit trail, 2026-08-17)
 
@@ -72,7 +76,7 @@ Incorporated as hardening decisions (traceability per critique item). Full findi
 
 ### Phase 0 — Baseline & Audit (Foundation) — *docs-only; rides current version (no bump) or `0.2.25-internal.1`*
 
-1. ✅ Commit this roadmap to `docs/internal/context-assembly-kv-cache-roadmap-2026-08-17.md` (per repo skeleton: front matter, Summary, Research Basis, Current State, Key Design, Rubber-Duck audit, numbered ✅ steps, Recorded Decisions, Out of Scope, Security & Compatibility, Verification Plan, Relevant Files, Related Follow-up, Follow-up Status Tracker).[^docs]
+1. ✅ Commit this roadmap to `docs/internal/roadmap.md` (per repo skeleton: front matter, Summary, Research Basis, Current State, Key Design, Rubber-Duck audit, numbered ✅ steps, Recorded Decisions, Out of Scope, Security & Compatibility, Verification Plan, Relevant Files, Related Follow-up, Follow-up Status Tracker).[^docs]
 2. ✅ Add `docs/internal/research/` with condensed R1–R5 artifacts (context-assembly-kv-cache, maf-upgrade-probe, provider-cache-schemas, maf-cadence-and-floors, rubber-duck-roadmap-review) so the committed plan is self-contained and not dependent on machine-local paths.[^docs]
 3. ✅ Update `docs/internal/plan.md` Active Workstreams + `docs/internal/STATUS.md` Production Roadmap row to include this roadmap (paper trail established at baseline, not GA).[^docs]
 4. ✅ Scaffold UAT bucket `CTX-` in `.github/skills/ab-uat-spec/references/buckets/` (clone `usage-pipeline.md` shape): `CTX-001` wire single-turn assembly, `CTX-002` tool round trip, `CTX-003` prompt-trace capture, `CTX-004` JSONL token/cost row, `CTX-005` (live/cassette) cached-token field, `CTX-006` history trim (Phase 4). Update routing table + `buckets/README.md` counts.[^qa]
@@ -99,6 +103,35 @@ Incorporated as hardening decisions (traceability per critique item). Full findi
 - AG-UI runtime regression: `AgUiHostingIntegrationTests`, `RemoteChatEndpointTests` green; `ReasoningEffortOptionsTests` wire regression green (clone-first semantics unchanged on MEAI 10.7.0)[^qa][^meai]
 
 **Release correlation:** `0.2.25-internal.1` (private) or `0.3.0-preview.n` (public pre-release via `nuget-prerelease-checklist.md` 7-item gate + published-feed repeat validation).[^docs]
+
+## Provider Track B — GitHub Copilot SDK Agent-Mode (promoted first-class track)
+
+> **Positioning (independent of upstream issue/PR state):** this track is driven solely by the Copilot SDK + MAF adapter's own release cadence. It **requires the Phase-1 MAF 1.17.0 re-baseline graph** (`Microsoft.Agents.AI.GitHub.Copilot 1.17.0` pulls MAF 1.17.0 / MEAI 10.7.0 / DI 10.0.9; `Microsoft.Agents.AI.Hosting` is `1.17.0-preview.260804.1`). Because Copilot is promoted but still gated by MAF 1.17.0, Track B sub-phases are sequenced **after Phase 1** and may run interleaved with Track A Phase 2+ based on dependency readiness and team budget. Full evidence: `docs/internal/research/copilot-sdk-integration.md` (R8). No upstream issue/PR dependency is encoded here.
+
+### B1 — Copilot adapter baseline (thin, no AgentBlazor code) — `0.2.2x-internal.N`
+1. Add `Microsoft.Agents.AI.GitHub.Copilot 1.17.0` + explicit `GitHub.Copilot.SDK 1.0.11` to the demo/tests.
+2. Verify bundled `copilot(.exe)` lands under `runtimes/<rid>/native/` via the adapter's buildTransitive bridge; confirm `BaseDirectory`/`COPILOT_HOME` and RID handling for the Blazor-server host.
+**Empirical checkpoint (gate B1):** debug build 0 errors on committed tree; a probe project runs `CopilotClient.AsAIAgent() → RunAsync` end-to-end (streaming + usage + idle); version-graph assertion shows adapter 1.17.0 / SDK 1.0.11 / MAF 1.17.0 / MEAI 10.7.0.
+
+### B2 — Copilot agent-mode IA­gent provider — `0.2.2x-internal.N`
+1. Add `UseCopilot(...)` on `AgentBlazorRegistrationOptions` (parallel to `UseOpenAI` at `:32,44,57,67,95,110,129`) registering a `CopilotClient`-backed `IAgent`.
+2. Implement `CopilotRuntimeAdapter : IAgentRuntimeAdapter` (surface `src/AgentBlazor.Core/Runtime/Interfaces/IAgentRuntimeAdapter.cs`) projecting Copilot sessions/tools/streaming into `AgentTurnRequest/Response` + `AgentTurnStreamEvent`; reuse `AgentConversationScope.BuildSessionKey` for per-session `SessionId`.
+**Empirical checkpoint (gate B2):** chat surface runs a Copilot agent turn (streaming + tool call + `RunFinished`); mapping from `AssistantMessageDeltaEvent`/`ToolExecution*Event`/`SessionIdleEvent` asserted.
+
+### B3 — Approval + tools parity — `0.2.2x-internal.N`
+1. Honor `[AgentAction(RequiresApproval=true)]` by wrapping capability `AITool`s in `ApprovalRequiredAIFunction` (fix `ChatClientRuntimeAdapter.CreateCapabilityTool`'s `_ = requiresApproval`); map `OnPermissionRequest` → `PendingApprovals`/`AgentApprovalMode`.
+**Empirical checkpoint (gate B3):** StepApproval/ExplicitPlanApproval UAT bucket green; negative approval-path test (reject → no tool run).
+
+### B4 — Elicitation / reasoning / model picker (MAF adapter gaps) — `0.2.2x-internal.N` / preview
+1. Bridge `ask_user`/`OnUserInputRequest`/`OnElicitationRequest` → `ClarificationRequired`; map `assistant.reasoning_delta` → `Reasoning*`; expose model picker from `CopilotClient`/`OnListModels`.
+**Empirical checkpoint (gate B4):** clarification + reasoning streamed in chat; model switch works; these are live/cassette-smoke verifiable.
+
+### B5 — Copilot multi-tenancy, auth, cost/cache observability — `0.3.0-preview.n`
+1. Shared `CopilotClient (CopilotClientMode.Empty)` + per-session `GitHubToken`/`ProviderConfig` (BYOK incl. OpenAI-compatible/DeepSeek); OAuth GitHub App token store in BFF; per-tenant `sessionFs`/`baseDirectory`; ownership checks before `resumeSession`/`deleteSession`.
+2. Map `assistant.usage` → `AgentTurnResponse.Usage` (`CachedInputTokenCount = CacheReadTokens`; `CacheWriteTokens`/`Cost`/`Duration` → `AdditionalCounts`); optional `SessionLimits.MaxAiCredits`; converge with Track A Phase 3 schemas.
+**Empirical checkpoint (gate B5):** two-tenant isolation test; cache/token fields reach `Usage`; hard cache-ratio floor; no regressions on Track A provider paths.
+
+> **Track B exit to GA** rides the Track A Phase 7 (hardening/docs/GA) gate. Security: pin bundled CLI ≥ 1.0.43 (two Copilot CLI CVEs: shell-expansion RCE, git-config RCE) and treat shell tools as high-risk in the approval layer.
 
 ## Implementation Plan — Phase 2
 
@@ -182,12 +215,19 @@ Incorporated as hardening decisions (traceability per critique item). Full findi
 |---|---|---|---|
 | 0 | Docs-only: roadmap + research-refs + plan/STATUS + CTX scaffold | docs-only or `0.2.25-internal.1` | Private |
 | 1 | MAF 1.17.0 re-baseline | `0.2.25-internal.1` (or `0.3.0-preview.n`) | Private (or preview) |
+| B1 | Copilot adapter baseline | `0.2.2x-internal.N` | Private |
+| B2 | Copilot agent-mode IA­gent provider | `0.2.2x-internal.N` | Private |
+| B3 | Copilot approval + tools parity | `0.2.2x-internal.N` | Private |
+| B4 | Copilot elicitation/reasoning/picker | `0.2.2x-internal.N` → `0.3.0-preview.n` | Private → preview |
+| B5 | Copilot multitenancy/auth/observability | `0.3.0-preview.n` | Public preview |
 | 2 | OpenAI-compatible parity (DeepSeek V4) | `0.2.26-internal.1` | Private |
 | 3 | Cache/token observability + schema matrix | `0.2.27-internal.1` | Private |
 | 4 | Token-budgeted history window | `0.2.28-internal.1` | Private |
 | 5 | OpenAI/Azure explicit cache controls (Responses) | `0.3.0-preview.n` | Public preview |
 | 6 | Anthropic + cache breakpoints (last) | `0.3.0-preview` follow-on | Public preview |
 | 7 | Hardening + docs + GA | `0.3.0` | Public |
+
+> Track A (Phases 2–7) and Track B (Copilot, B1–B5) may interleave after Phase 1; both GA through the Track A Phase-7 gate. `-internal.N` numbering is illustrative per repo convention (`Directory.Build.props:9`).
 
 Release discipline per repo convention: version in `Directory.Build.props`; release notes pre-staged in `docs/releases/<ver>.md` (fork: `git add -f`); publish via `workflow_dispatch` with validated `package_version`; `nuget-prerelease-checklist.md` 7-item gate for public releases.[^docs]
 
@@ -200,6 +240,8 @@ Release discipline per repo convention: version in `Directory.Build.props`; rele
 5. **Cassette/replay for live requirements:** recorded DeepSeek/OpenAI usage payloads replay through `HttpListenerWireServer` so cache gates are deterministic in CI; live smoke remains opt-in.[^qa]
 6. **Anthropic system-message injection scoped to the Anthropic adapter only** to avoid changing OpenAI path wire shape; OpenAI-path wire regression gate added in Phase 6.[^recipe]
 7. **CI smoke version parameterized** from `Directory.Build.props` (fix hardcoded `0.2.0`).[^qa]
+8. **GitHub Copilot SDK is a promoted first-class provider track** (R8). Copilot is an `IAgent` (not an `IChatClient`) and is treated as a co-equal MAF provider path alongside OpenAI-compatible providers. It is gated by the Phase-1 MAF 1.17.0 re-baseline (its adapter's floor), and its Track B sub-phases B1–B5 may run interleaved with Track A Phase 2+ based on dependency readiness. Customization stays thin and on-top-of-MAF (see Key Design item 5); no fork of MAF or the Copilot SDK.
+9. **The roadmap is upstream/issue-PR independent**: no specific GitHub issue/PR number is a hard prerequisite for any phase; external signals are floor-watch/cadence triggers only (Phase 7 cadence policy), never structural gates.
 
 ## Out of Scope
 
@@ -236,19 +278,26 @@ Release discipline per repo convention: version in `Directory.Build.props`; rele
 - `src/AgentBlazor.Core/Options/ConversationOptions.cs:25` (`MaxHistoryInPrompt`); `AgentTurnResponse.cs:23` (`Usage`)[^ctx][^usage]
 - `tests/AgentBlazor.IntegrationTests/WireCapture/HttpListenerWireServer.cs`; `ProviderWireCaptureTests.cs`; `ReasoningEffortOptionsTests.cs`; `DemoChatRequestLoggingMiddlewareTests.cs`; `Gpt56LiveReasoningTests.cs`[^qa]
 - `.github/workflows/ci.yml`; `.github/skills/ab-uat-spec/` (+ `references/buckets/`); `ab-provider-config/references/{provider-options,reasoning-effort-and-tools,responses-api-escape-hatch}.md`[^qa][^docs]
+- **Copilot Track B files:** `docs/internal/research/copilot-sdk-integration.md` (R8, full); `src/AgentBlazor.Core/Runtime/Interfaces/IAgentRuntimeAdapter.cs`; `src/AgentBlazor.Hosting/AgentBlazorRegistrationOptions.cs` (`UseCopilot`); `src/AgentBlazor.ProviderAdapters/AgentProviderRegistrationExtensions.cs`; `NuGet.Config`/`Directory.Packages.props` (adapter pins, `copilot.exe` packaging via buildTransitive)[^cpd]
 
 ## Related Follow-up
 
 - Phase 2 spike: `max_completion_tokens` vs `max_tokens` tolerance on DeepSeek wire; `thinking` toggle via AdditionalProperties; streaming usage chunk presence.
 - Phase 3 spike: `ChatTokenUsage.Patch` shim vs `OpenAIClientOptions.PipelinePolicy` for DeepSeek cache fields; `stream_options.include_usage` need.
 - Phase 4 spike: MAF `ChatHistoryProvider`/`CompactionProvider` sufficiency vs custom provider.
-- Upstream watch: MAF releases atom + main `dotnet/Directory.Packages.props`; Anthropic SDK CHANGELOG; openai-dotnet CHANGELOG; DeepSeek API docs updates (V4 naming steady since 08-13 GA).[^cadence][^ds]
+- Copilot (Track B) spikes: verify `GitHub.Copilot.SDK 1.0.11` against MAF 1.17.0 (build smoke); confirm BYOK fully token-free launch; validate Copilot `InfiniteSessions` compaction vs AgentBlazor cache prefix via `cacheReadTokens`; confirm `ApprovalRequiredAIFunction` source + per-session token re-supply on resume.
+- Upstream watch (cadence/floor signals only — never structural gates): MAF releases atom + main `dotnet/Directory.Packages.props`; Anthropic SDK CHANGELOG; openai-dotnet CHANGELOG; DeepSeek API docs updates (V4 naming steady since 08-13 GA); GitHub Copilot SDK `.NET` releases + `Microsoft.Agents.AI.GitHub.Copilot`.[^cadence][^ds][^cpd]
 
 ## Follow-up Status Tracker
 
 | Phase | Status | Started | Completed | Notes |
 |---|---|---|---|---|
 | 0 — Baseline & audit | in progress | 2026-08-17 | — | Commits: roadmap → research-refs → plan/STATUS; then `CTX-` scaffold |
+| B1 — Copilot adapter baseline | not started | — | — | Requires Phase 1 (MAF 1.17.0); add adapter packages; verify CLI packaging in demo |
+| B2 — Copilot agent-mode IA­gent provider | not started | — | — | `UseCopilot` + `CopilotRuntimeAdapter : IAgentRuntimeAdapter`; stream/event mapping |
+| B3 — Copilot approval + tools parity | not started | — | — | `ApprovalRequiredAIFunction` bridge; honor `RequiresApproval` |
+| B4 — Copilot elicitation/reasoning/picker | not started | — | — | MAF adapter gaps; bridge `ask_user`/elicitation/reasoning/model picker |
+| B5 — Copilot multitenancy/auth/observability | not started | — | — | Per-session token/BYOK; usage→`Usage`; CLI ≥ 1.0.43 |
 | 1 — MAF 1.17.0 re-baseline | not started | — | — | Compile-proven on probe machine; CI re-verification + version-graph gate pending |
 | 2 — OpenAI-compatible parity (DeepSeek V4) | not started | — | — | `UseDeepSeek` + wire fixtures; verify `max_*`/`thinking`/`reasoning_effort` |
 | 3 — Cache/token observability (schema matrix) | not started | — | — | DeepSeek `prompt_cache_hit_tokens`/`miss_tokens` normalization; hard ratio floor |
@@ -271,6 +320,7 @@ Release discipline per repo convention: version in `Directory.Build.props`; rele
 
 [^probe]: Empirical probes R2: baseline green; bumped + renames → restore blocked (NU1100 AGUI.* / NU1605 DI 10.0.9); cleared → full solution 0 errors (probe machine). Lock files gitignored (CI `--force-evaluate`); probe line numbers for `Usage` corrected to `AgentTurnResponse.cs:23`.
 [^ctx]: Context-assembly research R1: wire order already cache-friendly; `MaxHistoryInPrompt` dead; no breakpoint control; middleware cannot touch system prompt/tools; `BuildUserMessage` tail ordering; MEMO: history is on the wire via MAF `AgentSession` but unbudgeted (rubber-duck C5 correction).
+[^cpd]: Copilot SDK integration research R8 (`docs/internal/research/copilot-sdk-integration.md`, full): `GitHub.Copilot.SDK 1.0.11` is a JSON-RPC/CLI agent runtime, not an `IChatClient`; `Microsoft.Agents.AI.GitHub.Copilot 1.17.0` (`AsAIAgent()` → `GitHubCopilotAgent : AIAgent`) needs MAF 1.17.0 + MEAI 10.7.0 + Hosting `1.17.0-preview.260804.1`; adapter maps `AssistantUsageEvent` → `UsageDetails` (`CachedInputTokenCount=CacheReadTokens`, `CacheWriteTokens`/`Cost`/`Duration`→`AdditionalCounts`); forwarding gaps: elicitation/`ask_user`, reasoning, model picker only as raw; caching automatic/runtime-managed; security CLI ≥ 1.0.43.
 [^qa]: Testing/QA R5: CI gates, wire server, cassettes, UAT bucket convention, live-smoke gating pattern, hardcoded `0.2.0` smoke flag (C13).
 [^meai]: MEAI state: latest 10.9.0; MAF 1.17 floor 10.7.0; `CachedInputTokenCount`/`AdditionalCounts` stable; OpenAI clients map `cached_tokens`; DeepSeek fields land in experimental `JsonPatch` (dropped from public model).
 [^ds]: DeepSeek research R3: `deepseek-v4-flash`/`deepseek-v4-pro`, base `https://api.deepseek.com` (SDK appends `/chat/completions`); `deepseek-chat`/`deepseek-reasoner` discontinued 2026-07-24; automatic context caching (~30–31× hit/miss price); usage `prompt_cache_hit_tokens`/`prompt_cache_miss_tokens`; thinking default high; `reasoning_content` must echo when tools; MEAI sends `max_completion_tokens` (verify tolerance); 3-arg `UseOpenAI` confirmed working path.
