@@ -474,4 +474,4 @@ Current note:
 - Pro tier operations: `docs/pro-tier-operations.md`
 - Runtime realignment plan: `docs/runtime-realignment-plan.md`
 - Chat markdown rendering plan (2026-08-15): `docs/internal/markdown-rendering-plan-2026-08-15.md`
-- KV-cache context assembly + MAF alignment roadmap (2026-08-17): `docs/internal/context-assembly-kv-cache-roadmap-2026-08-17.md`
+- KV-cache context assembly + MAF alignment (OpenAI-first) & GitHub Copilot SDK provider track (Track B): `docs/internal/roadmap.md` (canonical)

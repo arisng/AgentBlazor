@@ -8,8 +8,8 @@ Status: Active working plan
 
 - Chat markdown rendering (Markdig + mermaid): plan and status tracker at
   `docs/internal/markdown-rendering-plan-2026-08-15.md`.
-- KV-cache context assembly + MAF alignment (OpenAI-first, 8 phases): roadmap at
-  [context-assembly-kv-cache-roadmap-2026-08-17.md](context-assembly-kv-cache-roadmap-2026-08-17.md) — Phase 0 (docs-only) in progress.
+- KV-cache context assembly + MAF alignment (OpenAI-first) and GitHub Copilot SDK provider track (Track B): canonical roadmap at
+  [roadmap.md](roadmap.md) — Phase 0 (docs-only) in progress; Track B gated by Phase 1 (MAF 1.17.0 re-baseline).
 
 ## Current Status Snapshot
 
