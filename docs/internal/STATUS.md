@@ -1,6 +1,6 @@
 # AgentBlazor Development Status
 
-Last updated: 2026-04-23
+Last updated: 2026-08-17
 
 ## Production Readiness
 
@@ -373,6 +373,12 @@ Coverage includes:
 
 ## Production Roadmap
 
+### Active Roadmaps
+
+| Item | Status |
+|------|--------|
+| KV-cache context assembly + MAF 1.17 alignment | In progress (Phase 0) |
+
 ### Phase 1: Ship Free Tier (Ready Now)
 
 | Item | Status |
@@ -468,3 +474,4 @@ Current note:
 - Pro tier operations: `docs/pro-tier-operations.md`
 - Runtime realignment plan: `docs/runtime-realignment-plan.md`
 - Chat markdown rendering plan (2026-08-15): `docs/internal/markdown-rendering-plan-2026-08-15.md`
+- KV-cache context assembly + MAF alignment roadmap (2026-08-17): `docs/internal/context-assembly-kv-cache-roadmap-2026-08-17.md`

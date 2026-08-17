@@ -1,6 +1,6 @@
 # AgentBlazor Plan (Living Document)
 
-Last updated: 2026-08-15
+Last updated: 2026-08-17
 Owner: AgentBlazor core team
 Status: Active working plan
 
@@ -8,6 +8,8 @@ Status: Active working plan
 
 - Chat markdown rendering (Markdig + mermaid): plan and status tracker at
   `docs/internal/markdown-rendering-plan-2026-08-15.md`.
+- KV-cache context assembly + MAF alignment (OpenAI-first, 8 phases): roadmap at
+  [context-assembly-kv-cache-roadmap-2026-08-17.md](context-assembly-kv-cache-roadmap-2026-08-17.md) — Phase 0 (docs-only) in progress.
 
 ## Current Status Snapshot
 
