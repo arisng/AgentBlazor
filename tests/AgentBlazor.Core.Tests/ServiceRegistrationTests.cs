@@ -139,6 +139,45 @@ public class ServiceRegistrationTests
     }
 
     [Fact]
+    public async Task ChatClientRuntimeAdapter_PreservesNewlineOnlyStreamingDeltas()
+    {
+        // Regression: a whitespace-only streaming delta (e.g. a bare "\n" between a
+        // heading and its following paragraph) must be accumulated into the response
+        // text and streamed, NOT dropped. Previously the loop did
+        // `if (IsNullOrWhiteSpace(text)) continue;` which removed "\n" deltas and
+        // joined adjacent lines ("## Executive Summary" + "\n" + "The ..." became
+        // "## Executive SummaryThe ...").
+        var services = new ServiceCollection();
+        services.AddSingleton<NewlineDeltaChatClient>();
+        services.AddSingleton<IChatClient>(static sp => sp.GetRequiredService<NewlineDeltaChatClient>());
+        services.AddAgentBlazorServices()
+            .UseChatClientRuntimeAdapter()
+            .AddAgent("chat-agent");
+
+        await using var provider = services.BuildServiceProvider();
+        var adapter = provider.GetRequiredService<IAgentRuntimeAdapter>();
+
+        var events = new List<AgentTurnStreamEvent>();
+        await foreach (var streamEvent in adapter.RunTurnStreamingAsync(
+                           new AgentTurnRequest("summarize", SessionId: "session-newline")))
+        {
+            events.Add(streamEvent);
+        }
+
+        // The newline-only delta must be streamed to the client (display bubble).
+        Assert.Contains(events, static e => e.Kind == AgentTurnStreamEventKind.TextMessageContent && e.TextDelta == "\n");
+
+        // The assembled response text must preserve the newline so persisted markdown
+        // stays well-formed.
+        var finished = Assert.Single(
+            events,
+            static e => e.Kind == AgentTurnStreamEventKind.RunFinished && e.Response is not null);
+        Assert.Equal(
+            "## Executive Summary\nThe in-platform Product Manager agent",
+            finished.Response!.ResponseText);
+    }
+
+    [Fact]
     public async Task ChatClientRuntimeAdapter_ReconnectsAndReplaysBufferedStreamEvents()
     {
         var services = new ServiceCollection();
@@ -2392,6 +2431,45 @@ public class ServiceRegistrationTests
             _ = cancellationToken;
             yield return new ChatResponseUpdate(ChatRole.Assistant, "hello ");
             yield return new ChatResponseUpdate(ChatRole.Assistant, "world");
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null)
+        {
+            _ = serviceType;
+            _ = serviceKey;
+            return null;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class NewlineDeltaChatClient : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = messages;
+            _ = options;
+            _ = cancellationToken;
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "## Executive Summary\nThe in-platform Product Manager agent")));
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _ = messages;
+            _ = options;
+            _ = cancellationToken;
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "## Executive Summary");
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "\n");
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "The in-platform Product Manager agent");
             await Task.CompletedTask;
         }
 

@@ -443,7 +443,12 @@ public sealed class ChatClientRuntimeAdapter(
                 }
 
                 var text = update.Text;
-                if (string.IsNullOrWhiteSpace(text))
+                // NOTE: only skip truly-empty deltas. A whitespace-only delta (most
+                // importantly a bare "\n") is significant — it carries a line break
+                // the model authored. Dropping it (previously IsNullOrWhiteSpace) would
+                // join adjacent lines, corrupting markdown ("## Executive Summary" +
+                // "\n" + "The ..." became "## Executive SummaryThe ...").
+                if (string.IsNullOrEmpty(text))
                 {
                     continue;
                 }
