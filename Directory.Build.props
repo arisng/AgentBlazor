@@ -6,7 +6,7 @@
 
   <!-- Common package metadata for all AgentBlazor packages -->
   <PropertyGroup>
-    <Version>0.2.24-internal.1</Version>
+    <Version>0.2.24-internal.2</Version>
     <Authors>Ash Peterson</Authors>
     <Company>AgentBlazor</Company>
     <Copyright>Copyright (c) 2026 Ash Peterson</Copyright>
@@ -16,7 +16,7 @@
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>v0.2.24-internal.1 (private/internal fork build): chat markdown rendering enhancement — sanitized Markdig pipeline (DisableHtml + allowlist sanitizer), client-side mermaid/nomnoml SVG diagrams and highlight.js syntax highlighting, copy buttons on code blocks, configurable MarkdownOptions (EnableMermaid, EnableSyntaxHighlighting, EnableCodeCopy, Sanitize, script URL overrides). Timeline markdown is now sanitized by default (raw LLM HTML was previously rendered via MarkupString); opt out with MarkdownOptions.Sanitize=false. NOT for public consumption — private fork marker; a future public 0.2.24 may differ. v0.2.23-internal.1: AgentBlazorRegistrationOptions.ConfigureChatOptions() provider-level ChatOptions hook (gpt-5.6-family reasoning_effort 400 fix, clone-first wrapper). v0.2.22: CLI V2 workflow onboarding release.</PackageReleaseNotes>
+    <PackageReleaseNotes>v0.2.24-internal.2 (bugfix): preserve whitespace-only streaming text deltas so markdown line breaks survive — fixed ChatClientRuntimeAdapter.RunTurnStreamingAsync dropping bare newline deltas (IsNullOrWhiteSpace → IsNullOrEmpty), preventing markdown corruption where headings joined their following paragraphs. Regression test added. v0.2.24-internal.1 (private/internal fork build): chat markdown rendering enhancement — sanitized Markdig pipeline (DisableHtml + allowlist sanitizer), client-side mermaid/nomnoml SVG diagrams and highlight.js syntax highlighting, copy buttons on code blocks, configurable MarkdownOptions (EnableMermaid, EnableSyntaxHighlighting, EnableCodeCopy, Sanitize, script URL overrides). Timeline markdown is now sanitized by default (raw LLM HTML was previously rendered via MarkupString); opt out with MarkdownOptions.Sanitize=false. NOT for public consumption — private fork marker; a future public 0.2.24 may differ. v0.2.23-internal.1: AgentBlazorRegistrationOptions.ConfigureChatOptions() provider-level ChatOptions hook (gpt-5.6-family reasoning_effort 400 fix, clone-first wrapper). v0.2.22: CLI V2 workflow onboarding release.</PackageReleaseNotes>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Deterministic>true</Deterministic>
