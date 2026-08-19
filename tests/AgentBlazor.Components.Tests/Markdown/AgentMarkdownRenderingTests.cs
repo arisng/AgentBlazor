@@ -184,6 +184,32 @@ public sealed class AgentMarkdownRenderingTests
     }
 
     [Fact]
+    public void Render_PipeTable_StructureIsCorrect()
+    {
+        // Verify thead is inside table, tbody is inside table, and the
+        // structure is valid (not display:block which breaks alignment).
+        var html = AgentMarkdownRendering.Render("""
+            | Col A | Col B | Col C |
+            |-------|-------|-------|
+            | 1     | 2     | 3     |
+            | 4     | 5     | 6     |
+            """);
+
+        // thead and tbody should both be direct children of table
+        Assert.Contains("<table", html);
+        Assert.Contains("<thead>", html);
+        Assert.Contains("<tbody>", html);
+        // th elements should be inside thead
+        Assert.Contains("<th>Col A</th>", html);
+        Assert.Contains("<th>Col B</th>", html);
+        Assert.Contains("<th>Col C</th>", html);
+        // td elements should be inside tbody
+        Assert.Contains("<td>1</td>", html);
+        Assert.Contains("<td>5</td>", html);
+        Assert.Contains("<td>6</td>", html);
+    }
+
+    [Fact]
     public void Render_AlertBlock_IsPreserved()
     {
         var html = AgentMarkdownRendering.Render("""

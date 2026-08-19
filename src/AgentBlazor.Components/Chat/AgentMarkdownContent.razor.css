@@ -5,6 +5,11 @@
    without attributes. Consumes --ab-chat-* tokens (falls back to light values
    when the tokens are absent). */
 
+/* Wrapper: allow horizontal scroll for wide markdown tables. */
+.ab-chat-surface__item-text--markdown {
+    overflow-x: auto;
+}
+
 .ab-chat-surface__item-text--markdown ::deep h1,
 .ab-chat-surface__item-text--markdown ::deep h2,
 .ab-chat-surface__item-text--markdown ::deep h3,
@@ -128,11 +133,17 @@
 
 .ab-chat-surface__item-text--markdown ::deep table {
     border-collapse: collapse;
-    width: 100%;
+    min-width: 100%;
+    width: auto;
     margin: 0.5em 0;
     font-size: 0.9em;
-    overflow-x: auto;
-    display: block;
+}
+
+/* Wide-table scroll wrapper: when a markdown table overflows the chat bubble,
+   the wrapper provides horizontal scrolling while keeping the table's native
+   layout intact (header columns stay aligned with body columns). */
+.ab-chat-surface__item-text--markdown ::deep table {
+    display: table;
 }
 
 .ab-chat-surface__item-text--markdown ::deep th,
@@ -140,6 +151,7 @@
     border: 1px solid var(--ab-chat-border, #e2e8f0);
     padding: 0.375rem 0.75rem;
     text-align: left;
+    white-space: nowrap;
 }
 
 .ab-chat-surface__item-text--markdown ::deep th {
