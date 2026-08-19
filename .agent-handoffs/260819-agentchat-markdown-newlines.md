@@ -1,6 +1,8 @@
 # Handoff — AgentChat markdown line-break corruption (newline-only streaming delta dropped)
 
-Date: 2026-08-19 · Branch: `bugfix/260819-agentchat-markdown-rendering` (worktree `dprocess-dotnet-starter-kit.worktrees\bugfix-260819-markdown-rendering`)
+> **Status: COMPLETED** · Published as `0.2.24-internal.2` · Tag: `v0.2.24-internal.2`
+
+Date: 2026-08-19 · Branch: `bugfix/streaming-newlines-preserved`
 
 ## Objective
 
