@@ -1,0 +1,81 @@
+name: publish-github-packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: "Fork build version to publish (e.g. 0.2.24-internal.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write          # REQUIRED — without this, nuget push returns 401/403
+
+env:
+  GITHUB_FEED: https://nuget.pkg.github.com/arisng/index.json
+  ARTIFACT_SET: >-
+    src/AgentBlazor.Components
+    src/AgentBlazor.Core
+    src/AgentBlazor.Hosting
+    src/AgentBlazor.Client
+    src/AgentBlazor.EntityFrameworkCore
+    src/AgentBlazor.ProviderAdapters
+    src/AgentBlazor.Licensing
+    src/AgentBlazor.Cli
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK (pinned)
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Validate package version format
+        shell: bash
+        run: |
+          if [[ "${{ inputs.package_version }}" != *"-internal."* ]]; then
+            echo "Expected an -internal fork version (e.g. 0.2.24-internal.1)."
+            exit 1
+          fi
+
+      - name: Restore
+        run: dotnet restore AgentBlazor.slnx --force-evaluate
+
+      - name: Build
+        run: dotnet build AgentBlazor.slnx -c Release --no-restore -nologo /p:Version=${{ inputs.package_version }}
+
+      - name: Pack package set
+        shell: bash
+        run: |
+          for proj in $ARTIFACT_SET; do
+            dotnet pack "$proj" -c Release --no-build -o ./nupkgs /p:Version=${{ inputs.package_version }}
+          done
+
+      - name: Push packages to GitHub Packages
+        shell: bash
+        env:
+          NUGET_API_KEY: "arisng:${{ secrets.GITHUB_TOKEN }}"
+        run: |
+                for pkg in ./nupkgs/*.nupkg ./nupkgs/*.snupkg; do
+                  [ -f "$pkg" ] || continue
+                  echo "Pushing $pkg"
+                  dotnet nuget push "$pkg" \
+                    --source "$GITHUB_FEED" \
+                    --api-key "$NUGET_API_KEY" \
+                    --skip-duplicate \
+                    --timeout 120
+                done
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentblazor-nuget-${{ inputs.package_version }}
+          path: ./nupkgs
+          if-no-files-found: error
