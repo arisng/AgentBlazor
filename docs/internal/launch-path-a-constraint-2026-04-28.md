@@ -10,7 +10,7 @@ The 6-week schedule
 Today is Tuesday April 28. Each week ends Sunday. June 9 is the launch Tuesday.
 Week 1 (Apr 28 – May 3): Cut. No new code. Only deletion or hiding.
 Move runtime-realignment-plan.md, REFACTOR_STATUS.md, PRODUCTION_PLAN.md, plan.md, the various nuget-prerelease checklists, and the master plan documents to docs/internal/ or delete them. They are working documents, not public-facing. Their existence in the repo root signals "still cooking" to anyone browsing the project.
-Remove AgentBlazor.Licensing from AgentBlazor.slnx (it's already removed from .slnx but still in .sln — pick one solution file and delete the other; REFACTOR_STATUS.md says this should have happened already). Delete the project directory. The Pro tier is gone for v1.
+Remove AgentBlazor.Licensing from AgentBlazor.slnx. Delete the project directory. The Pro tier is gone for v1.
 In src/AgentBlazor.Components/AgentBlazor.Components.csproj, change the package description from "Free tier includes full runtime. Pro tier adds analytics, audit logging, and smart suggestions" to a single sentence about what the package does. Pro tier doesn't exist for v1.
 Strip every reference to "Free / Paid / Premium" from the README, the demo landing page, the docs, and any public-facing surface. Search the repo: grep -r "Premium\|Paid tier\|Pro tier" --include="*.md" --include="*.razor" --include="*.cs". All of it goes.
 Move src/AgentBlazor.Cli/README.md content into docs/advanced/cli.md. The CLI is not the headline, it's an advanced setup option referenced once at the bottom of the main README.

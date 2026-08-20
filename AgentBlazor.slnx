@@ -17,6 +17,8 @@
     <Project Path="src/AgentBlazor.ProviderAdapters/AgentBlazor.ProviderAdapters.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AgentBlazor.Cli.Analysis.Tests/AgentBlazor.Cli.Analysis.Tests.csproj" />
+    <Project Path="tests/AgentBlazor.Cli.IntegrationTests/AgentBlazor.Cli.IntegrationTests.csproj" />
     <Project Path="tests/AgentBlazor.Components.Tests/AgentBlazor.Components.Tests.csproj" />
     <Project Path="tests/AgentBlazor.Core.Tests/AgentBlazor.Core.Tests.csproj" />
     <Project Path="tests/AgentBlazor.IntegrationTests/AgentBlazor.IntegrationTests.csproj" />

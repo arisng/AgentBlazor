@@ -22,7 +22,7 @@ dotnet build
 dotnet build demo/AgentBlazor.Demo/AgentBlazor.Demo.csproj
 
 # Run all tests
-dotnet test AgentBlazor.sln --configuration Debug
+dotnet test AgentBlazor.slnx --configuration Debug
 ```
 
 **SDK**: .NET 10.0.106 (with `latestMinor` rollforward)

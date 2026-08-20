@@ -1052,7 +1052,7 @@ public class ProviderAdapterIntegrationTests
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "AgentBlazor.sln")))
+            if (File.Exists(Path.Combine(current.FullName, "AgentBlazor.slnx")))
             {
                 return Path.Combine([current.FullName, .. segments]);
             }

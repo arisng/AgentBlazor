@@ -208,7 +208,7 @@ Add one example page (`/examples/custom-action`) showing the `[AgentAction]` pat
 
 ### Clean Up Dead Projects
 
-Remove `AgentBlazor.Licensing` and `AgentBlazor.DefaultAgent` from `AgentBlazor.sln` / `AgentBlazor.slnx` and delete their directories. They are vestigial from the pre-refactor architecture.
+Remove `AgentBlazor.Licensing` and `AgentBlazor.DefaultAgent` from `AgentBlazor.slnx` and delete their directories. They are vestigial from the pre-refactor architecture.
 
 ### Developer Experience Polish
 

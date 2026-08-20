@@ -97,7 +97,7 @@ Incorporated as hardening decisions (traceability per critique item). Full findi
 5. Docs in same change set: README "Dependency Stability" (MAF 1.17.0; which packages stay preview: Hosting/Anthropic/AGUI.AspNetCore); STATUS.md dependency bullets.
 
 **Empirical checkpoint (gate 1):**
-- Probe-machine proof: `dotnet build AgentBlazor.sln -c Debug --no-incremental` → 0 errors (already proven; re-verify on committed tree)
+- Probe-machine proof: `dotnet build AgentBlazor.slnx -c Debug --no-incremental` → 0 errors (already proven; re-verify on committed tree)
 - Full CI re-verification (ubuntu Release, `--no-incremental`): restore `--force-evaluate` → Release build → min.css `-Check` → `dotnet test` (all 5 xunit projects) → parameterized package smoke → e2e
 - **Version-graph assertion:** `dotnet list <proj> package` shows MAF 1.17.0 / MEAI 10.7.0 / OpenAI 2.10.0 / AGUI 0.0.3 resolved (add as CI step)[^probe][^qa]
 - AG-UI runtime regression: `AgUiHostingIntegrationTests`, `RemoteChatEndpointTests` green; `ReasoningEffortOptionsTests` wire regression green (clone-first semantics unchanged on MEAI 10.7.0)[^qa][^meai]

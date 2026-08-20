@@ -315,7 +315,7 @@ public sealed class ScaffoldWorkflowsCommandTests
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "AgentBlazor.sln")))
+            if (File.Exists(Path.Combine(directory.FullName, "AgentBlazor.slnx")))
             {
                 return directory.FullName;
             }

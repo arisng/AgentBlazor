@@ -326,7 +326,7 @@ and package metadata. Verdict: architecture sound; three High defects corrected.
 
 ## Verification Plan
 
-1. `dotnet build` + `dotnet test` (`AgentBlazor.sln`) — new unit + bunit tests
+1. `dotnet build` + `dotnet test` (`AgentBlazor.slnx`) — new unit + bunit tests
    green (golden HTML snapshots included); existing `AgentChatSurfaceTests` /
    `CompatibilityRenderParityTests` unaffected.
 2. Demo run (InteractiveServer + prerender): prompt with tables, task lists,

@@ -28,7 +28,7 @@
       "label": "test",
       "command": "dotnet",
       "type": "process",
-      "args": ["test", "${workspaceFolder}/AgentBlazor.sln", "--configuration", "Debug"],
+      "args": ["test", "${workspaceFolder}/AgentBlazor.slnx", "--configuration", "Debug"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "test", "isDefault": true }
     },
