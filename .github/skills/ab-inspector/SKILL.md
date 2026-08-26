@@ -22,9 +22,9 @@ Consumer-side guidance for enabling and reading the **Agent Inspector**, AgentBl
 |---|---|---|
 | `AgentBlazorRegistrationOptions.UseDevTools(bool autoShow = false)` | Registration | Enables the inspector **without a license**: registers `InMemoryAgentInspectorStore`, sets `EnableDevTools` / `AutoShowDevTools` |
 | `AgentBlazorRegistrationOptions.UseProLicense(...)` | Registration | Swaps the store for the durable `SqliteAgentInspectorStore` |
-| `AgentChatSurface.ShowDevTools` / `.AutoShowDevTools` | Component param | Per-component toggles; resolve to `ShowDevTools ?? options.EnableDevTools` |
+| `AgentChatSurface.ShowDevTools` / `.AutoShowDevTools` | Component param | Per-component toggles; resolve to `ShowDevTools ?? options.EnableDevTools`. `AutoShowDevTools=true` forces the panel **expanded** on load |
 | `AgentChatWidget.ShowDevTools` / `.AutoShowDevTools` | Component param | Passed through to the inner surface |
-| `AgentInspectorPanel` | Component | The five-tab panel; params `Inline`, `AutoShowOnDebug`, `SessionId` |
+| `AgentInspectorPanel` | Component | The five-tab panel; params `Inline`, `AutoShowOnDebug` (forces expanded), `SessionId` |
 | `IAgentInspectorStore` | Runtime | `RecordRun(InspectorRunRecord)`, `GetRecentRuns(sessionId, limit = 20)` |
 | `InspectorRunRecord` / `InspectorEvent` | Runtime | Records describing a run and its events |
 | `SqliteAgentInspectorStore` | Runtime | Pro, durable store at `agentblazor-inspector.db`; `GetAllRecentRuns`, `Prune(maxAgeDays)` |
@@ -38,12 +38,12 @@ The inspector works **without a paid license** in development. Enable it globall
 builder.AddAgentBlazor(options =>
 {
     // ... provider, tools, agents ...
-    options.UseDevTools();            // enables the inspector, auto-show off
-    // options.UseDevTools(true);     // or auto-open the panel
+    options.UseDevTools();            // enables the inspector, toggle visible
+    // options.UseDevTools(true);     // forces the panel expanded on load
 });
 ```
 
-Or opt in per chat component:
+Or opt in per chat component. `AutoShowDevTools="true"` forces the panel open immediately (no toggle-click required):
 
 ```razor
 <AgentChatSurface ShowDevTools="true" AutoShowDevTools="true" />
@@ -66,6 +66,7 @@ Or opt in per chat component:
 | Goal | Approach | See |
 |---|---|---|
 | Show/hide the inspector panel | `UseDevTools()` or component toggles | [`references/panel-and-usage.md`](references/panel-and-usage.md) |
+| Force panel expanded by default | `AutoShowDevTools="true"` or `UseDevTools(autoShow: true)` | [`references/panel-and-usage.md`](references/panel-and-usage.md#force-the-panel-expanded-by-default) |
 | Read each tab in detail | Panel reference | [`references/panel-and-usage.md`](references/panel-and-usage.md) |
 | Understand event kinds & phase grouping | Event catalog | [`references/event-catalog.md`](references/event-catalog.md) |
 | Persist runs across restarts (Pro) | `UseProLicense` → `SqliteAgentInspectorStore` | [`references/store-and-persistence.md`](references/store-and-persistence.md) |

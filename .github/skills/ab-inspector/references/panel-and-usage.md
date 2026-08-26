@@ -54,6 +54,43 @@ A component value, when set, wins; otherwise the option value applies. `EnableDe
 
 `AgentChatPanel` does **not** expose `ShowDevTools` / `AutoShowDevTools`. If you embed the inspector via chat components, use `AgentChatSurface` or `AgentChatWidget`. `AgentChatPanel` is only consistent when you enable the inspector globally via `UseDevTools()`.
 
+### Force the panel expanded by default
+
+`ShowDevTools="true"` alone makes the panel *available* — it renders a small **"Inspector"** toggle button that the user must click to open the panel. To have the panel **already expanded** when the page loads, set `AutoShowDevTools` to `true`:
+
+```csharp
+// Option A — globally in Program.cs
+builder.AddAgentBlazor(options =>
+{
+    options.UseDevTools(autoShow: true);  // EnableDevTools + AutoShowDevTools
+});
+```
+
+```razor
+<!-- Option B — per component -->
+<AgentChatSurface ShowDevTools="true" AutoShowDevTools="true" />
+```
+
+```razor
+<!-- Option C — on a widget -->
+<AgentChatWidget ShowDevTools="true" AutoShowDevTools="true" />
+```
+
+Both paths converge on the same mechanism: `AgentChatSurface` passes `AutoShowOnDebug` to `AgentInspectorPanel`, which sets `_visible = true` in `OnInitialized()`. The user sees the full panel immediately, with no toggle-click required.
+
+| `ShowDevTools` | `AutoShowDevTools` | Result |
+|---|---|---|
+| `true` | `false` / `null` | Panel available; user clicks toggle to open |
+| `true` | `true` | Panel **expanded** on load; user sees tabs immediately |
+| `false` / `null` | any | No panel rendered at all |
+
+**Tip:** If you want the inspector always visible for debugging during development but hidden in production, gate the flag behind an environment check:
+
+```razor
+<AgentChatSurface ShowDevTools="true"
+                  AutoShowDevTools="@_isDevelopment" />
+```
+
 ---
 
 ## Panel placement and parameters
