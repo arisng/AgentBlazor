@@ -77,7 +77,7 @@ See [`DIVERGENCE.md`](DIVERGENCE.md) for full divergence tracking.
 ## Existing Skills & Documentation
 
 **Skills** (`.github/skills/`):
-- `ab-agent-registration`, `ab-capability-authoring`, `ab-chat-composer`, `ab-chat-session-management`, `ab-cli`, `ab-context-assembly`, `ab-conversation-store`, `ab-entity-design`, `ab-in-chat-features`, `ab-middleware-authoring`, `ab-mud-components`, `ab-multitenancy`, `ab-provider-config`, `ab-tool-registration`, `ab-uat-spec`, `ab-ui-integration`, `git-fork-sync`, `roadmap-triage`
+- `ab-agent-registration`, `ab-capability-authoring`, `ab-chat-composer`, `ab-chat-session-management`, `ab-cli`, `ab-context-assembly`, `ab-conversation-store`, `ab-entity-design`, `ab-in-chat-features`, `ab-middleware-authoring`, `ab-mud-components`, `ab-multitenancy`, `ab-prompt-engineering`, `ab-provider-config`, `ab-tool-registration`, `ab-uat-spec`, `ab-ui-integration`, `git-fork-sync`, `roadmap-triage`
 
 **Documentation** (`docs/`):
 - [`quickstart.md`](docs/quickstart.md) — Getting started guide
