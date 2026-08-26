@@ -17,7 +17,7 @@ metadata:
 | **Generative UI** | `AgentGenerativeSurface`, `AgentGeneratedCard`, `AgentGeneratedForm`, `AgentGeneratedChart`, `AgentGeneratedTable` | Agent-dynamic rendered UI blocks |
 | **Base + Attributes** | `AgentControllableComponentBase`, `AgentFormPageBase<T>`, `[AgentAction]`, `[AgentReadable]`, `[AgentParam]`, `[AgentComponent]` | Build custom controllable components |
 | **Action Rendering** | `AgentActionRender`, `AgentToolRender`, `IAgentActionRenderRegistry` | Custom visual feedback for action states |
-| **Dev Tools** | `AgentProDashboard`, `AgentInspectorPanel` | Usage analytics and runtime debugging |
+| **Dev Tools** | `AgentProDashboard`, `AgentInspectorPanel` | Usage analytics and runtime debugging. Inspector deep-dive: [`ab-inspector`](../ab-inspector/SKILL.md) |
 
 ## Quick Start — Minimal Page
 

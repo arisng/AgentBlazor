@@ -45,7 +45,7 @@ Any behavior where the agent, mid-conversation, pauses the turn or renders inter
 | Stop button | **Stop** button in composer area during active turns | Automatic — visible when agent is Thinking… or streaming |
 | Timeout warning | "Turn timed out" banner when a turn exceeds the timeout | `TurnTimeoutSeconds` on the chat component |
 | Error boundary | Inline error card with error message + **Retry** button | Automatic when an unhandled exception occurs during a turn |
-| Dev tools / Inspector | **Agent Inspector** panel showing middleware, tools, turn events, raw LLM payloads | `ShowDevTools="true"`, `AutoShowDevTools="true"` (not available on `AgentChatPanel`; use `AgentChatSurface` or `AgentChatWidget`) |
+| Dev tools / Inspector | **Agent Inspector** panel showing middleware, tools, turn events, raw LLM payloads | `ShowDevTools="true"`, `AutoShowDevTools="true"` (not available on `AgentChatPanel`; use `AgentChatSurface` or `AgentChatWidget`). Full inspector guide: [`ab-inspector`](../ab-inspector/SKILL.md) |
 
 ## How in-chat features flow (shared pipeline)
 
