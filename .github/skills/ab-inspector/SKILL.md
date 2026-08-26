@@ -2,7 +2,7 @@
 name: ab-inspector
 description: "Enable, wire, and debug the Agent Inspector — AgentBlazor's built-in in-app developer debugging surface that records every agent run (turn) into an IAgentInspectorStore and renders it in a five-tab panel (Runs, Events, Prompt, State, Components) inside the chat surface. Use when enabling the inspector from a consumer app via UseDevTools (no license) or UseProLicense (durable SqliteAgentInspectorStore), toggling the panel with ShowDevTools/AutoShowDevTools on AgentChatSurface or AgentChatWidget, reading the panel's tabs (run summaries, phase-grouped event timelines, the full system prompt, shared-state diffs, live controllable-component state), understanding the recorded event kinds and phases, or correlating multi-agent handoff chains. Consumer-side only; never edit package internals. Triggers: agent inspector, inspector, dev tools, ShowDevTools, AutoShowDevTools, UseDevTools, EnableDevTools, AgentInspectorPanel, IAgentInspectorStore, InspectorRunRecord, InspectorEvent, SqliteAgentInspectorStore, InMemoryAgentInspectorStore, inspector store, debug agent runs, event timeline, system prompt replay, handoff chain, inspect agent state."
 metadata:
-    version: 0.1.0
+    version: 0.1.1
 ---
 
 # `ab-inspector` — Agent Inspector & Dev Tools

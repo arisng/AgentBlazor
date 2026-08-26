@@ -18,24 +18,24 @@ public sealed record InspectorEvent(
 
 ## Phases
 
-The Events tab groups kinds into **phases** (from `InspectorEventLens`). Order:
+The Events tab groups kinds into **phases** (from `InspectorEventLens`). Display order (from `GetPhaseSortOrder`):
 
-`planning` → `validation` → `execution` → `state` → `handoff` → `run` → `stream`
+`planning` → `validation` → `execution` → `state` → `handoff` → `stream` → `run`
 
-| Phase | Kinds in this phase |
-|---|---|
-| `planning` | `PlanningStarted`, `PlanningFinished`, `PlannedAction` |
-| `validation` | `ValidationStarted`, `ValidationPassed`, `ValidationFailed`, `ApprovalRequired` |
-| `execution` | `ExecutionStarted`, `ExecutionFinished` |
-| `state` | `StateSnapshot`, `StateDelta` |
-| `handoff` | `AgentHandoff` |
-| `run` | `RunStarted`, `RunFinished`, `RunError`, `RunCanceled` |
-| `stream` | `ToolCallStart`, `ToolCallResult`, `ToolCallFailed`, `TextMessageStart`, `TextMessageContent`, `TextMessageEnd` |
-| `other` (fallback) | any unrecognized kind |
+| Phase | Sort | Kinds in this phase |
+|---|---|---|
+| `planning` | 0 | `PlanningStarted`, `PlanningFinished`, `PlannedAction` |
+| `validation` | 1 | `ValidationStarted`, `ValidationPassed`, `ValidationFailed`, `ApprovalRequired` |
+| `execution` | 2 | `ExecutionStarted`, `ExecutionFinished` |
+| `state` | 3 | `StateSnapshot`, `StateDelta` |
+| `handoff` | 4 | `AgentHandoff` |
+| `stream` | 5 | `ToolCallStart`, `ToolCallResult`, `ToolCallFailed`, `TextMessageStart`, `TextMessageContent`, `TextMessageEnd`, `ClarificationRequired` |
+| `run` | 6 | `RunStarted`, `RunFinished`, `RunError`, `RunCanceled` |
+| `other` | 7 | Any kind not matched above (e.g. `PlannedStep`, `GeneratedUiTool`, `ToolCallArgs`, `ToolCallEnd`, `StepStarted`, `StepFinished`, and the runtime-recorded step events below). The panel still renders them; they simply don't group into a named phase. |
 
 ## Core events emitted per run
 
-These are the structural events the adapter emits for every recorded run:
+These are the structural events the adapter emits when recording a run. Not all are present on every run — conditional events are noted.
 
 | Kind | ComponentId | ActionId | Detail | Meaning |
 |---|---|---|---|---|
@@ -49,9 +49,31 @@ These are the structural events the adapter emits for every recorded run:
 
 Notes:
 
+- `RunStarted` and `RunFinished` are present on every recorded run.
+- `AgentHandoff` is conditional — only present when the turn started as a handoff from another agent.
 - A run either has a plan (applies `PlannedStep` per step) **or** plain actions (`PlannedAction` per action) — not both.
-- `ApprovalRequired` is emitted once per step when `step.RequiresApproval`, and once per pending approval when there is no plan.
+- `ApprovalRequired` is conditional — emitted once per step when `step.RequiresApproval`, and once per pending approval when there is no plan.
+- `GeneratedUiTool` is conditional — only when a generated-UI tool was invoked.
 - Streaming events (`ToolCall*`, `TextMessage*`) are surfaced live by the runtime and grouped under `stream` in the panel; use the **stream-only toggle** to isolate them.
+
+## Runtime-recorded step events
+
+`RuntimePersistenceRecords.CreateInspectorRunRecord` appends additional step-level events from the execution plan. These are emitted per step and fall into the `other` phase:
+
+| Kind | Meaning |
+|---|---|
+| `StepStarted` | A plan step began execution |
+| `StepFinished` | A plan step completed |
+| `StepCompleted` | Step status: completed |
+| `StepQueued` | Step status: queued |
+| `StepFailed` | Step status: failed |
+| `StepBlocked` | Step status: blocked |
+| `StepApprovalRequired` | Step status: needs approval |
+| `StepClarificationRequired` | Step status: needs clarification |
+| `StepPending` | Step status: pending (default fallback) |
+| `ToolCallQueued` | Tool call status: queued |
+
+These appear alongside the core events in the Events tab. They give finer-grained visibility into each step's lifecycle within the execution plan.
 
 ## State events
 
@@ -74,4 +96,4 @@ The State tab reconstructs added / updated / removed entries from these.
 
 - **Detail looks like `"{}"`** — the payload was null or empty; not a bug.
 - **Events tab empty for a finished run** — verify the run actually executed through a store-backed adapter and that `UseDevTools()` or a store is registered; with the default `NullAgentInspectorStore` nothing is recorded.
-- **Which phase did this event land in?** — lookup in the phase table above; unknown kinds fall back to `other`.
+- **Which phase did this event land in?** — lookup in the phase table above; unknown kinds and runtime step events fall back to `other`.
