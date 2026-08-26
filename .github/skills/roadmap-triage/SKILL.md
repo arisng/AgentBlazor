@@ -15,6 +15,8 @@ Turn this **fork's** issue/PR/CI/upstream stream into a short, prioritized "focu
 
 > **⚠️ Fork-scoped — this is CRITICAL, divergence is intentional.** This skill is authoritative only for the **fork** `arisng/AgentBlazor` (`git remote origin`). Every triage input — the roadmap, research refs, open issues, PRs, CI/nightly runs, and the UAT/verification suite — is **fork-local** and must be resolved against `origin`, never upstream. Upstream (`ashpeterson/AgentBlazor`, `git remote upstream`) exists **only as a sync source** (e.g. via `git-fork-sync`) and is **never** used as a planning, roadmap, or triage input. Do not pull the fork's roadmap or decisions from upstream, and do not file/triage against upstream's issues/PRs. The only upstream-derived signal that is legitimate here is the dependency/release **floor-watch** (see the "Upstream signals" row), which informs pinning but never overrides the fork's own roadmap priorities.
 
+> **Hard exclusion (owner decision 2026-08-24):** GitHub issues, PRs, and Actions runs owned by the upstream repository are **never candidates**, no matter how relevant they look. Operationally: always invoke `gh` with an explicit `--repo arisng/AgentBlazor` (or run `gh repo set-default arisng/AgentBlazor` first) — never trust default-repo resolution on this clone, because ambiguous remotes can silently resolve `gh issue/pr/run list` to `ashpeterson/AgentBlazor`. Verify each item's owning repository before it enters the candidate inventory; anything resolving to upstream goes to "Rejected / deferred noise" as out-of-scope, with the owning repo named.
+
 ## Contents
 
 - [Inputs & required reading](#inputs--required-reading)
