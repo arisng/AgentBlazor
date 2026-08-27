@@ -95,9 +95,10 @@ When you set `ContextKey` on a parameter, two things happen:
 [AgentAction("Escalate this ticket")]
 public async Task<CapabilityResult> EscalateAsync(
     [AgentParam(ContextKey = AgentRuntimeContextKeys.SessionId)] string sessionId,
+    [AgentParam(ContextKey = AgentRuntimeContextKeys.RunId)] string runId,
     [AgentParam("Priority level", Required = true)] string priority)
 {
-    // sessionId is auto-injected — the model never sees it
+    // sessionId and runId are auto-injected — the model never sees them
     // priority must be supplied by the LLM
 }
 ```
@@ -122,7 +123,11 @@ If a `ContextKey`-bound parameter cannot be resolved (the key is absent from the
 CapabilityResult.InvalidArguments(
     "Required runtime context 'agentblazor.session_id' is missing for capability action 'escalate'.")
     .WithOutput("errorCode", "missing_runtime_context")
+    .WithOutput("parameterName", "sessionId")
     .WithOutput("contextKey", "agentblazor.session_id")
+    .WithOutput("actionId", "escalate")
+    .WithOutput("expectedShape", "string")
+    .WithNextAction("Ensure runtime context 'agentblazor.session_id' is supplied before invoking 'escalate'.")
 ```
 
 The action is **never invoked** with a null or missing value — the runtime short-circuits before execution.
@@ -154,7 +159,8 @@ Automatically set these keys:
 | Always | `CurrentRoute` = current URL path (without query string) |
 | Agent selection is locked | `AgentName` = selected agent, `AgentLock` = `"True"` |
 | Handoff is pending | `AgentHandoffFrom`, `AgentHandoffTo`, `AgentHandoffAt` |
-| Custom `AdditionalContext` parameter | Additional keys from the passed dictionary |
+
+> **Note:** Custom runtime context cannot be injected via a chat component parameter. Use [middleware](#via-middleware-recommended) instead.
 
 ### `AgentChatBar`
 

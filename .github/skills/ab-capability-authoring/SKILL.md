@@ -110,6 +110,8 @@ public async Task<CapabilityResult> StartRunAsync(
 2. At invocation time, `ResolveArgumentKey()` uses the `ContextKey` value as the lookup key into the request context dictionary (`request.Context[contextKey]`).
 3. If the key is missing from the context at invocation time, the runtime returns `CapabilityResult.InvalidArguments` with `errorCode: "missing_runtime_context"`.
 
+**`Required` and `ContextKey`:** Setting `Required = true` on a `ContextKey`-bound parameter is valid but functionally redundant — the runtime already returns `missing_runtime_context` if the key is absent, regardless of `Required`. Use `Required` only on parameters the LLM must supply; `ContextKey` parameters are always required by definition.
+
 **Common keys** are defined in `AgentRuntimeContextKeys` (e.g. `SessionId`, `RunId`, `UserId`, `CurrentRoute`). Custom keys injected via middleware are also valid. See [`ab-context-assembly` — context dictionary](../ab-context-assembly/references/context-dictionary.md#consuming-context-in-capability-actions) for the full key reference and consumer patterns.
 
 ## `CapabilityResult` — Return Type
