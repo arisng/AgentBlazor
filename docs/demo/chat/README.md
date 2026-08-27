@@ -10,6 +10,7 @@ Chat surfaces, composer, widget, generated UI, and session management.
 | [Chat Widget](chat-widget.md) | `AgentChatWidget` (floating) | ✅ | `ab-chat-composer` |
 | [Generated UI](generated-ui.md) | `EnableGeneratedUi` inline component rendering | ✅ | `ab-in-chat-features` |
 | [Session Management](session-management.md) | Session key isolation & persistence | ✅/🔶 | `ab-chat-session-management`, `ab-conversation-store` |
+| [Conversation Persistence](conversation-persistence.md) | Incremental durable conversation store | ✅ | `ab-conversation-store` |
 
 ## Not yet demoed
 

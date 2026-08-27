@@ -36,11 +36,11 @@ how to exercise it step-by-step, and what to observe.
 |---|---|---|---|
 | Agents & registration | 6 | 0 | 4 |
 | Capabilities & actions | 6 | 0 | 2 |
-| Chat & conversation | 5 | 0 | 5 |
+| Chat & conversation | 6 | 0 | 5 |
 | MudBlazor components | 15 | 0 | 1 |
 | Inspector & observability | 4 | 1 | 2 |
 | Provider & runtime | 5 | 1 | 3 |
-| **Total** | **41** | **2** | **17** |
+| **Total** | **42** | **2** | **17** |
 
 Features marked ⛔ are library-supported but not yet wired in the Demo — they have no
 guide page yet. Features marked 🟡 have code present but are inactive.
