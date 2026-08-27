@@ -492,3 +492,4 @@ $RECYCLE.BIN/
 # AgentBlazor CLI - ignore state file, keep AGENT.md
 .agentblazor/.state
 *packages.lock.json
+.playwright-cli/**
