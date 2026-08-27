@@ -493,3 +493,4 @@ $RECYCLE.BIN/
 .agentblazor/.state
 *packages.lock.json
 .playwright-cli/**
+testbed/playwright/**
