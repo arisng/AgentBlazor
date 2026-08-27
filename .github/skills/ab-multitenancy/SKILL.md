@@ -2,7 +2,7 @@
 name: ab-multitenancy
 description: "Enable multi-tenant production deployments of AgentBlazor apps on Blazor Interactive Server with BFF + API + SQL Server. Covers tenant resolution with Finbuckle.MultiTenant, per-tenant LLM provider via proxy IChatClient, per-tenant EF Core conversation/data stores, AgentBlazor middleware for cost control and tenant enrichment, and the full BFF integration pattern. Use when asked about multi-tenant AgentBlazor, per-tenant AI providers, tenant isolation in agent conversations, Finbuckle setup with AgentBlazor, or productionizing AgentBlazor for SaaS platforms. Triggers: multi-tenant, multitenant, SaaS, tenant isolation, per-tenant, Finbuckle, BFF pattern, tenant context, TenantAwareChatClient, proxy IChatClient, tenant resolution, ITenantContext, AgentBlazor multi-tenant, ab-multitenancy."
 metadata:
-    version: 0.1.0
+    version: 0.1.1
 ---
 
 # Multi-Tenant AgentBlazor — Finbuckle Edition

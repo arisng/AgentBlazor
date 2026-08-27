@@ -2,7 +2,7 @@
 name: ab-entity-design
 description: "Design EF Core domain entities for AgentBlazor with concrete relationships supporting multitenancy and session identity resolution. Use when modeling ConversationSessionEntity, ConversationTurnEntity, TenantInfo entities; deciding between composite keys vs surrogate keys; designing FK cascades and indexes; adding multitenancy columns (TenantId); handling IsolateConversationsByAgent entity implications; adding audit columns, soft delete, or concurrency tokens; choosing between JSON columns vs owned entity types; or planning EF Core migrations. Triggers: entity design, domain entities, EF Core entities, entity relationships, FK cascade, composite key, global query filter, TenantId column, BaseSessionId, AgentName, ConversationSessionEntity, ConversationTurnEntity, owned entity types, split queries, concurrency token, audit columns, soft delete."
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Entity Design — AgentBlazor

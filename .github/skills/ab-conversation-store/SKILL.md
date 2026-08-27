@@ -2,7 +2,7 @@
 name: ab-conversation-store
 description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; when implementing the incremental persistence operations (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync), persisting ConversationTurn.TurnId for targeted patches, wiring UseJsonFileConversationStore in a consumer app, or enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore against SQL Server/Postgres; or when writing EF Core action-history entities and registrations. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, ConversationOptions, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, TurnId, GetHistoryAsync, ClearSessionAsync, GetActiveSessionsAsync, SetUserIdAsync, GetSessionsForUserAsync, conversation persistence, incremental persistence, ConversationTurn, ConversationHistory, SessionTimeout, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, NullActionHistoryStore, UseProLicense, agent action persistence, persist actions, action history SQL."
 metadata:
-    version: 0.2.0
+    version: 0.3.0
 ---
 
 # Conversation Store — AgentBlazor
