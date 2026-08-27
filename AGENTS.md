@@ -56,7 +56,7 @@ dotnet test AgentBlazor.slnx --configuration Debug
 1. **Attribute-driven capability discovery**: `[AgentAction]`, `[AgentReadable]`, `[AgentParam]`, `[AgentComponent]`
 2. **Builder pattern**: `AgentBlazorBuilder` → `AgentRegistrationBuilder` for configuring agents, workflows, capabilities, tools
 3. **Middleware pipeline**: `IAgentTurnMiddleware` with `AgentTurnContext` for cross-cutting concerns
-4. **Conversation store abstraction**: `IConversationStore` with in-memory, JSON file, and (paid) SQLite implementations
+4. **Conversation store abstraction**: `IConversationStore` with in-memory, JSON file, and (paid) SQLite implementations; **incremental persistence** — `AppendTurnAsync` per turn plus targeted `UpdateTurnAsync` / `DeleteTurnAsync` / `ReorderTurnsAsync` keyed by `ConversationTurn.TurnId` (no full-history rewrite after agent turns)
 5. **Provider seam**: `ConfigureChatOptions(Action<ChatOptions>)` for provider-level option pinning
 
 ## Fork Model
