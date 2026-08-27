@@ -60,6 +60,7 @@ public async Task<CapabilityResult> StartRunAsync(
     [AgentParam("Workflow name", Required = true)] string workflowName)
 {
     // sessionId is auto-injected from runtime context — hidden from AI
+    // Returns missing_runtime_context error if context key is absent
 }
 ```
 
