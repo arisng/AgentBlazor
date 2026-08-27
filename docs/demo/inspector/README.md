@@ -12,4 +12,4 @@ Logging middleware, log inspection endpoints, and prompt tracing.
 
 ## Not yet demoed
 
-- `AgentInspectorPanel` explicit embedding
+- (none — `AgentInspectorPanel` explicit embedding is now demoed at `/demo/debug`)

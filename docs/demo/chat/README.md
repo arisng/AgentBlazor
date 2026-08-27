@@ -14,7 +14,6 @@ Chat surfaces, composer, widget, generated UI, and session management.
 
 ## Not yet demoed
 
-- Session browser / history resume
 - Suggestion chips / predefined prompts
 - Proactive insights
 - Slash commands

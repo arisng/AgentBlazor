@@ -28,19 +28,19 @@ how to exercise it step-by-step, and what to observe.
 
 ## Coverage snapshot
 
-> Evidence: 2026-08-25 audit — 8 workflow agents, 3 standalone agents, 8 capability
+> Evidence: 2026-08-27 post-implementation — 8 workflow agents, 3 standalone agents, 8 capability
 > classes, 41 agent actions, 10 approvals, 3 clarification sites, 15 component
-> families, 25 routes, 9 launchpad scenarios.
+> families, 29 routes, 9 launchpad scenarios, 4 feature showcases.
 
 | Area | ✅ Demoed | 🟡 Dormant | ⛔ Not demoed |
 |---|---|---|---|
-| Agents & registration | 6 | 0 | 4 |
-| Capabilities & actions | 6 | 0 | 2 |
-| Chat & conversation | 6 | 0 | 5 |
-| MudBlazor components | 15 | 0 | 1 |
-| Inspector & observability | 4 | 1 | 2 |
-| Provider & runtime | 5 | 1 | 3 |
-| **Total** | **42** | **2** | **17** |
+| Agents & registration | 7 | 0 | 3 |
+| Capabilities & actions | 7 | 0 | 1 |
+| Chat & conversation | 8 | 0 | 3 |
+| MudBlazor components | 17 | 0 | 0 |
+| Inspector & observability | 6 | 1 | 1 |
+| Provider & runtime | 6 | 1 | 2 |
+| **Total** | **51** | **2** | **10** |
 
 Features marked ⛔ are library-supported but not yet wired in the Demo — they have no
 guide page yet. Features marked 🟡 have code present but are inactive.
