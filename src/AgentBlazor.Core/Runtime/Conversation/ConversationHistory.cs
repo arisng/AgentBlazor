@@ -11,6 +11,14 @@ namespace AgentBlazor.Core.Runtime.Conversation;
 public sealed record ConversationTurn
 {
     /// <summary>
+    /// Stable identity for this turn, assigned at creation. Used by targeted
+    /// incremental operations (<see cref="AgentBlazor.Core.Runtime.Interfaces.IConversationStore.UpdateTurnAsync"/>,
+    /// <see cref="AgentBlazor.Core.Runtime.Interfaces.IConversationStore.DeleteTurnAsync"/>) so a single
+    /// turn can be patched or removed without rewriting the whole conversation.
+    /// </summary>
+    public string TurnId { get; init; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>
     /// When this turn occurred.
     /// </summary>
     public required DateTime Timestamp { get; init; }

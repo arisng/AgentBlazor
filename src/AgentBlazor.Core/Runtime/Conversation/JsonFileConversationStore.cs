@@ -130,6 +130,140 @@ internal sealed class JsonFileConversationStore : IConversationStore, IDisposabl
         }
     }
 
+        public async Task<bool> UpdateTurnAsync(
+            string sessionId,
+            string turnId,
+            ConversationTurn turn,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+            ArgumentNullException.ThrowIfNull(turn);
+
+            if (!_sessions.TryGetValue(sessionId, out var history))
+            {
+                return false;
+            }
+
+            var index = FindTurnIndex(history, turnId);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            // Preserve the matched turn's identity and timestamp so ordering and
+            // subsequent targeted operations stay stable across the update.
+            var existing = history.Turns[index];
+            var updated = history with
+            {
+                Turns = history.Turns
+                    .Select((stored, i) => i == index
+                        ? turn with
+                        {
+                            TurnId = existing.TurnId,
+                            Timestamp = existing.Timestamp
+                        }
+                        : stored)
+                    .ToArray(),
+                LastActivityAt = DateTime.UtcNow
+            };
+
+            _sessions.TryUpdate(sessionId, updated, history);
+            await PersistSnapshotAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<bool> DeleteTurnAsync(
+            string sessionId,
+            string turnId,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+
+            if (!_sessions.TryGetValue(sessionId, out var history))
+            {
+                return false;
+            }
+
+            if (FindTurnIndex(history, turnId) < 0)
+            {
+                return false;
+            }
+
+            var updated = history with
+            {
+                Turns = history.Turns
+                    .Where(turn => !string.Equals(turn.TurnId, turnId, StringComparison.OrdinalIgnoreCase))
+                    .ToArray(),
+                LastActivityAt = DateTime.UtcNow
+            };
+
+            _sessions.TryUpdate(sessionId, updated, history);
+            await PersistSnapshotAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task ReorderTurnsAsync(
+            string sessionId,
+            IReadOnlyList<string> orderedTurnIds,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentNullException.ThrowIfNull(orderedTurnIds);
+
+            if (orderedTurnIds.Count == 0 || !_sessions.TryGetValue(sessionId, out var history))
+            {
+                return;
+            }
+
+            var byId = history.Turns.ToDictionary(
+                static turn => turn.TurnId,
+                static turn => turn,
+                StringComparer.OrdinalIgnoreCase);
+
+            var reordered = new List<ConversationTurn>(history.Turns.Count);
+            var placed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var turnId in orderedTurnIds)
+            {
+                if (placed.Add(turnId) && byId.TryGetValue(turnId, out var matched))
+                {
+                    reordered.Add(matched);
+                }
+            }
+
+            // Unlisted turns retain their existing relative order at the end.
+            foreach (var turn in history.Turns)
+            {
+                if (placed.Add(turn.TurnId))
+                {
+                    reordered.Add(turn);
+                }
+            }
+
+            var updated = history with
+            {
+                Turns = reordered,
+                LastActivityAt = DateTime.UtcNow
+            };
+
+            _sessions.TryUpdate(sessionId, updated, history);
+            await PersistSnapshotAsync(cancellationToken);
+        }
+
+        private static int FindTurnIndex(ConversationHistory history, string turnId)
+        {
+            for (var i = 0; i < history.Turns.Count; i++)
+            {
+                if (string.Equals(history.Turns[i].TurnId, turnId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
     public async Task<IReadOnlyCollection<string>> GetActiveSessionsAsync(
         CancellationToken cancellationToken = default)
     {
