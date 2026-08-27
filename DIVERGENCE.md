@@ -26,6 +26,8 @@ on every sync. The smaller the surface, the cheaper the merge.
 | `scripts/publish-private-feed.ps1` | Fork-local private-feed publisher enforcing the per-version folder layout under `AGENTBLAZOR_LOCAL_FEED` (version folder = archive + exact-version source, root = flat mirror of current version) | None (new file) |
 | `docs/internal/private-feed-publishing.md` | Fork-local guide for the private feed layout, publishing, and consumption | None (new file) |
 | `Directory.Build.props` (`<Version>0.2.24-internal.1</Version>`) | Private-only semver suffix so upstream merge cannot collide with a future public `0.2.24` | Expected conflict on every sync — version line diverges from upstream |
+| `src/AgentBlazor.Core/Runtime/Conversation/` + `Runtime/Interfaces/IConversationStore.cs` | Critical design fix: eliminated the full-history rewrite (`ClearSessionAsync` + re-`AppendTurnAsync`) after every agent turn. Added `ConversationTurn.TurnId` and three incremental ops on `IConversationStore` (`UpdateTurnAsync`, `DeleteTurnAsync`, `ReorderTurnsAsync`); `AgentChatSurface` now uses targeted in-place updates | Medium — additive interface members break downstream implementors until updated; upstream may add conflicting conversation-store changes |
+| `demo/AgentBlazor.Demo/` (`DemoConversationOptions.cs`, `Program.cs`, `appsettings.json`, `Data/`, `Services/DemoConversationStore.cs`) | Demo now demonstrates the incremental conversation-persistence model with three store options: durable `UseJsonFileConversationStore` default (JSON-file store), `InMemory`, and an EF Core + SQLite store (`DemoConversationStore`) implementing the full incremental `IConversationStore` contract | Low — additive demo wiring/files |
 
 ## Local-only (never commit)
 
