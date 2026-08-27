@@ -4,9 +4,11 @@ using AgentBlazor.Demo.Components;
 using AgentBlazor.Demo.Data;
 using AgentBlazor.Demo.Services;
 using AgentBlazor.Core.Data;
+using AgentBlazor.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MudBlazor.Services;
 using System.Threading.RateLimiting;
 
@@ -33,6 +35,36 @@ builder.Services.AddScoped<ReleaseDossierWorkflowService>();
 builder.Services.Configure<DemoSecurityOptions>(builder.Configuration.GetSection(DemoSecurityOptions.SectionName));
 builder.Services.Configure<DemoLoggingOptions>(builder.Configuration.GetSection(DemoLoggingOptions.SectionName));
 builder.Services.Configure<DemoRemoteStorageOptions>(builder.Configuration.GetSection(DemoRemoteStorageOptions.SectionName));
+builder.Services.Configure<DemoConversationOptions>(builder.Configuration.GetSection(DemoConversationOptions.SectionName));
+var demoConversationOptions = builder.Configuration
+    .GetSection(DemoConversationOptions.SectionName)
+    .Get<DemoConversationOptions>()
+    ?? new DemoConversationOptions();
+if (string.IsNullOrWhiteSpace(demoConversationOptions.FilePath))
+{
+    demoConversationOptions.FilePath = Path.Combine(Path.GetTempPath(), "agentblazor-demo-conversations.json");
+}
+if (string.IsNullOrWhiteSpace(demoConversationOptions.ConnectionString))
+{
+    demoConversationOptions.ConnectionString =
+        $"Data Source={Path.Combine(Path.GetTempPath(), "agentblazor-demo-conversations.db")}";
+}
+
+// EF Core conversation store (DemoConversation:Store=EFCore) — a custom
+// IConversationStore implementation demonstrating the production-database pattern.
+// SQLite-backed, durable, uses an IDbContextFactory so the singleton store never
+// captures a scoped context.
+if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddDbContextFactory<DemoConversationDbContext>(options =>
+        options.UseSqlite(demoConversationOptions.ConnectionString));
+    builder.Services.AddSingleton<DemoConversationDatabaseInitializer>();
+    builder.Services.Configure<ConversationOptions>(conversationOptions =>
+    {
+        conversationOptions.MaxTurnsPerSession = demoConversationOptions.MaxTurnsPerSession;
+        conversationOptions.SessionTimeout = demoConversationOptions.SessionTimeout;
+    });
+}
 builder.Services.AddHttpClient("demo-remote-storage");
 builder.Services.AddSingleton<IDemoRemoteStorageAdapter, DemoRemoteStorageAdapter>();
 builder.Services.AddSingleton<IDemoChatRequestLog, JsonlDemoChatRequestLog>();
@@ -174,6 +206,29 @@ builder.Services.AddAgentBlazor(options =>
     options.ConfigureBuilder(agentBuilder =>
     {
         agentBuilder.EnablePromptTracing();
+
+        // Conversation persistence: the Demo demonstrates the incremental persistence
+                // model (append once, targeted UpdateTurnAsync patches for enriched/edited
+                // turns, never full-history rewrites) across three store backends:
+                //   - JsonFile (default) — durable JSON-file store
+                //   - EFCore           — durable SQLite EF Core store (custom IConversationStore)
+                //   - InMemory         — ephemeral
+                if (string.Equals(demoConversationOptions.Store, "JsonFile", StringComparison.OrdinalIgnoreCase))
+                {
+                    agentBuilder.UseJsonFileConversationStore(
+                        demoConversationOptions.FilePath,
+                        configure: conversationOptions =>
+                        {
+                            conversationOptions.MaxTurnsPerSession = demoConversationOptions.MaxTurnsPerSession;
+                            conversationOptions.SessionTimeout = demoConversationOptions.SessionTimeout;
+                        });
+                }
+                else if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
+                {
+                    agentBuilder.UseConversationStore(sp => new DemoConversationStore(
+                        sp.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>(),
+                        sp.GetService<IOptions<ConversationOptions>>()));
+                }
 
         agentBuilder.AddDataSchema(new AgentDataSchemaSet
         {
@@ -324,6 +379,13 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var seeder = scope.ServiceProvider.GetRequiredService<DemoWorkflowDatabaseSeeder>();
     await seeder.InitializeAsync(CancellationToken.None);
+
+    if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
+    {
+        var conversationInitializer = scope.ServiceProvider
+            .GetRequiredService<DemoConversationDatabaseInitializer>();
+        await conversationInitializer.InitializeAsync(CancellationToken.None);
+    }
 }
 
 // Configure the HTTP request pipeline.
