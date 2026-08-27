@@ -10,7 +10,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="AgentBlazor.Core.Tests" />
     <InternalsVisibleTo Include="AgentBlazor.IntegrationTests" />
-  </ItemGroup>
+      <InternalsVisibleTo Include="AgentBlazor.Components.Tests" />
+    </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AgentBlazor.Licensing\AgentBlazor.Licensing.csproj" />

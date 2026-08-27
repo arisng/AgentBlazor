@@ -130,14 +130,59 @@ public sealed class AgentChatSurfaceTests : TestContext
     }
 
     [Fact]
-    public async Task CanceledOutcome_PersistsToConversationHistory_ForFreshRender()
+        public async Task ApprovalEnrichment_UsesTargetedUpdate_AndNeverClearsSession()
     {
-        Services.AddAgentBlazorServices();
-        Services.AgentBlazor().AddAgent("Test Agent");
-        Services.AddSingleton<IAgentActionRenderRegistry, TestActionRenderRegistry>();
+            // Regression test for the rewrite-pattern design fix: the surface must patch
+            // the runtime-persisted turn in place (UpdateTurnAsync) and must NEVER tear
+            // down and rebuild history (ClearSessionAsync) while enriching an approval outcome.
+            Services.AddSingleton<IConversationStore, TrackingConversationStore>();
+            Services.AddAgentBlazorServices();
+            Services.AgentBlazor().AddAgent("Test Agent");
+            Services.AddSingleton<IAgentActionRenderRegistry, TestActionRenderRegistry>();
+            Services.AddSingleton<IAgentRuntimeAdapter>(sp =>
+                new PersistingApprovalRuntimeAdapter(sp.GetRequiredService<IConversationStore>()));
 
-        var runtimeAdapter = new CancellableStreamingRuntimeAdapter();
-        Services.AddSingleton<IAgentRuntimeAdapter>(runtimeAdapter);
+            var cut = RenderComponent<AgentChatSurface>(parameters => parameters
+                .Add(static surface => surface.ShowAgentSelector, false)
+                .Add(static surface => surface.DefaultAgentName, "Test Agent")
+                .Add(static surface => surface.SessionId, "approval-tracking-session"));
+
+            cut.Find("textarea[aria-label='Message input']").Input("run the runtime approval probe");
+            cut.Find("button[aria-label='Send message']").Click();
+
+            cut.WaitForAssertion(() =>
+            {
+                Assert.Single(cut.FindAll(".ab-chat-surface__item--approval"));
+            });
+
+            cut.Find(".ab-chat-surface__submit--approve").Click();
+
+            cut.WaitForAssertion(() =>
+            {
+                Assert.Contains("Runtime approval probe completed.", cut.Markup);
+            });
+
+            var store = (TrackingConversationStore)Services.GetRequiredService<IConversationStore>();
+            var sessionId = AgentConversationScope.BuildSessionKey("approval-tracking-session", "Test Agent", isolateByAgent: false);
+
+            Assert.Equal(0, store.ClearSessionCallCount);
+            Assert.True(store.UpdateTurnCallCount > 0, "Expected the surface to patch the last turn via UpdateTurnAsync.");
+
+            var history = await store.GetHistoryAsync(sessionId);
+            Assert.NotNull(history);
+            Assert.Equal(2, history.Turns.Count);
+            Assert.Equal("Runtime approval probe completed.", history.Turns[^1].AgentResponse);
+        }
+
+        [Fact]
+        public async Task CanceledOutcome_PersistsToConversationHistory_ForFreshRender()
+        {
+            Services.AddAgentBlazorServices();
+            Services.AgentBlazor().AddAgent("Test Agent");
+            Services.AddSingleton<IAgentActionRenderRegistry, TestActionRenderRegistry>();
+
+            var runtimeAdapter = new CancellableStreamingRuntimeAdapter();
+            Services.AddSingleton<IAgentRuntimeAdapter>(runtimeAdapter);
 
         var cut = RenderComponent<AgentChatSurface>(parameters => parameters
             .Add(static surface => surface.ShowAgentSelector, false)
@@ -770,4 +815,74 @@ public sealed class AgentChatSurfaceTests : TestContext
             return null;
         }
     }
-}
+
+        /// <summary>
+        /// Decorator over <see cref="InMemoryConversationStore"/> that records how the
+        /// surface persists turns, so the rewrite-pattern regression test can assert the
+        /// exact calls made (targeted update, zero clear-and-rebuild).
+        /// </summary>
+        private sealed class TrackingConversationStore : IConversationStore
+        {
+            private readonly InMemoryConversationStore _inner = new();
+
+            public int ClearSessionCallCount { get; private set; }
+
+            public int UpdateTurnCallCount { get; private set; }
+
+            public Task<ConversationHistory?> GetHistoryAsync(
+                string sessionId,
+                CancellationToken cancellationToken = default)
+                => _inner.GetHistoryAsync(sessionId, cancellationToken);
+
+            public Task AppendTurnAsync(
+                string sessionId,
+                ConversationTurn turn,
+                CancellationToken cancellationToken = default)
+                => _inner.AppendTurnAsync(sessionId, turn, cancellationToken);
+
+            public Task ClearSessionAsync(
+                string sessionId,
+                CancellationToken cancellationToken = default)
+            {
+                ClearSessionCallCount++;
+                return _inner.ClearSessionAsync(sessionId, cancellationToken);
+            }
+
+            public Task<bool> UpdateTurnAsync(
+                string sessionId,
+                string turnId,
+                ConversationTurn turn,
+                CancellationToken cancellationToken = default)
+            {
+                UpdateTurnCallCount++;
+                return _inner.UpdateTurnAsync(sessionId, turnId, turn, cancellationToken);
+            }
+
+            public Task<bool> DeleteTurnAsync(
+                string sessionId,
+                string turnId,
+                CancellationToken cancellationToken = default)
+                => _inner.DeleteTurnAsync(sessionId, turnId, cancellationToken);
+
+            public Task ReorderTurnsAsync(
+                string sessionId,
+                IReadOnlyList<string> orderedTurnIds,
+                CancellationToken cancellationToken = default)
+                => _inner.ReorderTurnsAsync(sessionId, orderedTurnIds, cancellationToken);
+
+            public Task<IReadOnlyCollection<string>> GetActiveSessionsAsync(
+                CancellationToken cancellationToken = default)
+                => _inner.GetActiveSessionsAsync(cancellationToken);
+
+            public Task SetUserIdAsync(
+                string sessionId,
+                string userId,
+                CancellationToken cancellationToken = default)
+                => _inner.SetUserIdAsync(sessionId, userId, cancellationToken);
+
+            public Task<IReadOnlyCollection<string>> GetSessionsForUserAsync(
+                string userId,
+                CancellationToken cancellationToken = default)
+                => _inner.GetSessionsForUserAsync(userId, cancellationToken);
+        }
+    }
