@@ -1435,31 +1435,14 @@
                 return;
             }
 
-            await RewriteConversationHistoryAsync(
-                sessionId,
-                history,
-                [.. history.Turns.Take(history.Turns.Count - 1), persistedTurn]);
+            // The runtime already persisted this turn, but the surface-composed
+            // version differs (e.g. an enriched approval outcome). Patch just this
+            // turn in place instead of tearing down and rebuilding the whole history.
+            await ConversationStore.UpdateTurnAsync(sessionId, lastTurn.TurnId, persistedTurn);
             return;
         }
 
         await ConversationStore.AppendTurnAsync(sessionId, persistedTurn);
-    }
-
-    private async Task RewriteConversationHistoryAsync(
-        string sessionId,
-        ConversationHistory history,
-        IReadOnlyList<ConversationTurn> turns)
-    {
-        await ConversationStore.ClearSessionAsync(sessionId);
-        foreach (var turn in turns)
-        {
-            await ConversationStore.AppendTurnAsync(sessionId, turn);
-        }
-
-        if (!string.IsNullOrWhiteSpace(history.UserId))
-        {
-            await ConversationStore.SetUserIdAsync(sessionId, history.UserId);
-        }
     }
 
     private static ConversationTurn CreateConversationTurn(string sourceMessage, AgentTurnResponse response)
