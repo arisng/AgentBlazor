@@ -261,6 +261,161 @@ public class ConversationStoreTests
         }
     }
 
+        [Fact]
+        public async Task UpdateTurnAsync_UpdatesOnlyTargetedTurn_AndPreservesSessionMetadata()
+        {
+            var store = CreateStore();
+            await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+            var second = CreateTurn("Need report", "Generating report.");
+            await store.AppendTurnAsync("session-1", second);
+            await store.SetUserIdAsync("session-1", "user-42");
+
+            var history = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(history);
+            var updatedTurn = history.Turns[1] with { AgentResponse = "Report ready." };
+
+            var updated = await store.UpdateTurnAsync("session-1", history.Turns[1].TurnId, updatedTurn);
+
+            Assert.True(updated);
+            var after = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(after);
+            Assert.Equal(2, after.Turns.Count);
+            Assert.Equal("Hello", after.Turns[0].UserMessage);
+            Assert.Equal("Hi!", after.Turns[0].AgentResponse);
+            Assert.Equal("Need report", after.Turns[1].UserMessage);
+            Assert.Equal("Report ready.", after.Turns[1].AgentResponse);
+            Assert.Equal("user-42", after.UserId);
+        }
+
+        [Fact]
+        public async Task UpdateTurnAsync_WithUnknownTurnId_ReturnsFalse_AndDoesNotMutate()
+        {
+            var store = CreateStore();
+            await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+
+            var updated = await store.UpdateTurnAsync(
+                "session-1",
+                "does-not-exist",
+                CreateTurn("Hello", "Changed!"));
+
+            Assert.False(updated);
+            var history = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(history);
+            Assert.Single(history.Turns);
+            Assert.Equal("Hi!", history.Turns[0].AgentResponse);
+        }
+
+        [Fact]
+        public async Task DeleteTurnAsync_RemovesOnlyTargetedTurn()
+        {
+            var store = CreateStore();
+            await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+            await store.AppendTurnAsync("session-1", CreateTurn("Need report", "Generating report."));
+            await store.AppendTurnAsync("session-1", CreateTurn("Send it", "Sent."));
+
+            var history = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(history);
+            var removed = await store.DeleteTurnAsync("session-1", history.Turns[1].TurnId);
+
+            Assert.True(removed);
+            var after = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(after);
+            Assert.Equal(2, after.Turns.Count);
+            Assert.Equal("Hello", after.Turns[0].UserMessage);
+            Assert.Equal("Send it", after.Turns[1].UserMessage);
+        }
+
+        [Fact]
+        public async Task DeleteTurnAsync_WithUnknownTurnId_ReturnsFalse()
+        {
+            var store = CreateStore();
+            await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+
+            var removed = await store.DeleteTurnAsync("session-1", "does-not-exist");
+
+            Assert.False(removed);
+            var history = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(history);
+            Assert.Single(history.Turns);
+        }
+
+        [Fact]
+        public async Task ReorderTurnsAsync_ReordersByProvidedIds_AndKeepsUnlistedAtEnd()
+        {
+            var store = CreateStore();
+            await store.AppendTurnAsync("session-1", CreateTurn("1", "A"));
+            await store.AppendTurnAsync("session-1", CreateTurn("2", "B"));
+            await store.AppendTurnAsync("session-1", CreateTurn("3", "C"));
+            await store.AppendTurnAsync("session-1", CreateTurn("4", "D"));
+
+            var history = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(history);
+
+            // Move "4" into second position: [4, 2, 1, 3]
+            await store.ReorderTurnsAsync(
+                "session-1",
+                [history.Turns[3].TurnId, history.Turns[1].TurnId]);
+
+            var after = await store.GetHistoryAsync("session-1");
+            Assert.NotNull(after);
+            Assert.Equal(
+                ["4", "2", "1", "3"],
+                after.Turns.Select(static t => t.UserMessage));
+        }
+
+        [Fact]
+        public async Task JsonFileConversationStore_IncrementalOps_PersistAcrossInstances()
+        {
+            var tempPath = Path.Combine(
+                Path.GetTempPath(),
+                "agentblazor-tests",
+                $"{Guid.NewGuid():N}",
+                "conversations.json");
+            var options = MsOptions.Create(new ConversationOptions
+            {
+                MaxTurnsPerSession = 10,
+                SessionTimeout = TimeSpan.FromHours(24),
+                EnableAutoCleanup = false
+            });
+
+            try
+            {
+                string secondTurnId;
+                using (var store = new JsonFileConversationStore(tempPath, options))
+                {
+                    await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+                    var second = CreateTurn("Need report", "Generating report.");
+                    await store.AppendTurnAsync("session-1", second);
+                    secondTurnId = second.TurnId;
+                    await store.SetUserIdAsync("session-1", "user-42");
+
+                    var updated = await store.UpdateTurnAsync(
+                        "session-1",
+                        secondTurnId,
+                        second with { AgentResponse = "Report ready." });
+                    Assert.True(updated);
+
+                    var deleted = await store.DeleteTurnAsync("session-1", secondTurnId);
+                    Assert.True(deleted);
+                }
+
+                using var reloaded = new JsonFileConversationStore(tempPath, options);
+                var history = await reloaded.GetHistoryAsync("session-1");
+                Assert.NotNull(history);
+                Assert.Single(history.Turns);
+                Assert.Equal("Hello", history.Turns[0].UserMessage);
+                Assert.Equal("user-42", history.UserId);
+            }
+            finally
+            {
+                var directory = Path.GetDirectoryName(tempPath);
+                if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+        }
+
     private static InMemoryConversationStore CreateStore()
     {
         var options = MsOptions.Create(new ConversationOptions
