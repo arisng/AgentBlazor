@@ -1,0 +1,456 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# AgentBlazor — Taskfile.yml
+# Cross-platform task runner (https://taskfile.dev)
+#
+# Usage:
+#   task                     → lists all tasks
+#   task demo                → run demo with EF Core store (default)
+#   task demo:run:jsonfile   → run demo with JsonFile store
+#   task demo:run:inmemory   → run demo with InMemory store
+#   task build               → build entire solution (Release)
+#   task test                → run all unit/integration tests
+#   task pack                → pack all NuGet packages
+#
+# Prerequisites:
+#   - .NET SDK 10.0.x (pinned via global.json)
+#   - Node.js + npm (for E2E tests only)
+#   - Playwright (installed via tests/e2e/ npm scripts)
+# ═══════════════════════════════════════════════════════════════════════════════
+version: '3'
+
+vars:
+  DEMO_PROJECT: demo/AgentBlazor.Demo/AgentBlazor.Demo.csproj
+  SOLUTION: AgentBlazor.slnx
+  E2E_DIR: tests/e2e
+  OPENAI_API_KEY:
+    sh: echo ${OPENAI_API_KEY:-}
+  OPENAI_MODEL:
+    sh: echo ${OPENAI_MODEL:-gpt-4o-mini}
+  OLLAMA_MODEL:
+    sh: echo ${OLLAMA_MODEL:-qwen2.5-coder:7b}
+
+# ── Global environment ────────────────────────────────────────────────────────
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Tasks
+# ─────────────────────────────────────────────────────────────────────────────
+tasks:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  SOLUTION-LEVEL: Restore / Build / Clean
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  restore:
+    desc: Restore all NuGet packages (force-evaluate to refresh lock files)
+    cmds:
+      - dotnet restore {{.SOLUTION}} --force-evaluate
+
+  build:
+    desc: Build entire solution in Release mode
+    aliases: [b]
+    cmds:
+      - dotnet build {{.SOLUTION}} -c Release
+
+  build:debug:
+    desc: Build entire solution in Debug mode
+    aliases: [bd]
+    cmds:
+      - dotnet build {{.SOLUTION}} -c Debug
+
+  clean:
+    desc: Remove build artifacts and temp files
+    aliases: [c]
+    cmds:
+      - dotnet clean {{.SOLUTION}} -c Release -v quiet
+      - dotnet clean {{.SOLUTION}} -c Debug -v quiet
+      - cmd: powershell -Command 'if (Test-Path artifacts/obj) { Remove-Item -Recurse -Force artifacts/obj }'
+        platforms: [windows]
+      - cmd: rm -rf artifacts/obj
+        platforms: [linux, darwin]
+
+  rebuild:
+    desc: Clean + Build (Release)
+    deps: [clean, restore]
+    cmds:
+      - task: build
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  CODE QUALITY: Format / Lint / CSS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  format:
+    desc: Auto-fix code formatting with dotnet format
+    aliases: [fmt, f]
+    cmds:
+      - dotnet format {{.SOLUTION}}
+
+  format:verify:
+    desc: Verify code formatting (CI check, no changes)
+    cmds:
+      - dotnet format {{.SOLUTION}} --verify-no-changes
+
+  css:regenerate:
+    desc: Regenerate AgentBlazor.min.css from compiled scoped CSS
+    cmds:
+      - powershell -File scripts/regenerate-min-css.ps1
+
+  css:check:
+    desc: Verify AgentBlazor.min.css is up-to-date (CI gate)
+    cmds:
+      - powershell -File scripts/regenerate-min-css.ps1 -Check
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  UNIT & INTEGRATION TESTS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  test:
+    desc: Run all unit and integration tests
+    aliases: [t]
+    cmds:
+      - dotnet test {{.SOLUTION}} -c Release --no-build
+
+  test:build:
+    desc: Build test projects in Release mode
+    cmds:
+      - dotnet build {{.SOLUTION}} -c Release --no-restore
+
+  test:core:
+    desc: Run AgentBlazor.Core unit tests only
+    cmds:
+      - dotnet test tests/AgentBlazor.Core.Tests/ -c Release
+
+  test:components:
+    desc: Run AgentBlazor.Components (bUnit) tests only
+    cmds:
+      - dotnet test tests/AgentBlazor.Components.Tests/ -c Release
+
+  test:integration:
+    desc: Run AgentBlazor.IntegrationTests only
+    cmds:
+      - dotnet test tests/AgentBlazor.IntegrationTests/ -c Release
+
+  test:cli:
+    desc: Run CLI analysis + integration tests
+    cmds:
+      - dotnet test tests/AgentBlazor.Cli.Analysis.Tests/ -c Release
+      - dotnet test tests/AgentBlazor.Cli.IntegrationTests/ -c Release
+
+  test:coverage:
+    desc: Run tests with code coverage (Cobertura + HTML report)
+    cmds:
+      - dotnet test {{.SOLUTION}} -c Release --collect:"XPlat Code Coverage" --results-directory ./coverage
+      - cmd: reportgenerator "-reports:./coverage/**/coverage.cobertura.xml" "-targetdir:./coverage/report" "-reporttypes:Html"
+        platforms: [linux, darwin]
+      - cmd: reportgenerator -reports:.\coverage\**\coverage.cobertura.xml -targetdir:.\coverage\report -reporttypes:Html
+        platforms: [windows]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  DEMO PROJECT — Build & Run
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  demo:build:
+    desc: Build the Demo project (Release)
+    cmds:
+      - dotnet build {{.DEMO_PROJECT}} -c Release
+
+  demo:build:debug:
+    desc: Build the Demo project (Debug)
+    cmds:
+      - dotnet build {{.DEMO_PROJECT}} -c Debug
+
+  # ── Run with conversation store variants ──────────────────────────────────
+
+  demo:
+    desc: "Run Demo with EF Core conversation store (default)"
+    aliases: [d]
+    summary: |-
+      Launches the Demo Blazor app with the EF Core + SQLite conversation
+      store. Data persists in a temp SQLite database across restarts.
+      Override with CONVERSATION_STORE env var (JsonFile | EFCore | InMemory).
+    cmds:
+      - task: demo:run:efcore
+
+  demo:run:efcore:
+    desc: "Run Demo with EF Core + SQLite conversation store"
+    summary: >-
+      Durable conversation store backed by SQLite via EF Core.
+      Data persists across restarts in a temp SQLite database.
+    env:
+      DemoConversation__Store: EFCore
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.DEMO_PROJECT}} -c Release
+
+  demo:run:jsonfile:
+    desc: "Run Demo with JsonFile conversation store"
+    summary: >-
+      Durable conversation store backed by a single JSON file on disk.
+      Data persists across restarts. File location is configurable.
+    env:
+      DemoConversation__Store: JsonFile
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.DEMO_PROJECT}} -c Release
+
+  demo:run:inmemory:
+    desc: "Run Demo with InMemory conversation store (ephemeral)"
+    summary: >-
+      Ephemeral conversation store — data is lost on process restart.
+      Useful for quick experimentation or CI smoke tests.
+    env:
+      DemoConversation__Store: InMemory
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.DEMO_PROJECT}} -c Release
+
+  # ── Run with provider variants ───────────────────────────────────────────
+
+  demo:run:openai:
+    desc: "Run Demo with OpenAI provider (requires OPENAI_API_KEY)"
+    env:
+      DemoConversation__Store: EFCore
+      ASPNETCORE_ENVIRONMENT: Development
+      OPENAI_API_KEY: '{{.OPENAI_API_KEY}}'
+      OPENAI_MODEL: '{{.OPENAI_MODEL}}'
+    preconditions:
+      - sh: test -n "{{.OPENAI_API_KEY}}"
+        msg: "Set OPENAI_API_KEY environment variable first"
+    cmds:
+      - dotnet run --project {{.DEMO_PROJECT}} -c Release
+
+  demo:run:ollama:
+    desc: "Run Demo with Ollama provider (local, requires Ollama running)"
+    env:
+      DemoConversation__Store: EFCore
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.DEMO_PROJECT}} -c Release
+
+  demo:run:debug:
+    desc: "Run Demo in Debug mode with EF Core store"
+    env:
+      DemoConversation__Store: EFCore
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.DEMO_PROJECT}} -c Debug
+
+  # ── Docker ───────────────────────────────────────────────────────────────
+
+  demo:docker:build:
+    desc: Build the Demo Docker image
+    vars:
+      TAG:
+        sh: git rev-parse --short HEAD
+    cmds:
+      - docker build -t agentblazor-demo:{{.TAG}} -t agentblazor-demo:latest .
+
+  demo:docker:run:
+    desc: Run the Demo Docker container
+    vars:
+      TAG:
+        sh: git rev-parse --short HEAD
+    cmds:
+      - docker run -p 8080:8080 --rm agentblazor-demo:{{.TAG}}
+
+  demo:docker:publish:
+    desc: Build and push Demo Docker image to ghcr.io
+    vars:
+      TAG:
+        sh: git rev-parse --short HEAD
+    cmds:
+      - docker build -t ghcr.io/ashpeterson/agentblazor-demo:{{.TAG}} -t ghcr.io/ashpeterson/agentblazor-demo:latest .
+      - docker push ghcr.io/ashpeterson/agentblazor-demo:{{.TAG}}
+      - docker push ghcr.io/ashpeterson/agentblazor-demo:latest
+
+  # ── Database utilities ───────────────────────────────────────────────────
+
+  demo:db:reset:
+    desc: Delete both workflow and conversation SQLite databases (fresh start)
+    summary: Removes the temp SQLite files so the Demo re-creates them on next run.
+    cmds:
+      - cmd: powershell -Command 'Remove-Item "$env:TEMP\agentblazor-demo.db" -Force -ErrorAction SilentlyContinue; Remove-Item "$env:TEMP\agentblazor-demo-conversations.db" -Force -ErrorAction SilentlyContinue; echo "Databases reset"'
+        platforms: [windows]
+      - cmd: rm -f /tmp/agentblazor-demo.db /tmp/agentblazor-demo-conversations.db
+        platforms: [linux, darwin]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  END-TO-END TESTS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  e2e:
+    desc: Run Playwright E2E tests (headless, requires Demo running)
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm run test:e2e
+
+  e2e:headed:
+    desc: Run Playwright E2E tests in headed mode
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm run test:e2e:headed
+
+  e2e:ui:
+    desc: Open Playwright Test UI for interactive test authoring
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm run test:e2e:ui
+
+  e2e:install:
+    desc: Install Playwright Chromium browser
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm install
+      - npx playwright install --with-deps chromium
+
+  e2e:real-usability:
+    desc: Run real-usability test suite (requires live LLM provider)
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm run test:real-usability
+
+  e2e:markdown:
+    desc: Run markdown enhancement tests
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm run test:markdown-enhance
+
+  e2e:external-widget:
+    desc: Validate chat widget in external Blazor repos
+    dir: '{{.E2E_DIR}}'
+    cmds:
+      - npm run test:external-chat-widget
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  PACKAGING & PUBLISHING
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  pack:
+    desc: Pack all NuGet packages (Release)
+    cmds:
+      - dotnet build {{.SOLUTION}} -c Release -p:GeneratePackageOnBuild=true
+
+  pack:clean:
+    desc: Remove all generated .nupkg / .snupkg files
+    cmds:
+      - cmd: powershell -Command 'Get-ChildItem -Path artifacts -Recurse -Include *.nupkg,*.snupkg -ErrorAction SilentlyContinue | Remove-Item -Force'
+        platforms: [windows]
+      - cmd: find artifacts -name "*.nupkg" -delete 2>/dev/null; find artifacts -name "*.snupkg" -delete 2>/dev/null
+        platforms: [linux, darwin]
+
+  publish:private:
+    desc: "Publish packages to local private feed (set VERSION env var)"
+    vars:
+      VERSION:
+        sh: echo ${VERSION:-0.2.24-internal.3}
+    cmds:
+      - powershell -File scripts/publish-private-feed.ps1 -Pack -Version {{.VERSION}}
+
+  publish:nuget:
+    desc: Publish packages to nuget.org (use GitHub Actions workflow)
+    cmds:
+      - cmd: echo Use GitHub Actions workflow publish-nuget-org.yml
+      - cmd: echo gh workflow run publish-nuget-org.yml -f package_version=VERSION
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  CLI TOOL
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  cli:build:
+    desc: Build the AgentBlazor.Cli tool (net10.0)
+    cmds:
+      - dotnet build src/AgentBlazor.Cli/AgentBlazor.Cli.csproj -c Release
+
+  cli:pack:
+    desc: Pack the AgentBlazor.Cli as a NuGet tool package
+    cmds:
+      - dotnet pack src/AgentBlazor.Cli/AgentBlazor.Cli.csproj -c Release
+
+  cli:analyze:
+    desc: "Run CLI analyze on a target project (set TARGET env var)"
+    vars:
+      TARGET:
+        sh: echo ${TARGET:-.}
+    cmds:
+      - dotnet run --project src/AgentBlazor.Cli/AgentBlazor.Cli.csproj -- analyze {{.TARGET}}
+
+  cli:watch:
+    desc: Watch project and auto-regenerate AGENT.md on changes
+    cmds:
+      - dotnet run --project src/AgentBlazor.Cli/AgentBlazor.Cli.csproj -- watch
+
+  cli:scaffold:
+    desc: Scaffold AgentBlazor wiring into an existing Blazor project
+    cmds:
+      - dotnet run --project src/AgentBlazor.Cli/AgentBlazor.Cli.csproj -- scaffold
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  SMOKE TESTS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  smoke:
+    desc: "Run local package smoke test (creates scratch app, installs packages)"
+    vars:
+      VERSION:
+        sh: echo ${VERSION:-0.2.24-internal.3}
+    cmds:
+      - powershell -File scripts/smoke-test-local-package.ps1 -PackageVersion {{.VERSION}} -Pack
+
+  smoke:cli:
+    desc: Run CLI v2 workflow smoke test
+    cmds:
+      - bash scripts/smoke-test-cli-v2-workflows.sh
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  DEVELOPMENT SHORTCUTS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  watch:
+    desc: Run Demo with dotnet watch (hot-reload on code changes)
+    cmds:
+      - dotnet watch run --project {{.DEMO_PROJECT}} -c Debug
+
+  ci:
+    desc: "Simulate CI pipeline locally: restore → build → format:verify → css:check → test"
+    cmds:
+      - task: restore
+      - task: build
+      - task: format:verify
+      - task: css:check
+      - task: test
+
+  new-agent:
+    desc: "Scaffold a new agent registration (interactive, uses Starter sample)"
+    summary: >-
+      Runs the AgentBlazor CLI init command in the Starter sample to create
+      a new agent registration with the required attributes and boilerplate.
+    cmds:
+      - dotnet run --project samples/AgentBlazor.Starter/AgentBlazor.Starter.csproj
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  INFO & HELPERS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  info:
+    desc: Show environment info (SDK version, runtime, etc.)
+    silent: true
+    cmds:
+      - cmd: echo .NET SDK
+      - dotnet --info
+      - cmd: echo Git
+      - git --version
+      - git log --oneline -5
+      - cmd: echo Node for E2E
+      - cmd: node --version || echo Node.js not installed
+        platforms: [linux, darwin]
+      - cmd: node --version
+        ignore_error: true
+        platforms: [windows]
+
+  default:
+    desc: List all available tasks (run with -v for descriptions)
+    silent: true
+    cmds:
+      - task --list
