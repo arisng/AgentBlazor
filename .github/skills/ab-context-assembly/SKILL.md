@@ -2,7 +2,7 @@
 name: ab-context-assembly
 description: "Understand and customize how AgentBlazor assembles the full LLM context — system prompt construction, dynamic runtime context injection, and user message composition — from a consumer app referencing the public AgentBlazor NuGet package. Use when customizing agent instructions (WithInstructions), injecting runtime data via context dictionaries (AgentRuntimeContextKeys), enriching turns with middleware (IAgentTurnMiddleware, AgentTurnContext), enabling prompt tracing (EnablePromptTracing), replacing the runtime adapter (UseRuntimeAdapter, IAgentRuntimeAdapter), or understanding prompt composition. Consumer-side only; never edit package internals. Triggers: system prompt, instructions, WithInstructions, AgentRuntimeContextKeys, context dictionary, prompt tracing, EnablePromptTracing, PromptTracingOptions, dynamic context, runtime context, agent context, prompt pipeline, IAgentRuntimeAdapter, UseRuntimeAdapter, IAgentTurnMiddleware, AgentTurnContext, context injection."
 metadata: 
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # `ab-context-assembly` — Context Assembly & Prompt Pipeline
