@@ -80,6 +80,68 @@ agent.WithInstructions("""
 
 ---
 
+## Consuming context in capability actions
+
+While the "Runtime context:" block is text injected into the user message for the LLM to *read*, capability actions can also **programmatically bind** to context dictionary values using `ContextKey` on `[AgentParam]`.
+
+### How it works
+
+When you set `ContextKey` on a parameter, two things happen:
+
+1. **Schema omission** — The parameter is hidden from the tool definition the LLM sees. The model cannot supply, hallucinate, or override it.
+2. **Runtime injection** — At invocation time, the runtime looks up `request.Context[contextKey]` and binds the value automatically.
+
+```csharp
+[AgentAction("Escalate this ticket")]
+public async Task<CapabilityResult> EscalateAsync(
+    [AgentParam(ContextKey = AgentRuntimeContextKeys.SessionId)] string sessionId,
+    [AgentParam("Priority level", Required = true)] string priority)
+{
+    // sessionId is auto-injected — the model never sees it
+    // priority must be supplied by the LLM
+}
+```
+
+### Built-in keys available for binding
+
+| `AgentRuntimeContextKeys` constant | Key value | Typical use |
+|---|---|---|
+| `SessionId` | `agentblazor.session_id` | Identify the chat session |
+| `RunId` | `agentblazor.run_id` | Identify the current run/turn |
+| `UserId` | `agentblazor.user_id` | Identify the authenticated user |
+| `CurrentRoute` | `agentblazor.current_route` | React to the current page URL |
+| `AgentName` | `agentblazor.agent_name` | Know which agent is active |
+
+Custom keys injected via middleware are also valid — the `ContextKey` value can be any string that matches a key in the context dictionary.
+
+### Missing context at invocation time
+
+If a `ContextKey`-bound parameter cannot be resolved (the key is absent from the context dictionary), the runtime returns a structured error:
+
+```
+CapabilityResult.InvalidArguments(
+    "Required runtime context 'agentblazor.session_id' is missing for capability action 'escalate'.")
+    .WithOutput("errorCode", "missing_runtime_context")
+    .WithOutput("contextKey", "agentblazor.session_id")
+```
+
+The action is **never invoked** with a null or missing value — the runtime short-circuits before execution.
+
+### Relationship to the user message
+
+Context-bound parameters and the "Runtime context:" text block are **complementary, not competing**:
+
+| Mechanism | Target | Purpose |
+|---|---|---|
+| `ContextKey` on `[AgentParam]` | The capability action method | Programmatic injection — the C# code gets the value directly |
+| "Runtime context:" in user message | The LLM | The model can *read* the same keys for reasoning and planning |
+
+Both read from the same `request.Context` dictionary. A key like `agentblazor.session_id` can appear in the user message *and* be bound via `ContextKey` — they don't conflict.
+
+For full details on authoring `[AgentParam]` with `ContextKey`, see [`ab-capability-authoring` — ContextKey](../../ab-capability-authoring/SKILL.md#contextkey--binding-parameters-from-runtime-context).
+
+---
+
 ## How chat components populate context
 
 ### `AgentChatSurface` and `AgentChatWidget`

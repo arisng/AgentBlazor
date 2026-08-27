@@ -1,6 +1,8 @@
 ---
 name: ab-capability-authoring
 description: "Author semantic capability classes with AgentAction methods for AgentBlazor workflow agents. Use when defining [AgentCapability]-annotated classes, [AgentAction]-annotated methods, [AgentParam]-annotated parameters, returning CapabilityResult, setting approval boundaries, shaping structured outputs, warnings, and next-actions. Triggers: AgentCapabilityAttribute, AgentActionAttribute, AgentParamAttribute, CapabilityResult, RequiresApproval, WithNextActions, WithOutput, WithWarnings, AddCapability, AgentCapabilityDescriptor."
+metadata:
+  version: 0.1.1
 ---
 
 # `ab-capability-authoring` — Capability Authoring
@@ -77,6 +79,38 @@ public sealed class AgentParamAttribute : Attribute
     public string? ContextKey { get; set; }     // Binds from runtime context instead of AI
 }
 ```
+
+### `ContextKey` — Binding parameters from runtime context
+
+Setting `ContextKey` on an `[AgentParam]` parameter **removes it from the AI-facing tool schema** and **auto-injects the value from the runtime context dictionary** at invocation time. The LLM never sees or supplies this parameter — the runtime resolves it silently.
+
+**When to use it:**
+- Internal identifiers the model should never fabricate (session ID, run ID, user ID)
+- Data that is always available from the chat component (current route, selected agent)
+- Values injected by middleware that are meaningless as AI inputs
+
+**When NOT to use it:**
+- Parameters the LLM must decide on (tone, urgency, search query)
+- Parameters that vary by user intent, not by runtime state
+
+```csharp
+[AgentAction("Start a workflow run")]
+public async Task<CapabilityResult> StartRunAsync(
+    [AgentParam(ContextKey = AgentRuntimeContextKeys.SessionId)] // ← hidden from AI, auto-injected
+    string sessionId,
+    [AgentParam("Workflow name", Required = true)]               // ← AI must supply this
+    string workflowName)
+{
+    // sessionId is always the real session — never a model hallucination
+}
+```
+
+**Runtime behavior:**
+1. Schema projection skips parameters with `ContextKey` — the tool definition sent to the LLM omits them entirely.
+2. At invocation time, `ResolveArgumentKey()` uses the `ContextKey` value as the lookup key into the request context dictionary (`request.Context[contextKey]`).
+3. If the key is missing from the context at invocation time, the runtime returns `CapabilityResult.InvalidArguments` with `errorCode: "missing_runtime_context"`.
+
+**Common keys** are defined in `AgentRuntimeContextKeys` (e.g. `SessionId`, `RunId`, `UserId`, `CurrentRoute`). Custom keys injected via middleware are also valid. See [`ab-context-assembly` — context dictionary](../ab-context-assembly/references/context-dictionary.md#consuming-context-in-capability-actions) for the full key reference and consumer patterns.
 
 ## `CapabilityResult` — Return Type
 
