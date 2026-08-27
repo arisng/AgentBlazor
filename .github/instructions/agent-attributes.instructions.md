@@ -26,10 +26,11 @@ AgentBlazor uses attributes to drive capability discovery and agent-UI interacti
 
 1. **Description**: Always provide meaningful descriptions for actions
 2. **Parameters**: Use `[AgentParam]` for action parameters
-3. **Return types**: Return `CapabilityResult` from agent actions
-4. **Approval**: Set `RequiresApproval = true` for sensitive operations
-5. **Warnings**: Use `WithWarning()` for important caveats
-6. **Next actions**: Use `WithNextActions()` for suggested follow-ups
+3. **Context binding**: Use `ContextKey` on `[AgentParam]` to bind from runtime context instead of expecting the AI to supply the value — use for internal identifiers (session ID, user ID, run ID) that the model should never fabricate
+4. **Return types**: Return `CapabilityResult` from agent actions
+5. **Approval**: Set `RequiresApproval = true` for sensitive operations
+6. **Warnings**: Use `WithWarning()` for important caveats
+7. **Next actions**: Use `WithNextActions()` for suggested follow-ups
 
 ## Example
 
@@ -50,8 +51,21 @@ public sealed class MyCapabilities
 }
 ```
 
+### Example with ContextKey
+
+```csharp
+[AgentAction("Start a workflow run")]
+public async Task<CapabilityResult> StartRunAsync(
+    [AgentParam(ContextKey = AgentRuntimeContextKeys.SessionId)] string sessionId,
+    [AgentParam("Workflow name", Required = true)] string workflowName)
+{
+    // sessionId is auto-injected from runtime context — hidden from AI
+}
+```
+
 ## References
 
 - See `src/AgentBlazor.Core/Attributes/` for attribute definitions
 - See `demo/AgentBlazor.Demo/Services/` for usage examples
-- See `.github/skills/ab-capability-authoring/` for detailed guidance
+- See `.github/skills/ab-capability-authoring/` for detailed guidance on `[AgentParam]` and `ContextKey`
+- See `.github/skills/ab-context-assembly/references/context-dictionary.md` for the runtime context keys available for `ContextKey` binding
