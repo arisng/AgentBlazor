@@ -1,0 +1,63 @@
+@page "/demo/action-render"
+@layout DemoLayout
+@using AgentBlazor.Components
+@using AgentBlazor.Components.Chat
+@using MudBlazor
+
+<PageTitle>Action & Tool Render — AgentBlazor Demo</PageTitle>
+
+<div class="action-render-showcase">
+    <MudText Typo="Typo.h4" Class="mb-4">Action & Tool Render Showcase</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        Demonstrates custom rendering of agent actions and tool calls in the chat timeline.
+        Use the chat assistant to trigger actions and observe how they render.
+    </MudText>
+
+    <MudPaper Elevation="0" Class="pa-4 mb-6">
+        <MudText Typo="Typo.h6" Class="mb-2">How it works</MudText>
+        <MudText Typo="Typo.body2">
+            <Code>AgentActionRender</Code> wraps agent actions in custom UI, while
+            <Code>AgentToolRender</Code> wraps tool calls. Both use the
+            <Code>IAgentActionRenderRegistry</Code> to discover registered renderers.
+            When the agent executes an action, the chat surface looks up the matching
+            renderer and displays the custom UI instead of the default action output.
+        </MudText>
+    </MudPaper>
+
+    <MudText Typo="Typo.h6" Class="mb-3">Key Components</MudText>
+
+    <div class="action-render-showcase__grid">
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>AgentActionRender</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Renders agent actions with custom UI. Registered via
+                <Code>IAgentActionRenderRegistry</Code>. Each renderer maps
+                to a specific action ID.
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>AgentToolRender</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Renders tool calls with custom UI. Shows tool name, arguments,
+                and result in a formatted card layout.
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>IAgentActionRenderRegistry</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Registry that maps action IDs to custom renderers.
+                Injected into <Code>AgentChatSurface</Code> automatically.
+            </MudText>
+        </MudPaper>
+    </div>
+</div>
+
+<style>
+    .action-render-showcase__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+</style>

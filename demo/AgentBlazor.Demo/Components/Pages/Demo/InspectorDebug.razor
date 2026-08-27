@@ -1,0 +1,45 @@
+@page "/demo/debug"
+@layout DemoLayout
+@using AgentBlazor.Components.Inspector
+
+<PageTitle>Inspector Debug — AgentBlazor Demo</PageTitle>
+
+<div class="inspector-debug">
+    <div class="inspector-debug__header">
+        <h1>Agent Inspector Panel</h1>
+        <p>Inline inspector showing all agent runs, events, prompts, and state. Requires DevTools to be enabled (development mode only).</p>
+    </div>
+
+    <div class="inspector-debug__panel">
+        <AgentInspectorPanel Inline="true" SessionId="demo-debug-session" />
+    </div>
+</div>
+
+<style>
+    .inspector-debug {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .inspector-debug__header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--mud-lines-default, #203246);
+    }
+
+    .inspector-debug__header h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.5rem;
+    }
+
+    .inspector-debug__header p {
+        margin: 0;
+        color: var(--mud-text-secondary, #8ba5c4);
+        font-size: 0.875rem;
+    }
+
+    .inspector-debug__panel {
+        flex: 1;
+        overflow: auto;
+    }
+</style>

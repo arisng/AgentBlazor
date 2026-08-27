@@ -1,0 +1,65 @@
+@page "/demo/generative-ui"
+@layout DemoLayout
+@using AgentBlazor.Components
+@using AgentBlazor.Core.Components
+@using MudBlazor
+
+<PageTitle>Generative UI — AgentBlazor Demo</PageTitle>
+
+<div class="generative-ui-showcase">
+    <MudText Typo="Typo.h4" Class="mb-4">Generative UI Showcase</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        Demonstrates how the agent can generate rich UI blocks: cards, tables, and charts.
+        Use the chat assistant to trigger generative UI output.
+    </MudText>
+
+    <MudPaper Elevation="0" Class="pa-4 mb-6">
+        <MudText Typo="Typo.h6" Class="mb-2">How it works</MudText>
+        <MudText Typo="Typo.body2">
+            When an agent action returns an <Code>AgentUiDocument</Code>, the
+            <Code>AgentGenerativeSurface</Code> component renders it as interactive UI blocks.
+            Try asking the assistant: <strong>"Show me a summary card"</strong> or
+            <strong>"Generate a comparison table"</strong>.
+        </MudText>
+    </MudPaper>
+
+    <MudText Typo="Typo.h6" Class="mb-3">Supported Block Types</MudText>
+
+    <div class="generative-ui-showcase__blocks">
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>Card</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Structured information cards with title, content, and action buttons.
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>Table</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Tabular data with columns, rows, and sorting capabilities.
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>Chart</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Data visualizations rendered from agent-generated chart specifications.
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.subtitle1"><strong>Form</strong></MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Interactive forms with fields, validation, and action buttons.
+            </MudText>
+        </MudPaper>
+    </div>
+</div>
+
+<style>
+    .generative-ui-showcase__blocks {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+</style>

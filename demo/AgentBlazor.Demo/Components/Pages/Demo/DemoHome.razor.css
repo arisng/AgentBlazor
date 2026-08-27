@@ -1,3 +1,15 @@
+.launchpad__group {
+    margin-bottom: 1.5rem;
+}
+
+.launchpad__group-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.8rem;
+    color: var(--mud-text-secondary, #8ba5c4);
+}
+
 .launchpad {
     max-width: 78rem;
     margin: 0 auto;

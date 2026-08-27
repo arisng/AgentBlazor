@@ -53,6 +53,8 @@
                                           LockAgentToCurrentRoute="true"
                                           ShowAgentSelector="false"
                                           EnableGeneratedUi="true"
+                                          RequireHandoffApproval="true"
+                                          HandoffApprovalPolicy="_handoffApprovalPolicy"
                                           Placeholder="@AssistantPlaceholder"
                                           Theme="_assistantTheme"
                                           CssClass="demo-shell__assistant-surface" />
@@ -78,6 +80,8 @@
                          LockAgentToCurrentRoute="@ShouldLockAssistantToRoute"
                          ShowAgentSelector="@ShowAssistantSelector"
                          EnableGeneratedUi="true"
+                         RequireHandoffApproval="true"
+                         HandoffApprovalPolicy="_handoffApprovalPolicy"
                          Placeholder="@AssistantPlaceholder"
                          Theme="_assistantTheme"
                          Width="@AssistantWidgetWidth"
@@ -123,6 +127,13 @@
             ActionDisabledBackground = "#112131"
         }
     };
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _handoffApprovalPolicy =
+        new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Support Inbox Agent"] = new[] { "Incident Escalation Agent" },
+            ["Supplier Compliance Agent"] = new[] { "Response Orchestration Agent" }
+        };
 
     private static readonly ChatTheme _assistantTheme = new()
     {

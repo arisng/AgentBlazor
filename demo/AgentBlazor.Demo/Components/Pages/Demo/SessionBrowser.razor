@@ -1,0 +1,50 @@
+@page "/demo/sessions"
+@layout DemoLayout
+@using AgentBlazor.Demo.Services
+@using MudBlazor
+@inject DemoSessionBrowserService SessionService
+
+<PageTitle>Session Browser — AgentBlazor Demo</PageTitle>
+
+<div class="session-browser">
+    <MudText Typo="Typo.h4" Class="mb-4">Session Browser</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        Browse and resume past conversation sessions.
+    </MudText>
+
+    @if (_sessions is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (_sessions.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">No sessions found. Start a conversation to create one.</MudAlert>
+    }
+    else
+    {
+        <MudDataGrid T="SessionBrowserEntry" Items="_sessions" Hover="true" Striped="true">
+            <Columns>
+                <PropertyColumn Property="s => s.SessionId" Title="Session" />
+                <PropertyColumn Property="s => s.TurnCount" Title="Turns" />
+                <PropertyColumn Property="s => s.LastMessage" Title="Last Message" />
+                <TemplateColumn Title="Actions">
+                    <CellTemplate>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   Href="@($"/demo?session={context.Item.SessionId}")">
+                            Resume
+                        </MudButton>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+        </MudDataGrid>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<SessionBrowserEntry>? _sessions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sessions = await SessionService.GetRecentSessionsAsync();
+    }
+}

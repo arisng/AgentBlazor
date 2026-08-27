@@ -4,6 +4,7 @@ using AgentBlazor.Demo.Components;
 using AgentBlazor.Demo.Data;
 using AgentBlazor.Demo.Services;
 using AgentBlazor.Core.Data;
+using AgentBlazor.Core.Runtime.Tools;
 using AgentBlazor.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -69,6 +70,8 @@ builder.Services.AddHttpClient("demo-remote-storage");
 builder.Services.AddSingleton<IDemoRemoteStorageAdapter, DemoRemoteStorageAdapter>();
 builder.Services.AddSingleton<IDemoChatRequestLog, JsonlDemoChatRequestLog>();
 builder.Services.AddSingleton<IDemoTrafficLog, JsonlDemoTrafficLog>();
+builder.Services.AddSingleton<DemoSessionBrowserService>();
+builder.Services.AddSingleton<AgentBlazor.Core.Paid.IAdaptiveSuggestionService, DemoSuggestionService>();
 
 var demoSecurityOptions = builder.Configuration.GetSection(DemoSecurityOptions.SectionName).Get<DemoSecurityOptions>()
     ?? new DemoSecurityOptions();
@@ -191,10 +194,10 @@ builder.Services.AddAgentBlazor(options =>
         options.UseOllama(ollamaModel, ollamaEndpoint, ollamaApiKey);
     }
 
-    //if (builder.Environment.IsDevelopment())
-    //{
-    //    options.UseDevTools();
-    //}
+    if (builder.Environment.IsDevelopment())
+    {
+        options.UseDevTools();
+    }
 
     if (!string.IsNullOrWhiteSpace(proLicenseKey))
     {
@@ -202,6 +205,38 @@ builder.Services.AddAgentBlazor(options =>
     }
 
     options.UseMiddleware<DemoChatRequestLoggingMiddleware>();
+
+    // Pin provider-level chat options (e.g. reasoning effort for gpt-5.6 models).
+    options.ConfigureChatOptions(o =>
+    {
+        // Demo uses gpt-4o-mini by default — this is an API showcase.
+        // For gpt-5.6, pin: o.ProviderOptions["reasoning_effort"] = "low";
+    });
+
+    // Register demo service tools available to all agents.
+    options.AddTool(
+        "lookup-glossary",
+        "Look up a term in the AgentBlazor glossary and return its definition.",
+        [new AgentToolParameter("term", "The glossary term to look up.")],
+        async (args, sp, ct) =>
+        {
+            var term = args.TryGetValue("term", out var t) ? t?.ToString() ?? "" : "";
+            var glossary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["agent"] = "An AI-powered component that can reason, use tools, and take actions within a Blazor app.",
+                ["capability"] = "A logical grouping of related agent actions, annotated with [AgentCapability].",
+                ["action"] = "A single executable unit of agent work, annotated with [AgentAction].",
+                ["handoff"] = "Transfer of conversation control from one agent to another.",
+                ["workflow"] = "A multi-step agent process that guides users through a business scenario.",
+            };
+            return glossary.TryGetValue(term, out var def) ? def : $"Term '{term}' not found. Available: {string.Join(", ", glossary.Keys)}.";
+        });
+
+    options.AddTool(
+        "current-time",
+        "Return the current UTC date and time.",
+        [],
+        (args, sp, ct) => Task.FromResult(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")));
 
     options.ConfigureBuilder(agentBuilder =>
     {
@@ -306,6 +341,7 @@ builder.Services.AddAgentBlazor(options =>
                 agent.WithInstructions(sharedAgentInstructions);
             }
             agent.WithAllowedComponents("AgentDataGrid", "AgentDialog");
+            agent.WithToolsFromAssembly(typeof(DemoAssemblyTools).Assembly);
             agent.WithDataSchemas("support-data");
             agent.WithRoutePrefixes("/demo/workflows/support-inbox");
         });

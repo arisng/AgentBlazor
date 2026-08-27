@@ -9,9 +9,9 @@
     <MudPaper Elevation="0" Class="launchpad__hero">
         <div class="launchpad__hero-copy">
             <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">Live demo</MudChip>
-            <MudText Typo="Typo.h4" Class="mt-4 mb-2">Pick the workflow size you want to see.</MudText>
+            <MudText Typo="Typo.h4" Class="mt-4 mb-2">Explore every AgentBlazor feature</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary">
-                Start small with one support reply, then scale the same route into blockers, escalation, and handoff.
+                9 workflow demos, 12+ agent-controllable components, and 5 feature showcases — all running live.
             </MudText>
         </div>
 
@@ -24,55 +24,99 @@
             </ol>
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"
-                       Href="@DemoScenarioCatalog.LaunchpadScenarios[0].Route">
+                       Href="/demo/workflows/support-inbox">
                 Start with quick demo
             </MudButton>
         </div>
     </MudPaper>
 
+    @* ── Workflow Demos ── *@
     <section class="launchpad__scenario-section">
         <div class="launchpad__section-head">
-            <span class="launchpad__eyebrow">Scale up or down</span>
-            <MudText Typo="Typo.h5">Same runtime, different workflow sizes</MudText>
+            <span class="launchpad__eyebrow">Workflows</span>
+            <MudText Typo="Typo.h5">Agent-driven workflow demos</MudText>
+        </div>
+
+        @foreach (var scaleGroup in _scenarioGroups)
+        {
+            <div class="launchpad__group">
+                <MudText Typo="Typo.subtitle1" Class="launchpad__group-label mb-2">@scaleGroup.Label</MudText>
+                <div class="launchpad__scenario-grid">
+                    @foreach (var scenario in scaleGroup.Scenarios)
+                    {
+                        <article class="launchpad__scenario-card launchpad__scenario-card--@GetScaleClass(scenario.Scale)">
+                            <div class="launchpad__scenario-topline">
+                                <span>@GetScaleLabel(scenario.Scale)</span>
+                                <small>@scenario.AgentName</small>
+                            </div>
+
+                            <div class="launchpad__scenario-copy">
+                                <h2>@scenario.Title</h2>
+                                <p>@scenario.Summary</p>
+                            </div>
+
+                            <div class="launchpad__prompt-list" aria-label="@($"{scenario.Title} prompts")">
+                                @foreach (var prompt in scenario.Prompts)
+                                {
+                                    <span>@prompt</span>
+                                }
+                            </div>
+
+                            <div class="launchpad__proof-list">
+                                @foreach (var proofPoint in scenario.ProofPoints)
+                                {
+                                    <span>@proofPoint</span>
+                                }
+                            </div>
+
+                            <MudButton Variant="@(scenario.Scale == DemoScenarioScale.Quick ? Variant.Filled : Variant.Outlined)"
+                                       Color="@(scenario.Scale == DemoScenarioScale.Advanced ? Color.Secondary : Color.Primary)"
+                                       Href="@scenario.Route">
+                                @scenario.CtaLabel
+                            </MudButton>
+                        </article>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+
+    @* ── Feature Showcases ── *@
+    <section class="launchpad__scenario-section">
+        <div class="launchpad__section-head">
+            <span class="launchpad__eyebrow">Feature showcases</span>
+            <MudText Typo="Typo.h5">Library capabilities in depth</MudText>
         </div>
 
         <div class="launchpad__scenario-grid">
-            @foreach (var scenario in DemoScenarioCatalog.LaunchpadScenarios)
+            @foreach (var showcase in _featureShowcases)
             {
-                <article class="launchpad__scenario-card launchpad__scenario-card--@GetScaleClass(scenario.Scale)">
+                <article class="launchpad__scenario-card launchpad__scenario-card--full">
                     <div class="launchpad__scenario-topline">
-                        <span>@GetScaleLabel(scenario.Scale)</span>
-                        <small>@scenario.AgentName</small>
+                        <span>@showcase.Category</span>
                     </div>
 
                     <div class="launchpad__scenario-copy">
-                        <h2>@scenario.Title</h2>
-                        <p>@scenario.Summary</p>
-                    </div>
-
-                    <div class="launchpad__prompt-list" aria-label="@($"{scenario.Title} prompts")">
-                        @foreach (var prompt in scenario.Prompts)
-                        {
-                            <span>@prompt</span>
-                        }
+                        <h2>@showcase.Title</h2>
+                        <p>@showcase.Description</p>
                     </div>
 
                     <div class="launchpad__proof-list">
-                        @foreach (var proofPoint in scenario.ProofPoints)
+                        @foreach (var tag in showcase.Tags)
                         {
-                            <span>@proofPoint</span>
+                            <span>@tag</span>
                         }
                     </div>
 
-                    <MudButton Variant="@(scenario.Scale == DemoScenarioScale.Quick ? Variant.Filled : Variant.Outlined)"
-                               Color="@(scenario.Scale == DemoScenarioScale.Advanced ? Color.Secondary : Color.Primary)"
-                               Href="@scenario.Route">
-                        @scenario.CtaLabel
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="@showcase.Route">
+                        @showcase.Cta
                     </MudButton>
                 </article>
             }
         </div>
     </section>
+
+    @* ── Markdown Showcase ── *@
     <section class="launchpad__scenario-section">
         <div class="launchpad__section-head">
             <span class="launchpad__eyebrow">Render</span>
@@ -110,6 +154,43 @@
 </div>
 
 @code {
+    private record ScenarioGroup(string Label, IReadOnlyList<DemoScenario> Scenarios);
+    private record FeatureShowcase(string Category, string Title, string Description, string Route, string Cta, IReadOnlyList<string> Tags);
+
+    private static readonly IReadOnlyList<ScenarioGroup> _scenarioGroups =
+    [
+        new("Quick start",
+            DemoScenarioCatalog.Scenarios.Where(s => s.Scale == DemoScenarioScale.Quick).ToList()),
+        new("Full workflows",
+            DemoScenarioCatalog.Scenarios.Where(s => s.Scale == DemoScenarioScale.Full).ToList()),
+        new("Advanced / multi-surface",
+            DemoScenarioCatalog.Scenarios.Where(s => s.Scale == DemoScenarioScale.Advanced).ToList()),
+    ];
+
+    private static readonly IReadOnlyList<FeatureShowcase> _featureShowcases =
+    [
+        new("Components", "Component Explorer",
+            "Browse 12+ agent-wrappable MudBlazor components: DataGrid, Form, Dialog, Tabs, TreeView, Stepper, CommandBar, and more.",
+            "/demo/components", "Browse components",
+            ["AgentDataGrid", "AgentForm", "AgentDialog", "AgentTabs", "AgentTreeView"]),
+        new("Generative UI", "Agent-Generated UI",
+            "Cards, tables, charts, and forms rendered from agent output using AgentGenerativeSurface.",
+            "/demo/generative-ui", "Open showcase",
+            ["AgentGenerativeSurface", "AgentUiDocument", "Cards", "Charts"]),
+        new("Rendering", "Action & Tool Render",
+            "Custom rendering of agent actions and tool calls in the chat timeline via AgentActionRender and AgentToolRender.",
+            "/demo/action-render", "Open showcase",
+            ["AgentActionRender", "AgentToolRender", "Custom UI"]),
+        new("Sessions", "Session Browser",
+            "Browse and resume past conversation sessions with full turn history.",
+            "/demo/sessions", "Open browser",
+            ["IConversationStore", "Session resume", "History"]),
+        new("Inspector", "Agent Inspector",
+            "Dev tools panel showing runs, events, prompts, and state for every agent turn.",
+            "/demo/debug", "Open inspector",
+            ["AgentInspectorPanel", "DevTools", "5-tab panel"]),
+    ];
+
     private static string GetScaleLabel(DemoScenarioScale scale)
         => scale switch
         {

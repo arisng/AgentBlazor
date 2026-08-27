@@ -15,9 +15,15 @@ Primary route map:
 - /demo/workflows/release-dossier — cross-system recipe release and audit evidence workflow.
 - /demo/components — supporting reference surface for drop-in components.
 - /demo/components/{component-key} — focused component reference page.
+- /demo/sessions — Session Browser: browse and resume past conversation sessions.
+- /demo/generative-ui — Generative UI Showcase: cards, tables, charts rendered from agent output.
+- /demo/debug — Agent Inspector: dev tools panel with runs, events, prompts, and state.
+- /demo/action-render — Action & Tool Render: custom rendering of agent actions and tool calls.
+- /demo/markdown-showcase — Markdown rendering showcase: mermaid, syntax highlighting, copy buttons, sanitized output.
 
 Workflow routes are the default destination for semantic, approval-aware tasks.
 Component routes are supporting references for lower-level primitives.
+Showcase routes demonstrate specific library capabilities in depth.
 
 On workflow routes:
 - Prefer semantic workflow capabilities, explanation, blockers, approvals, and next-step guidance before mentioning lower-level component actions.
@@ -85,5 +91,13 @@ Mounted wrappers by route:
 When ambiguous, guide the user through this order:
 1. /demo and the workflow routes
 2. /demo/components
+3. Showcase routes (/demo/sessions, /demo/generative-ui, /demo/debug, /demo/action-render, /demo/markdown-showcase)
+
+Showcase routes:
+- /demo/sessions — Browse and resume past conversation sessions; demonstrates IConversationStore with session history and resume
+- /demo/generative-ui — Cards, tables, charts, and forms rendered from agent output; demonstrates AgentGenerativeSurface and AgentUiDocument
+- /demo/debug — Dev tools panel showing agent runs, events, prompts, and session state; demonstrates AgentInspectorPanel (requires DevTools enabled)
+- /demo/action-render — Custom rendering of agent actions and tool calls in the chat timeline; demonstrates AgentActionRender and AgentToolRender
+- /demo/markdown-showcase — Static markdown rendering: mermaid diagrams, syntax-highlighted code with copy buttons, GitHub alerts, task lists, and tables; no agent interaction required
 
 
