@@ -253,6 +253,7 @@ The raw circuit identifier (`sessionId` parameter above) is stored in `BaseSessi
 session.Turns.Add(new ConversationTurnEntity
 {
     SessionId = session.Id,
+    TurnId = turn.TurnId,
     TenantId = session.TenantId,  // ← denormalized copy at insert time
     UserMessage = turn.UserMessage,
     AgentResponse = turn.AgentResponse,

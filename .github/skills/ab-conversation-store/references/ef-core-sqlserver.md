@@ -72,15 +72,17 @@ public class ConversationDbContext : DbContext
 
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.SessionId);
+                    entity.HasIndex(e => new { e.SessionId, e.TurnId }).IsUnique();  // turn identity for incremental ops
 
-            entity.Property(e => e.UserMessage).IsRequired();
-            entity.Property(e => e.AgentResponse).IsRequired();
+                    entity.Property(e => e.TurnId).HasMaxLength(64).IsRequired();
+                    entity.Property(e => e.UserMessage).IsRequired();
+                    entity.Property(e => e.AgentResponse).IsRequired();
 
-            entity.HasOne(e => e.Session)
-                  .WithMany(s => s.Turns)
-                  .HasForeignKey(e => e.SessionId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
+                    entity.HasOne(e => e.Session)
+                          .WithMany(s => s.Turns)
+                          .HasForeignKey(e => e.SessionId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                });
     }
 }
 ```
@@ -174,7 +176,7 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
         }
 
         // Sort turns on the client side
-        session.Turns = session.Turns.OrderBy(t => t.TimestampUtc).ToList();
+                session.Turns = session.Turns.OrderBy(t => t.TurnSequence).ThenBy(t => t.TimestampUtc).ToList();
 
         return MapToHistory(session);
     }
@@ -209,18 +211,19 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
         session.Turns.Add(new ConversationTurnEntity
         {
             SessionId = session.Id,
-            UserMessage = turn.UserMessage,
-            AgentResponse = turn.AgentResponse,
-            PlannedActionsJson = SerializeIfAny(turn.PlannedActions),
-            ExecutionResultsJson = SerializeIfAny(turn.ExecutionResults),
-            ExecutionPlanJson = turn.ExecutionPlan is not null
-                ? JsonSerializer.Serialize(turn.ExecutionPlan, JsonOptions)
-                : null,
-            GeneratedUiJson = turn.GeneratedUi is not null
-                ? JsonSerializer.Serialize(turn.GeneratedUi, JsonOptions)
-                : null,
-            TimestampUtc = turn.Timestamp
-        });
+                    TurnId = turn.TurnId,
+                    UserMessage = turn.UserMessage,
+                    AgentResponse = turn.AgentResponse,
+                    PlannedActionsJson = SerializeIfAny(turn.PlannedActions),
+                    ExecutionResultsJson = SerializeIfAny(turn.ExecutionResults),
+                    ExecutionPlanJson = turn.ExecutionPlan is not null
+                        ? JsonSerializer.Serialize(turn.ExecutionPlan, JsonOptions)
+                        : null,
+                    GeneratedUiJson = turn.GeneratedUi is not null
+                        ? JsonSerializer.Serialize(turn.GeneratedUi, JsonOptions)
+                        : null,
+                    TimestampUtc = turn.Timestamp
+                });
 
         // Trim oldest turns if over limit
         if (session.Turns.Count > _options.MaxTurnsPerSession)
@@ -253,6 +256,128 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
             await db.SaveChangesAsync(cancellationToken);
         }
     }
+
+        public async Task<bool> UpdateTurnAsync(
+            string sessionId,
+            string turnId,
+            ConversationTurn turn,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+            ArgumentNullException.ThrowIfNull(turn);
+
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+            var session = await db.Sessions
+                .FirstOrDefaultAsync(s => s.SessionId == sessionId, cancellationToken);
+            if (session is null)
+            {
+                return false;
+            }
+
+            var entity = await db.Turns
+                .FirstOrDefaultAsync(
+                    t => t.SessionId == session.Id && t.TurnId == turnId,
+                    cancellationToken);
+            if (entity is null)
+            {
+                return false;
+            }
+
+            // Targeted PATCH: replace content only. TurnId, Timestamp and session
+            // metadata are preserved.
+            entity.UserMessage = turn.UserMessage;
+            entity.AgentResponse = turn.AgentResponse;
+            entity.PlannedActionsJson = SerializeIfAny(turn.PlannedActions);
+            entity.ExecutionResultsJson = SerializeIfAny(turn.ExecutionResults);
+            entity.ExecutionPlanJson = turn.ExecutionPlan is not null
+                ? JsonSerializer.Serialize(turn.ExecutionPlan, JsonOptions)
+                : null;
+            entity.GeneratedUiJson = turn.GeneratedUi is not null
+                ? JsonSerializer.Serialize(turn.GeneratedUi, JsonOptions)
+                : null;
+
+            session.LastActivityAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<bool> DeleteTurnAsync(
+            string sessionId,
+            string turnId,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+            var session = await db.Sessions
+                .FirstOrDefaultAsync(s => s.SessionId == sessionId, cancellationToken);
+            if (session is null)
+            {
+                return false;
+            }
+
+            var entity = await db.Turns
+                .FirstOrDefaultAsync(
+                    t => t.SessionId == session.Id && t.TurnId == turnId,
+                    cancellationToken);
+            if (entity is null)
+            {
+                return false;
+            }
+
+            db.Turns.Remove(entity);
+            session.LastActivityAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task ReorderTurnsAsync(
+            string sessionId,
+            IReadOnlyList<string> orderedTurnIds,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentNullException.ThrowIfNull(orderedTurnIds);
+            if (orderedTurnIds.Count == 0)
+            {
+                return;
+            }
+
+            await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+            var session = await db.Sessions
+                .Include(s => s.Turns)
+                .FirstOrDefaultAsync(s => s.SessionId == sessionId, cancellationToken);
+            if (session is null)
+            {
+                return;
+            }
+
+            var byId = session.Turns.ToDictionary(t => t.TurnId, t => t, StringComparer.OrdinalIgnoreCase);
+
+            // Re-sequence listed turns in the requested order; unlisted turns keep their
+            // relative order after the listed ones.
+            var sequence = 0;
+            var ordered = orderedTurnIds
+                .Where(byId.ContainsKey)
+                .Select(turnId => byId[turnId])
+                .Concat(session.Turns.Where(t => !byId.ContainsKey(t.TurnId) || !orderedTurnIds.Contains(t.TurnId, StringComparer.OrdinalIgnoreCase)))
+                .ToList();
+
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                // Advance a per-turn sequence counter stored alongside each turn (e.g. TurnSequence).
+                ordered[i].TurnSequence = sequence++;
+            }
+
+            session.Turns = ordered;
+            session.LastActivityAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
     public async Task<IReadOnlyCollection<string>> GetActiveSessionsAsync(
         CancellationToken cancellationToken = default)
@@ -323,26 +448,27 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
     {
         return new ConversationTurn
         {
-            Timestamp = entity.TimestampUtc,
-            UserMessage = entity.UserMessage,
-            AgentResponse = entity.AgentResponse,
-            PlannedActions = DeserializeOrEmpty<List<PlannedComponentAction>>(entity.PlannedActionsJson),
-            ExecutionResults = DeserializeOrEmpty<List<ComponentActionExecutionResult>>(entity.ExecutionResultsJson),
-            ExecutionPlan = entity.ExecutionPlanJson is not null
-                ? JsonSerializer.Deserialize<AgentExecutionPlan>(entity.ExecutionPlanJson, JsonOptions)
-                : null,
-            GeneratedUi = entity.GeneratedUiJson is not null
-                ? JsonSerializer.Deserialize<AgentUiDocument>(entity.GeneratedUiJson, JsonOptions)
-                : null
-        };
-    }
+                TurnId = entity.TurnId,
+                Timestamp = entity.TimestampUtc,
+                UserMessage = entity.UserMessage,
+                AgentResponse = entity.AgentResponse,
+                PlannedActions = DeserializeOrEmpty<PlannedComponentAction>(entity.PlannedActionsJson),
+                                ExecutionResults = DeserializeOrEmpty<ComponentActionExecutionResult>(entity.ExecutionResultsJson),
+                ExecutionPlan = entity.ExecutionPlanJson is not null
+                    ? JsonSerializer.Deserialize<AgentExecutionPlan>(entity.ExecutionPlanJson, JsonOptions)
+                    : null,
+                GeneratedUi = entity.GeneratedUiJson is not null
+                    ? JsonSerializer.Deserialize<AgentUiDocument>(entity.GeneratedUiJson, JsonOptions)
+                    : null
+            };
+        }
 
     private static string? SerializeIfAny<T>(IReadOnlyList<T> list)
         => list.Count > 0 ? JsonSerializer.Serialize(list, JsonOptions) : null;
 
     private static IReadOnlyList<T> DeserializeOrEmpty<T>(string? json)
         => json is not null
-            ? JsonSerializer.Deserialize<T>(json, JsonOptions) ?? []
+                ? JsonSerializer.Deserialize<List<T>>(json, JsonOptions) ?? []
             : [];
 
     private async Task CleanupExpiredSessionsAsync()

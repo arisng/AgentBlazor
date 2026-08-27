@@ -1,6 +1,6 @@
 ---
 name: ab-conversation-store
-description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; when enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore against SQL Server/Postgres; or when writing EF Core action-history entities and registrations. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, ConversationOptions, AppendTurnAsync, GetHistoryAsync, ClearSessionAsync, GetActiveSessionsAsync, SetUserIdAsync, GetSessionsForUserAsync, ConversationTurn, ConversationHistory, SessionTimeout, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, NullActionHistoryStore, UseProLicense, agent action persistence, persist actions, action history SQL."
+description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; when implementing the incremental persistence operations (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync), persisting ConversationTurn.TurnId for targeted patches, wiring UseJsonFileConversationStore in a consumer app, or enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore against SQL Server/Postgres; or when writing EF Core action-history entities and registrations. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, ConversationOptions, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, TurnId, GetHistoryAsync, ClearSessionAsync, GetActiveSessionsAsync, SetUserIdAsync, GetSessionsForUserAsync, conversation persistence, incremental persistence, ConversationTurn, ConversationHistory, SessionTimeout, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, NullActionHistoryStore, UseProLicense, agent action persistence, persist actions, action history SQL."
 metadata:
     version: 0.2.0
 ---
@@ -24,6 +24,37 @@ The runtime consumes `IConversationStore` inside `ChatClientRuntimeAdapter`:
 - On each turn, calls `AppendTurnAsync(sessionId, turn)` to persist.
 - Session key is built from `sessionId + agentName` (scoped by `IsolateConversationsByAgent`).
 - Failures are caught and logged as warnings — the store must **never** break the agent turn.
+
+## Incremental persistence model
+
+The store contract is **incremental** — persistence never tears down and rebuilds a
+conversation:
+
+| Operation | Interface member | What it does |
+|---|---|---|
+| New turn | `AppendTurnAsync(sessionId, turn)` | Single append (normal turn persistence is O(1)) |
+| Edit / enrichment | `UpdateTurnAsync(sessionId, turnId, turn)` | Targeted PATCH of one turn, matched by `ConversationTurn.TurnId` |
+| Delete | `DeleteTurnAsync(sessionId, turnId)` | Removes a single turn by `TurnId` |
+| Reorder | `ReorderTurnsAsync(sessionId, orderedTurnIds)` | Re-sequences turns (unlisted ids keep relative order at the end) |
+
+Rules every implementation must honor:
+
+- **Turn identity** — persist `ConversationTurn.TurnId` with each turn. Custom stores
+  need a `(SessionId, TurnId)` unique index for the targeted operations.
+- **Session metadata untouched** — `UpdateTurnAsync` / `DeleteTurnAsync` /
+  `ReorderTurnsAsync` must not modify `SessionId`, `UserId`, `CreatedAt`, or resource
+  context (`ResourceType`/`ResourceId`). Only the listed turns change.
+- **`ClearSessionAsync` is user-initiated only** — it must never be invoked by the
+  per-turn persistence path (`AgentChatSurface` no longer rewrites history).
+
+### Why no full-history rewrite
+
+Earlier versions of `AgentChatSurface` cleared the session and re-appended every turn
+after each agent turn. That produced redundant I/O, non-atomic clear+re-append,
+session-metadata destruction, context loss outside the execution scope, split-brain
+between stores, races, and O(N) per-turn cost. The incremental model above eliminates
+the rewrite entirely; `AgentChatSurface.PersistDisplayedTurnAsync` now patches the
+already-persisted turn in place via `UpdateTurnAsync`.
 
 ## Decide which store to use
 

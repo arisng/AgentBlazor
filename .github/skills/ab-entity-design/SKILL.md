@@ -108,6 +108,9 @@ public sealed class ConversationTurnEntity
     /// <summary>Surrogate primary key (GUID).</summary>
     public Guid Id { get; set; }
 
+    /// <summary>Stable agent-side turn identity (<see cref="AgentBlazor.Core.Runtime.Conversation.ConversationTurn.TurnId"/>). Used by incremental PATCH/DELETE/reorder operations.</summary>
+    public required string TurnId { get; set; }
+
     /// <summary>FK → ConversationSessionEntity.Id. Cascade delete (turns are meaningless without session).</summary>
     public Guid SessionId { get; set; }
 
@@ -127,6 +130,10 @@ public sealed class ConversationTurnEntity
     public string? GeneratedUiJson { get; set; }
 
     public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Per-session ordering counter. Incremental reorder operations rewrite this so the
+    /// DB row order does not have to mutate (see <see cref="AgentBlazor.Core.Runtime.Interfaces.IConversationStore.ReorderTurnsAsync"/>).</summary>
+    public int TurnSequence { get; set; }
 
     // Navigation
     public ConversationSessionEntity Session { get; set; } = null!;
@@ -156,6 +163,7 @@ public sealed class ConversationTurnEntity
 | `IX_ConversationSessions_AgentName` | `AgentName` | Non-clustered | Agent-scoped session queries |
 | `IX_ConversationSessions_LastActivityAtUtc` | `LastActivityAtUtc` | Non-clustered | Expired-session cleanup queries |
 | `IX_ConversationTurns_SessionId` | `SessionId` | Non-clustered | FK lookups — efficient turn retrieval by session |
+| `IX_ConversationTurns_SessionId_TurnId` | `(SessionId, TurnId)` | Unique, non-clustered | Turn identity lookups for incremental `UpdateTurnAsync` / `DeleteTurnAsync` / `ReorderTurnsAsync` |
 
 All string index columns use case-insensitive collation. Non-clustered because the clustered PK is on `Id` (GUID — avoids fragmentation from sequential inserts).
 

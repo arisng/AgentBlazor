@@ -358,13 +358,14 @@ public async Task AppendTurnAsync(string sessionId, string tenantId, Conversatio
     {
         Id = Guid.NewGuid(),
         SessionId = session.Id,
-        TenantId = tenantId,
-        UserMessage = turn.UserMessage,
-        AgentResponse = turn.AgentResponse,
-        // ... JSON columns ...
-        TimestampUtc = DateTime.UtcNow,
-    };
-    db.Turns.Add(entity);
+            TurnId = turn.TurnId,
+            TenantId = tenantId,
+            UserMessage = turn.UserMessage,
+            AgentResponse = turn.AgentResponse,
+            // ... JSON columns ...
+            TimestampUtc = DateTime.UtcNow,
+        };
+        db.Turns.Add(entity);
 
     await db.SaveChangesAsync(ct);
 }

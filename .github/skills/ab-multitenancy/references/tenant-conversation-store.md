@@ -157,11 +157,12 @@ public sealed class TenantConversationStore : IConversationStore, IDisposable
         session.LastActivityAtUtc = DateTime.UtcNow;
         session.Turns.Add(new ConversationTurnEntity
         {
-            TenantId = tenantId,
-            UserMessage = turn.UserMessage,
-            AgentResponse = turn.AgentResponse,
-            TimestampUtc = turn.Timestamp
-        });
+                    TurnId = turn.TurnId,
+                    TenantId = tenantId,
+                    UserMessage = turn.UserMessage,
+                    AgentResponse = turn.AgentResponse,
+                    TimestampUtc = turn.Timestamp
+                });
 
         if (session.Turns.Count > _options.MaxTurnsPerSession)
         {
@@ -186,6 +187,71 @@ public sealed class TenantConversationStore : IConversationStore, IDisposable
             await db.SaveChangesAsync(ct);
         }
     }
+
+        public async Task<bool> UpdateTurnAsync(
+            string sessionId, string turnId, ConversationTurn turn, CancellationToken ct = default)
+        {
+            var tenantId = CurrentTenantId;
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+            var session = await db.Sessions
+                .FirstOrDefaultAsync(s => s.SessionId == sessionId && s.TenantId == tenantId, ct);
+            if (session is null) return false;
+
+            var entity = await db.Turns
+                .FirstOrDefaultAsync(t => t.SessionId == session.Id && t.TurnId == turnId, ct);
+            if (entity is null) return false;
+
+            // Targeted PATCH — content only; TurnId/Timestamp/session metadata preserved.
+            entity.UserMessage = turn.UserMessage;
+            entity.AgentResponse = turn.AgentResponse;
+            entity.PlannedActionsJson = ...;
+            entity.ExecutionResultsJson = ...;
+            entity.ExecutionPlanJson = ...;
+            entity.GeneratedUiJson = ...;
+            session.LastActivityAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        public async Task<bool> DeleteTurnAsync(
+            string sessionId, string turnId, CancellationToken ct = default)
+        {
+            var tenantId = CurrentTenantId;
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+            var session = await db.Sessions
+                .FirstOrDefaultAsync(s => s.SessionId == sessionId && s.TenantId == tenantId, ct);
+            if (session is null) return false;
+
+            var entity = await db.Turns
+                .FirstOrDefaultAsync(t => t.SessionId == session.Id && t.TurnId == turnId, ct);
+            if (entity is null) return false;
+
+            db.Turns.Remove(entity);
+            session.LastActivityAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        public async Task ReorderTurnsAsync(
+            string sessionId, IReadOnlyList<string> orderedTurnIds, CancellationToken ct = default)
+        {
+            var tenantId = CurrentTenantId;
+            if (orderedTurnIds.Count == 0) return;
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+            var session = await db.Sessions
+                .Include(s => s.Turns)
+                .FirstOrDefaultAsync(s => s.SessionId == sessionId && s.TenantId == tenantId, ct);
+            if (session is null) return;
+
+            var byId = session.Turns.ToDictionary(t => t.TurnId, StringComparer.OrdinalIgnoreCase);
+            var ordered = orderedTurnIds.Where(byId.ContainsKey).Select(id => byId[id])
+                .Concat(session.Turns.Where(t => !orderedTurnIds.Contains(t.TurnId, StringComparer.OrdinalIgnoreCase)))
+                .ToList();
+
+            for (var i = 0; i < ordered.Count; i++) ordered[i].TurnSequence = i;
+            session.LastActivityAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
 
     public async Task<IReadOnlyCollection<string>> GetActiveSessionsAsync(
         CancellationToken ct = default)

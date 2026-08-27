@@ -326,10 +326,11 @@ public async Task AppendTurnAsync(ConversationTurn turn, CancellationToken ct)
     var entity = new ConversationTurnEntity
     {
         SessionId = session.Id,
-        TenantId = session.TenantId,   // ← derived from session, never from input
-        UserMessage = turn.UserMessage,
-        AgentResponse = turn.AgentResponse,
-        TimestampUtc = DateTime.UtcNow
+            TurnId = turn.TurnId,
+            TenantId = session.TenantId,   // ← derived from session, never from input
+            UserMessage = turn.UserMessage,
+            AgentResponse = turn.AgentResponse,
+            TimestampUtc = DateTime.UtcNow
     };
 
     _db.Turns.Add(entity);
