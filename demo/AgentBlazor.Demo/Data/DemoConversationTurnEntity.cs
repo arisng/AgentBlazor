@@ -31,6 +31,6 @@ internal sealed class DemoConversationTurnEntity
     /// <summary>Per-session ordering counter rewritten by <c>ReorderTurnsAsync</c>.</summary>
     public int TurnSequence { get; set; }
 
-        /// <summary>Navigation back to the owning session (FK set by EF Core).</summary>
-        public DemoConversationSessionEntity? Session { get; set; }
-    }
+    /// <summary>Navigation back to the owning session (FK set by EF Core).</summary>
+    public DemoConversationSessionEntity? Session { get; set; }
+}
