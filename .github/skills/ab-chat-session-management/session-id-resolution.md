@@ -147,13 +147,17 @@ The consumer page sets `SessionId` explicitly:
 @* Page explicitly supplies a stable ID *@
 <AgentChatSurface SessionId="support-ticket-1042" />
 
-@* Or driven by the layout's computed value *@
-@* DemoLayout.razor pattern: *@
-private string AssistantSessionId =>
-    $"demo:{_assistantClientId}:{CurrentRoutePath.TrimEnd('/').ToLowerInvariant()}";
+@* Or drive it from an app-owned key, e.g. a route-derived value *@
+<AgentChatSurface SessionId="@RouteScopedSessionId" />
+
+@code {
+    // Consumer-owned key; combine an app client id with the current route
+    private string RouteScopedSessionId =>
+        $"{_appClientId}:{CurrentRoutePath.TrimEnd('/').ToLowerInvariant()}";
+}
 ```
 
-The consumer (frontend Blazor component) is the **owner** — it decides the value and passes it down. The runtime never overrides an explicit `SessionId`.
+The consumer (frontend Blazor component) is the **owner** — it decides the value and passes it down. The runtime never overrides an explicit `SessionId`. The prefix and route key are consumer-owned; the shape is just `app-stable-key:route`.
 
 #### Pattern 3 — From the remote chat client (WASM / external HTTP)
 
@@ -243,7 +247,7 @@ private sealed record ConversationStoreSnapshot(
 // Serialized to disk as:
 // {
 //   "sessions": {
-//     "demo:client123:/workflows/support": { "sessionId": "...", "turns": [...] },
+//     "<app>:<client-id>:<route>": { "sessionId": "...", "turns": [...] },
 //     "my-session": { "sessionId": "...", "turns": [...] }
 //   }
 // }
@@ -310,7 +314,7 @@ For the entity schema implications (canonical `ConversationSessionEntity` column
 
 ### How `IsolateConversationsByAgent` affects entity rows
 
-**Dual-trigger condition** (`AgentChatSurface.razor` line ~647):
+**Dual-trigger condition** (`AgentChatSurface.razor` line ~643):
 
 ```
 ShouldIsolateConversationSession =

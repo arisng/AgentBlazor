@@ -134,7 +134,10 @@ public class UserSessionMiddleware : IAgentTurnMiddleware
         _conversationStore = conversationStore;
     }
 
-    public async ValueTask InvokeAsync(AgentTurnContext context, AgentTurnDelegate next)
+    public async Task InvokeAsync(
+        AgentTurnContext context,
+        Func<CancellationToken, Task> next,
+        CancellationToken ct = default)
     {
         var sessionId = context.Request.GetEffectiveSessionId();
         var userId = context.Request.GetEffectiveUserId();
@@ -142,7 +145,7 @@ public class UserSessionMiddleware : IAgentTurnMiddleware
         {
             await _conversationStore.SetUserIdAsync(sessionId, userId);
         }
-        await next(context);
+        await next(ct);
     }
 }
 ```

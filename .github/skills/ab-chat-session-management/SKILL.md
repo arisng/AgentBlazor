@@ -2,12 +2,16 @@
 name: ab-chat-session-management
 description: "Manage agent chat sessions — browse past conversations, select and resume sessions, and hydrate chat UI from stored history. Use when building session browser/selector UIs, wiring session selection to AgentChatSurface/AgentChatWidget, querying IConversationStore for active or user-scoped sessions (GetActiveSessionsAsync, GetSessionsForUserAsync, GetHistoryAsync), understanding the session-key isolation model (AgentConversationScope), setting up user-to-session associations (SetUserIdAsync), or working with the AgentChatSurface hydration pipeline (HydrateTimelineFromHistoryAsync, TryResumeActiveRunAsync). Triggers: session browser, session list, resume chat, browse past chats, session selector, chat history browser, switch session, load session, session management."
 metadata:
-    version: 0.2.0
+    version: 0.3.0
 ---
 
 # Chat Session Management — AgentBlazor
 
-Quick guide for browsing, selecting, and resuming agent chat sessions.
+Quick guide for browsing, selecting, and resuming agent chat sessions. This skill is
+**consumer-agnostic**: it describes AgentBlazor's own conversation-store and session-key
+model, which any consuming app wires through `IConversationStore`. It does not depend on
+any particular consumer (demo app, sample, or downstream product). Everything here maps to
+classes and methods in this repo's `src/`.
 
 ## What do you need?
 
@@ -16,7 +20,6 @@ Quick guide for browsing, selecting, and resuming agent chat sessions.
 | Understand SessionId data type, resolution chain, initialization patterns, and per-store persistence | [`session-id-resolution.md`](session-id-resolution.md) |
 | Learn the 5-phase session lifecycle (Birth → Active → Pause/Resume → Dormancy → Death) with per-store categorization | [`session-lifecycle.md`](session-lifecycle.md) |
 | Build a session browser UI, wire user-scoped browsing, or hydrate a chat surface | [`frontend-hydration.md`](frontend-hydration.md) |
-| Keep a session-scoped conversation visible after a page refresh (BFF proxy rewrite path) | [`refresh-persistence.md`](references/refresh-persistence.md) |
 | See code examples for quick copy-paste | [Common Patterns](#common-patterns) below |
 | Look up which file has which class | [Key Code References](#key-code-references) below |
 
@@ -43,42 +46,35 @@ Quick guide for browsing, selecting, and resuming agent chat sessions.
 
 > **Session key scoping**: `AgentConversationScope.BuildSessionKey()` produces agent-scoped keys when `IsolateConversationsByAgent` is enabled with multiple agents. See [session-id-resolution.md](session-id-resolution.md#entity-level-session-identity) for the full user-visible behavior, and [ab-entity-design](../ab-entity-design/SKILL.md) for entity schema implications.
 
-## FSH Repo Integration (AgentChat)
+## Consumer Independence (how a consumer wire-in maps to this skill)
 
-> FSH does not use AgentBlazor's own `ConversationSessionEntity`/`TenantConversationStore`. It replaces `IConversationStore` entirely. See `src/Modules/AgentChat/CONTEXT.md` for the three-tier vocabulary.
+AgentBlazor's session model is fully driven by `IConversationStore` — a consumer may use a
+built-in store (`InMemoryConversationStore`, `JsonFileConversationStore`) or supply its own
+implementation. The skill's guidance applies regardless of which consumer, because every
+consumer surfaces session identity through the same `SessionId` → `BuildSessionKey` →
+store-key chain.
 
-FSH's AgentChat conversation identity is an **opaque full-GUID `ConversationId`** (no tenant/resource prefix, no structured `SessionId`). It is the wire key at every layer: UI → `AgentChatSurface.SessionId` → `IConversationStore` → HTTP route `api/v1/agent-chat/conversations/{conversationId}` → per-tenant DB.
+Rules for staying consumer-agnostic when applying this skill:
 
-### `IsolateConversationsByAgent=false` asymmetry (the `::agent::` suffix)
+- **Prefer stable, app-authored session IDs over opaque circuit GUIDs** when you need a
+  conversation to survive a page refresh or be resumable across navigations. A circuit GUID
+  (AgentBlazor's fallback) is stable only for the lifetime of one Blazor circuit; a browser
+  refresh creates a new circuit and a new GUID.
+- **Route-driven or identity-driven IDs are a consumer choice.** The skill documents the
+  patterns (`SessionId` from a route parameter, from an authenticated user's
+  `NameIdentifier`, or from an app-defined key); it never enforces one.
+- **`IConversationStore` is the persistence seam.** Any resource scoping, tenancy, or
+  app-specific fields live on the consumer's `IConversationStore` implementation and on
+  turn/request payloads — never on AgentBlazor's core session key.
+- **Avoid coupling skill guidance to any app's DOM routes, DTOs, or proxy classes.** Those
+  are consumer concerns and belong in that app's docs, not in this repo's skills.
 
-- AgentBlazor's runtime appends `::agent::<name>` to the session key **only when** `IsolateConversationsByAgent=true` **AND** more than one agent is registered (`AgentConversationScope.BuildSessionKey`).
-- FSH sets `IsolateConversationsByAgent=false` on `AgentBlazorOptions` (NOT on `AgentBlazorRegistrationOptions` — wrong type silently no-ops). With a single agent this returns the `ConversationId` as-is — no impedance mismatch.
-- **Symptom of the wrong setting / drift:** stored conversation keys contain `::agent::PM Assistant` suffixes and the write path hits unique-index PK violations (second append fails → assistant turn lost, user turn duplicated).
-- **Fix rule:** single-agent surfaces MUST keep isolation OFF. Multi-agent isolation is achieved by distinct client-generated conversationIds, not by the `::agent::` suffix.
+### `IsolateConversationsByAgent` asymmetry (the `::agent::` suffix)
 
-### User-id ownership
-
-Lifeline does not register `ICurrentUser` (WebAPI/Identity pattern). The BFF store resolves the user id from a **static cache bridged through `SingletonConversationStoreProxy`**, seeded by `TokenInitializer.razor` during SSR from `ClaimTypes.NameIdentifier`/`sub`. This is process-global last-write-wins — acceptable for the single-user demo surface; a per-circuit `ICircuitTokenCache.UserId` is the production follow-up.
-
-### Resource-scoped conversation identity (Pass-4 #532)
-
-Each agent chat conversation carries an explicit `(ResourceType, ResourceId)` scope on the
-append body (`lifeline` + GUID, `lifeline-session` + GUID, or site-wide `lifeline-app` +
-empty id). The **widget/UI surface determines the scope at new-chat time**: opening the PM
-widget on a Lifeline detail page scopes the conversation to that Lifeline; opening it on a
-Session detail page scopes it to that Session; opening it on any other page scopes
-site-wide. The AgentChat conversation identity stays an opaque `ConversationId` — the
-resource scope is carried on turns, not encoded in the id. This lets the agent answer from
-per-resource data (recent sessions of the scoped Lifeline, the scoped Session and its
-siblings) and — for site-wide scope — resolve a Lifeline the user *names* in chat via a
-site-wide name search (Pass-4 #535). See `AgentChatResourcePairing`/`AgentChatResourceType`
-for the registry and the 400-reject rule for invalid pairings.
-
-### Wire contract (post-redesign)
-
-- `AppendTurnRequest` body carries `ResourceType`, `ResourceId`, `UserId`, `AgentName`, `Role`, `Content`, `Timestamp`. **`TenantId` is NOT in the body** — FSH uses database-per-tenant isolation via Finbuckle; the API resolves the tenant server-side from the `tenant` header.
-- `TurnItem` in the generated client carries `[JsonPropertyName]` — never hand-craft this DTO (case-sensitive deserialization drops turns).
-- Deleting hand-crafted `ConversationsClientExtensions.cs` and regenerating the NSwag client is the canonical fix vehicle.
+- AgentBlazor's runtime appends `::agent::<name>` to the session key **only when** `IsolateConversationsByAgent=true` **AND** more than one agent is registered (`AgentConversationScope.BuildSessionKey`, plus the surface-level `ShouldIsolateConversationSession` check that requires `_agentNames.Count > 1`).
+- Set `IsolateConversationsByAgent` on `AgentBlazorOptions` (NOT on `AgentBlazorRegistrationOptions` — that type doesn't expose it; setting it there silently no-ops).
+- **Symptom of the wrong setting / drift:** stored conversation keys contain `::agent::<name>` suffixes when the consumer expected raw session keys, and (on DB-backed stores) the write path may hit unique-index PK violations (second append fails → assistant turn lost, user turn duplicated).
+- **Fix rule:** single-agent surfaces MUST keep isolation OFF (or rely on the single-agent path, which never suffixes). Multi-agent isolation is achieved by distinct client-authored session IDs combined with the `::agent::` suffix, not by the suffix alone.
 
 ## Backend: Querying Sessions
 
@@ -145,13 +141,13 @@ builder.UseJsonFileConversationStore(
     options => options.PersistAcrossRestarts = true);
 ```
 
-For production durability, implement `IConversationStore` with EF Core — see [ab-conversation-store](../ab-conversation-store/SKILL.md). For keeping session-scoped conversations visible after a page refresh (the BFF proxy rewrite path), see [refresh-persistence.md](references/refresh-persistence.md).
+For production durability, implement `IConversationStore` with EF Core — see [ab-conversation-store](../ab-conversation-store/SKILL.md). Use a stable, app-authored `SessionId` (not a circuit GUID) when the conversation must survive a page refresh.
 
 ## Key Code References
 
 | File | What to look for |
 |---|---|
-| `src/.../Interfaces/IConversationStore.cs` | Full interface — 7 methods |
+| `src/.../Interfaces/IConversationStore.cs` | Full interface — 9 methods |
 | `src/.../Conversation/InMemoryConversationStore.cs` | Default impl — TTL, eviction, user index |
 | `src/.../Conversation/JsonFileConversationStore.cs` | File-backed impl — atomic writes, snapshot |
 | `src/.../Conversation/ConversationHistory.cs` | History + Turn records |
@@ -164,4 +160,3 @@ For production durability, implement `IConversationStore` with EF Core — see [
 | `src/AgentBlazor.Components/Chat/AgentChatSurface.razor` | `HydrateTimelineFromHistoryAsync`, `TryResumeActiveRunAsync` |
 | `src/AgentBlazor.Components/Chat/AgentChatWidget.razor` | `SessionId` parameter passthrough |
 | `src/AgentBlazor.Client/Chat/AgentRemoteChatSurface.razor` | Remote (WASM) variant |
-| `demo/.../Components/Layout/DemoLayout.razor` | Demo pattern: `AssistantSessionId` from `ComponentRegistry` |
