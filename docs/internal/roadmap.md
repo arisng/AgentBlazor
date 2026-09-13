@@ -3,7 +3,7 @@
 Created: 2026-08-17
 Owner: AgentBlazor core team
 Status: In progress (Phase 0) — docs-only phase
-Last updated: 2026-08-17
+Last updated: 2026-09-10
 
 Canonical, feature-agnostic roadmap for AgentBlazor. Refined after rubber-duck review and a Copilot-SDK integration promotion — **OpenAI SDK & OpenAI-compatible models (incl. DeepSeek V4) and the GitHub Copilot SDK are treated as first-class provider tracks**, with Anthropic last. Incremental, checkpoint-gated: each phase/appendix terminates in an empirical testing audit. Matches repo `docs/internal` convention and release-versioning discipline. This is the durable roadmap entry point; it supersedes the previous date/feature-scoped file name.
 
@@ -228,6 +228,8 @@ Incorporated as hardening decisions (traceability per critique item). Full findi
 
 > Track A (Phases 2–7) and Track B (Copilot, B1–B5) may interleave after Phase 1; both GA through the Track A Phase-7 gate. `-internal.N` numbering is illustrative per repo convention (`Directory.Build.props:9`).
 
+> **Version-slot note (2026-09-10):** the next internal slot `0.2.25-internal.1` is claimed by the **preempting runtime-customization workstream** (`docs/internal/runtime-customization-seam-2026-09-10.md`), which blocks the consumer app. Phase 1's illustrative slot shifts to `0.2.26-internal.1`; subsequent Track A/B slots shift accordingly. This is a scheduling note only — no work-order change.
+
 Release discipline per repo convention: version in `Directory.Build.props`; release notes pre-staged in `docs/releases/<ver>.md` (fork: `git add -f`); publish via `workflow_dispatch` with validated `package_version`; `nuget-prerelease-checklist.md` 7-item gate for public releases.[^docs]
 
 ## Recorded Decisions
@@ -278,9 +280,11 @@ Release discipline per repo convention: version in `Directory.Build.props`; rele
 - `tests/AgentBlazor.IntegrationTests/WireCapture/HttpListenerWireServer.cs`; `ProviderWireCaptureTests.cs`; `ReasoningEffortOptionsTests.cs`; `DemoChatRequestLoggingMiddlewareTests.cs`; `Gpt56LiveReasoningTests.cs`[^qa]
 - `.github/workflows/ci.yml`; `.github/skills/ab-uat-spec/` (+ `references/buckets/`); `ab-provider-config/references/{provider-options,reasoning-effort-and-tools,responses-api-escape-hatch}.md`[^qa][^docs]
 - **Copilot Track B files:** `docs/internal/research/copilot-sdk-integration.md` (R8, full); `src/AgentBlazor.Core/Runtime/Interfaces/IAgentRuntimeAdapter.cs`; `src/AgentBlazor.Hosting/AgentBlazorRegistrationOptions.cs` (`UseCopilot`); `src/AgentBlazor.ProviderAdapters/AgentProviderRegistrationExtensions.cs`; `NuGet.Config`/`Directory.Packages.props` (adapter pins, `copilot.exe` packaging via buildTransitive)[^cpd]
+- **Runtime customization seam (separate workstream):** `docs/internal/runtime-customization-seam-2026-09-10.md`; `src/AgentBlazor.Core/Runtime/Adapters/ChatClientRuntimeAdapter.cs` (`ResolveInstructions` :2043, `ResolveToolsAsync` :1065, `CreateAgentAsync` :1031); `src/AgentBlazor.Core/Services/AgentBlazorBuilder.cs` (`UseRuntimeAdapter` :188-203)
 
 ## Related Follow-up
 
+- **Runtime customization seam (per-agent instructions + tool selection) — separate preempting workstream, NOT a phase of this roadmap:** `docs/internal/runtime-customization-seam-2026-09-10.md`. Claims the next internal version slot `0.2.25-internal.1` (Phase 1's illustrative slot shifts to `0.2.26-internal.1`). Touches the same `IAgentRuntimeAdapter`/`ChatClientRuntimeAdapter` surface as Track B; no parity constraint recorded on B2 at this time.
 - Phase 2 spike: `max_completion_tokens` vs `max_tokens` tolerance on DeepSeek wire; `thinking` toggle via AdditionalProperties; streaming usage chunk presence.
 - Phase 3 spike: `ChatTokenUsage.Patch` shim vs `OpenAIClientOptions.PipelinePolicy` for DeepSeek cache fields; `stream_options.include_usage` need.
 - Phase 4 spike: MAF `ChatHistoryProvider`/`CompactionProvider` sufficiency vs custom provider.

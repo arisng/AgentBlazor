@@ -1,6 +1,6 @@
 # AgentBlazor Development Status
 
-Last updated: 2026-08-17
+Last updated: 2026-09-10
 
 ## Production Readiness
 
@@ -377,6 +377,7 @@ Coverage includes:
 
 | Item | Status |
 |------|--------|
+| Runtime customization seam (per-agent instructions + tool selection) | In progress — **highest priority (blocks consumer)**; see `docs/internal/runtime-customization-seam-2026-09-10.md` |
 | KV-cache context assembly + MAF 1.17 alignment | In progress (Phase 0) |
 
 ### Phase 1: Ship Free Tier (Ready Now)

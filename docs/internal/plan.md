@@ -1,11 +1,13 @@
 # AgentBlazor Plan (Living Document)
 
-Last updated: 2026-08-17
+Last updated: 2026-09-10
 Owner: AgentBlazor core team
 Status: Active working plan
 
 ## Active Workstreams
 
+- **Runtime customization seam (per-agent instructions + tool selection) — HIGHEST PRIORITY (preempts provider tracks; blocks the consumer app):** plan and status tracker at
+  `docs/internal/runtime-customization-seam-2026-09-10.md`. Version slot `0.2.25-internal.1`.
 - Chat markdown rendering (Markdig + mermaid): plan and status tracker at
   `docs/internal/markdown-rendering-plan-2026-08-15.md`.
 - KV-cache context assembly + MAF alignment (OpenAI-first) and GitHub Copilot SDK provider track (Track B): canonical roadmap at
