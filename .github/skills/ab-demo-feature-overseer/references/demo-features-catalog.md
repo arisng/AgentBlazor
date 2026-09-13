@@ -4,19 +4,20 @@ Maintained empirical audit of demoable features in `demo/AgentBlazor.Demo`. Stat
 evidence-gated — see `catalog-schema.md` for the taxonomy. Regenerate evidence with
 `.github/skills/ab-demo-feature-overseer/scripts/audit-demo-features.ps1` before editing.
 
-Last audited: 2026-08-25 (audit.json: 8 workflow agents, 3 standalone agents,
-8 capability classes, 41 agent actions, 10 approvals, 2 clarification sites,
-17 component page families, 25 routes, 9 launchpad scenarios)._
+Last audited: 2026-09-10 (audit.json: 9 workflow agents, 3 standalone agents,
+9 capability classes, 44 agent actions, 11 approvals, 2 clarification sites,
+18 component page families, 30 routes, 9 launchpad scenarios; runtime
+customization seam wired)._
 
 ## Agents
 
 ### Workflow-capability agents
-- **Status**: implemented (8)
+- **Status**: implemented (9)
 - **What it demonstrates**: semantic workflow agents routing to their showcase route.
 - **Where**: `Program.cs` → `AddWorkflow<TCapability>`.
 - **Audit evidence**: `workflows[]` — Supplier Compliance, Support Inbox, File
   Workflow, Recipe Release, Incident Escalation, Response Orchestration, Release
-  Dossier, Runtime Probe.
+  Dossier, Runtime Probe, Customization Demo.
 - **ab\* skill**: `ab-agent-registration`, `ab-capability-authoring`.
 
 ### Standalone agents
@@ -45,25 +46,25 @@ Last audited: 2026-08-25 (audit.json: 8 workflow agents, 3 standalone agents,
 ## Capabilities & actions
 
 ### Capability classes
-- **Status**: implemented (8)
+- **Status**: implemented (9)
 - **Where**: `Services/*Capabilities*.cs` and `*WorkflowService.cs`.
 - **Audit evidence**: `capabilities[]` with ids `file_audit_bundle`, `recipe_release`,
   `incident_escalation`, `release_dossier`, `response_orchestration`, `runtime_probe`,
-  `supplier_compliance`, `support_inbox`.
+  `supplier_compliance`, `support_inbox`, `customization_demo`.
 - **ab\* skill**: `ab-capability-authoring`.
 
 ### Typed agent actions
-- **Status**: implemented (41 total across 8 classes)
+- **Status**: implemented (44 total across 9 classes)
 - **Audit evidence**: `capabilities[].actions[]` (each `[AgentAction(id, description)]`).
 - **ab\* skill**: `ab-capability-authoring`.
 
 ### Approval boundaries
-- **Status**: implemented (10)
+- **Status**: implemented (11)
 - **What**: destructive/mutating actions require human approval before executing.
 - **Audit evidence**: `approvals[]` — `prepare_audit_bundle`, `prepare_release_draft`,
   `prepare_escalation_brief`, `submit_escalation_handoff`, `prepare_release_dossier`,
   `prepare_response_packet`, `run_approval_probe`, `prepare_remediation_draft`,
-  `draft_ticket_reply_for_ticket`, `draft_ticket_reply`.
+  `draft_ticket_reply_for_ticket`, `draft_ticket_reply`, `run_quick_check`.
 - **ab\* skill**: `ab-in-chat-features`, `ab-capability-authoring`.
 
 ### Clarification requests
@@ -83,6 +84,24 @@ Last audited: 2026-08-25 (audit.json: 8 workflow agents, 3 standalone agents,
 - **Status**: implemented
 - **What**: `apply_*_recovery_playbook` / `reset_*` actions in every workflow.
 - **ab\* skill**: `ab-capability-authoring`.
+
+## Runtime customization
+
+### Per-agent instructions + tool filtering (`IAgentRuntimeCustomizer`)
+- **Status**: implemented
+- **What**: the `Customization Demo Agent`'s persona (system instructions) and tool set
+  are edited live on `/demo/customization`; the `DemoAgentCustomizer` reads the
+  `DemoAgentCustomizationStore` per turn and returns `null` for unconfigured agents
+  (standard agents unaffected). One action (`run_quick_check`) is approval-gated to show
+  customization + approval interplay.
+- **Where**: `Program.cs` → `AddRuntimeCustomizer<DemoAgentCustomizer>` +
+  `AddWorkflow<CustomizationDemoCapabilities>("Customization Demo Agent")`;
+  `Services/DemoAgentCustomizationStore.cs`, `Services/DemoAgentCustomizer.cs`,
+  `Services/CustomizationDemoCapabilities.cs`; page `CustomizationShowcase.razor`.
+- **Audit evidence**: `runtimeCustomization.customizerRegistered = true`,
+  `customizerTypes = [DemoAgentCustomizer]`.
+- **ab\* skill**: `ab-context-assembly` (per-agent instructions), `ab-tool-registration`
+  (logical-id tool filtering).
 
 ## Chat & conversation
 
@@ -139,9 +158,9 @@ All statuses `implemented`; pages per `components[].files`.
 ## Routes & scenarios
 
 ### Page routes
-- **Status**: implemented (25 route declarations)
+- **Status**: implemented (30 route declarations)
 - **Audit evidence**: `routes[]`, including `/demo`, `/demo/components`, per-workflow
-  routes, `/demo/dashboard`, `/demo/markdown-showcase`, docs pages.
+  routes, `/demo/dashboard`, `/demo/markdown-showcase`, `/demo/customization`, docs pages.
 - **Note**: route prefixes in `Program.cs` (e.g. `/demo/components`, `/demo/workflows/*`)
   narrow each agent's RGPD surface.
 
@@ -178,8 +197,9 @@ All statuses `implemented`; pages per `components[].files`.
 - **ab\* skill**: `ab-context-assembly`, `ab-inspector`.
 
 ### Dev tools / Agent Inspector
-- **Status**: wired-dormant — `UseDevTools()` present but commented out in `Program.cs`.
-- **Audit evidence**: `providers[].devTools = false` (code commented).
+- **Status**: implemented (Development only) — `UseDevTools()` active when
+  `builder.Environment.IsDevelopment()`.
+- **Audit evidence**: `providers[].devTools = true`.
 - **ab\* skill**: `ab-inspector`.
 
 ## Provider & runtime
@@ -208,10 +228,11 @@ All statuses `implemented`; pages per `components[].files`.
 ## Misc
 
 ### Demo workflow domain services
-- **Status**: implemented (25 service files)
+- **Status**: implemented (33 service files)
 - **Where**: `Services/*`, incl. `DemoWorkflowDatabaseSeeder` (SQLite seed),
   `DojoWorkspaceService`, `DemoRemoteStorageAdapter`, `JsonlDemoChatRequestLog`,
-  `JsonlDemoTrafficLog`.
+  `JsonlDemoTrafficLog`, `DemoAgentCustomizationStore`, `DemoAgentCustomizer`,
+  `CustomizationDemoCapabilities`.
 - **Audit evidence**: `services[]`.
 - **ab\* skill**: `ab-entity-design` (EF entities in `Data/`), `ab-conversation-store`.
 

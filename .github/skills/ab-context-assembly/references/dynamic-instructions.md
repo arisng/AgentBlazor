@@ -166,6 +166,10 @@ builder.UseRuntimeAdapter(sp => new MyCustomRuntimeAdapter(
 
 ### Decorator pattern (preserve default behavior, add custom logic)
 
+> **⚠️ Correction (2026-09-10):** the decorator below does **NOT** modify the system prompt. `AgentTurnRequest.Context` entries are rendered into the **user message** as `- key: value` lines under a "Runtime context:" heading (`ChatClientRuntimeAdapter.BuildUserMessage`, `src/AgentBlazor.Core/Runtime/Adapters/ChatClientRuntimeAdapter.cs:3061-3066`) — not into `ChatOptions.Instructions`. `AgentTurnRequest` is a sealed record with **no** system-instruction or tool-list surface, and instruction/tool construction is internal to the adapter (`ResolveInstructions` :2043, `ResolveToolsAsync` :1065). As written, this decorator behaves identically to Approach 1 (context injection).
+>
+> **For true per-agent system-prompt and tool customization, use the supported seam:** `IAgentRuntimeCustomizer` / `AgentRuntimeCustomization` (registered via `AgentBlazorBuilder.AddRuntimeCustomizer<T>()`), which runs inside the adapter's instruction/tool projection. See `docs/internal/runtime-customization-seam-2026-09-10.md`. Replacing `IAgentRuntimeAdapter` wholesale remains a valid last resort but you take on the entire turn lifecycle (history, inspector, approvals, streaming).
+
 Wrap the default adapter if you only need to modify instructions:
 
 ```csharp
@@ -193,9 +197,11 @@ public class InstructionDecoratorAdapter(
 
 ### Limitations
 
+- **The context-dictionary decorator cannot modify the system prompt or tool list** (see correction above) — it only injects data into the user message.
 - You take responsibility for the entire turn lifecycle.
 - Must handle streaming, cancellation, and reconnection if you support those.
 - Testing surface is large.
+- **Prefer the `IAgentRuntimeCustomizer` seam** for per-agent instruction/tool customization; reserve full adapter replacement for cases the seam cannot express.
 
 ---
 
@@ -250,7 +256,8 @@ public class CostLimitMiddleware : IAgentTurnMiddleware
 |---|---|---|---|---|
 | 1. Context dictionary | ⚠️ Indirect | ✅ Yes | ❌ No | Low |
 | 2. Middleware enrichment | ⚠️ Indirect | ✅ Yes | ❌ No | Medium |
-| 3. Replace adapter | ✅ Yes | ✅ Yes | ✅ Yes | High |
+| 3. Replace adapter (decorator) | ❌ Context-dict only (user message) | ✅ Yes | ❌ No (as documented) | High |
+| 3b. **`IAgentRuntimeCustomizer` seam** | ✅ Yes (system prompt) | ✅ Yes | ✅ Yes (instructions + tool filter) | Low-Medium |
 | 4. Middleware short-circuit | ❌ Bypass | ❌ Bypass | ✅ Custom only | Medium-High |
 
-> **Rule of thumb**: Start with approach 1 or 2. Graduate to approach 3 only when you need to restructure the system prompt itself per request. Use approach 4 for gating (auth, rate limits, cost caps) — not for prompt customization.
+> **Rule of thumb**: Start with approach 1 or 2. For true per-agent system-prompt and tool customization, use the **`IAgentRuntimeCustomizer` seam** (3b) — see `docs/internal/runtime-customization-seam-2026-09-10.md`. Graduate to a full adapter replacement (3) only when the seam cannot express what you need. Use approach 4 for gating (auth, rate limits, cost caps) — not for prompt customization.

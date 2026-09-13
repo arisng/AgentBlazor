@@ -22,6 +22,7 @@ referenced skill to reason correctly about its wiring.
 | Route prefixes & allowed components| `Program.cs` | `ab-agent-registration`                | `WithRoutePrefixes`, `WithAllowedComponents` |
 | Shared instructions file           | `Program.cs`, `agent-instructions.txt` | `ab-context-assembly` | `WithInstructions`                    |
 | Per-agent data schemas             | `Program.cs` | `ab-agent-registration`                | `AddDataSchema`, `WithDataSchemas`        |
+| Runtime customization (per-agent persona + tool filtering) | `Program.cs`, `Services/DemoAgentCustomizer.cs`, `Services/DemoAgentCustomizationStore.cs`, `Components/Pages/Demo/CustomizationShowcase.razor` | `ab-context-assembly`, `ab-tool-registration` | `AddRuntimeCustomizer`, `IAgentRuntimeCustomizer` |
 
 ## Capabilities & actions
 
@@ -69,7 +70,7 @@ referenced skill to reason correctly about its wiring.
 | Traffic logging middleware| `Program.cs`, `DemoTrafficLoggingMiddleware` | `ab-middleware-authoring` | `DemoTrafficLoggingMiddleware` |
 | Log inspection endpoints  | `DemoLogEndpointMapper`   | `ab-middleware-authoring`              | `/demo-log/**`          |
 | Prompt tracing            | `Program.cs`              | `ab-context-assembly`, `ab-inspector`  | `EnablePromptTracing`   |
-| Dev tools / inspector     | `Program.cs` (`UseDevTools` is commented out) | `ab-inspector`      | `UseDevTools` (dormant) |
+| Dev tools / inspector     | `Program.cs` (`UseDevTools` active in Development) | `ab-inspector`      | `UseDevTools` (Development) |
 
 ## Provider & runtime
 

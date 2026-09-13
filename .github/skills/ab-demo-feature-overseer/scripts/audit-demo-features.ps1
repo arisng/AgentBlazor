@@ -67,7 +67,8 @@ $report = [ordered]@{
     dataSchemas    = $null
     services       = @()
     configGates    = @()
-}
+        runtimeCustomization = @()
+    }
 
 # --- Agents & workflows registered in Program.cs -----------------------------
 $programCs = Join-Path $DemoRoot 'Program.cs'
@@ -224,6 +225,21 @@ $report.providers += , [ordered]@{
     devTools         = ([regex]::IsMatch($codeOnly, 'UseDevTools\('))
     promptTracing    = ([regex]::IsMatch($codeOnly, 'EnablePromptTracing'))
 }
+
+# --- Runtime customization (IAgentRuntimeCustomizer seam) ----------------------
+$runtimeCustomization = [ordered]@{
+    customizerRegistered = [regex]::IsMatch($programText, 'AddRuntimeCustomizer<')
+    customizerTypes      = @()
+    customizerFiles      = @()
+}
+foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | Sort-Object -Property Name)) {
+    $text = Get-Content $file.FullName -Raw
+    if ($text -match 'IAgentRuntimeCustomizer') {
+        $runtimeCustomization.customizerTypes += $file.BaseName
+        $runtimeCustomization.customizerFiles += ("Services/" + $file.Name)
+    }
+}
+$report.runtimeCustomization = $runtimeCustomization
 
 # --- Services (workflow services + infra) ----------------------------------------
 Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | ForEach-Object {

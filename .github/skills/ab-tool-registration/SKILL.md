@@ -121,6 +121,51 @@ options.ConfigureBuilder(builder =>
 
 The runtime checks: if `AgentRegistration.AllowedActions` is non-empty, only tools whose full name matches are projected. If empty, all tools pass through.
 
+## Per-Turn Tool Filtering (Runtime Customization Seam)
+
+For **runtime** (per-agent, per-conversation) tool filtering — beyond the startup-time `WithAllowedActions` — use the `IAgentRuntimeCustomizer` seam:
+
+```csharp
+options.ConfigureBuilder(builder =>
+{
+    builder.AddRuntimeCustomizer<MyCustomizer>();
+});
+
+public sealed class MyCustomizer : IAgentRuntimeCustomizer
+{
+    public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        AgentRegistration registration,
+        AgentTurnRequest request,
+        CancellationToken ct = default)
+    {
+        return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
+            EnabledToolIds: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "ticket_workflow.lookup_ticket",   // capability ActionId
+                "AgentGrid.filter",                // component ComponentId.ActionId
+                "get_weather"                      // service/MCP raw name
+            }));
+    }
+}
+```
+
+### Logical tool-id contract
+
+`EnabledToolIds` is a whitelist of **logical ids** (not normalized wire names — `NormalizeToolName` is internal and hashes names >64 chars):
+
+| Tool kind | Logical id | Example |
+|---|---|---|
+| Capability (`[AgentAction]`) | Full `ActionId` = `{capabilityId}.{localActionId}` | `ticket_workflow.lookup_ticket` |
+| Component action | `ComponentId.ActionId` | `AgentGrid.filter` |
+| Service / MCP | Raw registered tool name | `get_weather` |
+| Generated-UI (`generated_ui_*`) | **Reserved — always projected, not filterable** | — |
+| Legacy component alias | **Reserved — projected alongside its primary, not a separate filter target** | — |
+
+- `EnabledToolIds` that is `null` **or empty** means **no filtering** (empty ≠ disable-all).
+- A whitelist that matches nothing yields the existing "no available actions" response (never `Tools=[]` + `RequireAny`).
+- The customizer is resolved **exactly once per turn**; standard agents (customizer returns `null`) incur zero additional work.
+- See `docs/internal/runtime-customization-seam-2026-09-10.md` and `docs/internal/research/260909-runtime-adapter-feasibility.md` for the full design and evidence.
+
 ## Tool Resolution Order (in `ChatClientRuntimeAdapter`)
 
 Tools are assembled for the LLM in this exact order:

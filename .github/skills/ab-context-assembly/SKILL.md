@@ -48,13 +48,14 @@ Conversation history is managed automatically by the package — persisted via `
 | Understand the full pipeline | Read the pipeline map | [`references/pipeline-map.md`](references/pipeline-map.md) |
 | Add runtime data to every turn | Context dictionary injection via `AgentRuntimeContextKeys` | [`references/context-dictionary.md`](references/context-dictionary.md) |
 | Customize instructions per request | Middleware enrichment or context dict workaround | [`references/dynamic-instructions.md`](references/dynamic-instructions.md) |
+| **Customize the system prompt + tool list per agent** | **`IAgentRuntimeCustomizer` seam (`AddRuntimeCustomizer`)** | [`references/dynamic-instructions.md`](references/dynamic-instructions.md) |
 | Debug what the LLM actually received | Enable prompt tracing | [`references/prompt-tracing.md`](references/prompt-tracing.md) |
 | Take full control of prompt construction | Replace `IAgentRuntimeAdapter` | [`references/dynamic-instructions.md`](references/dynamic-instructions.md) |
 
 ## Reference files
 
 - [Pipeline map](references/pipeline-map.md) — end-to-end walkthrough: where each piece of context originates, how it flows, and where it lands in the LLM input
-- [Dynamic instructions](references/dynamic-instructions.md) — four approaches to customizing instructions at runtime, ranked by power and complexity
+- [Dynamic instructions](references/dynamic-instructions.md) — approaches to customizing instructions at runtime, ranked by power and complexity; the `IAgentRuntimeCustomizer` seam is the supported path for per-agent system-prompt + tool customization
 - [Prompt tracing](references/prompt-tracing.md) — enabling tracing, configuring retention, viewing traces in the inspector, and troubleshooting
 - [Context dictionary](references/context-dictionary.md) — full reference of `AgentRuntimeContextKeys`, the known user-message format, and patterns for custom injection
 

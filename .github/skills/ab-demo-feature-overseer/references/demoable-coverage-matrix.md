@@ -24,9 +24,9 @@ case actually wired in the Demo project** — not just because the library suppo
 or because some parameter default is active. If the Demo never exercises the feature,
 mark it ⛔.
 
-_Evidence snapshot: 2026-08-25 (8 workflow agents, 3 standalone agents, 8 capability
-classes, 41 agent actions, 10 approvals, 2 clarification sites, 17 component families,
-25 routes, 9 scenarios, 2 middleware, 8 log endpoints)._
+_Evidence snapshot: 2026-09-10 (9 workflow agents, 3 standalone agents, 9 capability
+classes, 44 agent actions, 11 approvals, 2 clarification sites, 18 component families,
+30 routes, 9 scenarios, 2 middleware, 8 log endpoints; runtime customization seam wired)._
 
 ---
 
@@ -35,23 +35,24 @@ classes, 41 agent actions, 10 approvals, 2 clarification sites, 17 component fam
 | Demoable feature | Coverage | Where (evidence) | ab\* skill |
 |---|---|---|---|
 | Standalone agent registration | ✅ | `agentRegistrations[3]` → Workflow Hub, Supplier Analyst, Workflow Orchestrator | `ab-agent-registration` |
-| Workflow-capability agent registration | ✅ | `agentRegistrations[8]`, `workflows[8]` | `ab-agent-registration` |
+| Workflow-capability agent registration | ✅ | `agentRegistrations[9]`, `workflows[9]` | `ab-agent-registration` |
 | Route prefixes per agent | ✅ | `agentRegistrations[].routePrefixes` | `ab-agent-registration` |
 | Allowed components per agent | ✅ | `agentRegistrations[].allowedComponents` | `ab-agent-registration` |
 | Shared instructions file | ✅ | `agent-instructions.txt` + `hasSharedInstructions=true` (10 of 11) | `ab-context-assembly` |
 | Semantic data schemas (`AgentDataSchemaSet`) | ✅ | `dataSchemas.schemaSets=[support-data]`, bound to Support Inbox | `ab-agent-registration` |
-| Allowed **actions** / capability actions (fine-grained) | ⛔ | no `WithAllowedActions` in Demo | `ab-agent-registration` |
-| Service **tools** (`AddTool`) | ⛔ | no `AddTool`/`AgentServiceTool` | `ab-tool-registration` |
+| Allowed **actions** / capability actions (fine-grained) | ⛔ | no `WithAllowedActions` in Demo (runtime filtering via the customizer is a separate feature — see below) | `ab-agent-registration` |
+| Service **tools** (`AddTool`) | ✅ | `options.AddTool("lookup-glossary")`, `options.AddTool("current-time")` in `Program.cs`; filtered per agent by the customizer | `ab-tool-registration` |
 | **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-registration` |
+| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `CustomizationDemoCapabilities`; persona + tool set edited live on `/demo/customization`; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-registration` |
 | Agent **selector** in chat | ⛔ | chat surfaces are locked to a per-route `DefaultAgentName` (`LockAgentToCurrentRoute`); `ShowAgentSelector` only toggles pane-vs-widget, never a user-visible multi-agent picker | `ab-in-chat-features` |
 
 ## 2. Capabilities & actions
 
 | Demoable feature | Coverage | Where (evidence) | ab\* skill |
 |---|---|---|---|
-| `[AgentCapability]` classes | ✅ | 8 capability classes (incl. 4 in `*WorkflowService.cs`) | `ab-capability-authoring` |
-| `[AgentAction]` typed actions | ✅ | 41 actions across 8 classes | `ab-capability-authoring` |
-| Approval boundaries (`RequiresApproval`) | ✅ | 10 approvals (draft/escalation/handoff/remediation) | `ab-capability-authoring`, `ab-in-chat-features` |
+| `[AgentCapability]` classes | ✅ | 9 capability classes (incl. 4 in `*WorkflowService.cs` + `CustomizationDemoCapabilities`) | `ab-capability-authoring` |
+| `[AgentAction]` typed actions | ✅ | 44 actions across 9 classes | `ab-capability-authoring` |
+| Approval boundaries (`RequiresApproval`) | ✅ | 11 approvals (draft/escalation/handoff/remediation + `run_quick_check`) | `ab-capability-authoring`, `ab-in-chat-features` |
 | Clarification (`NeedsClarification`) | ✅ | SupplierCompliance(1), SupportInbox(2) | `ab-in-chat-features` |
 | Structured outputs / next actions (`WithOutput`, `WithNextAction`) | ✅ | RuntimeProbe structured-error probe; workflows | `ab-capability-authoring` |
 | Recovery playbook + reset actions | ✅ | every workflow has `apply_*_recovery_playbook` + `reset_*` | `ab-capability-authoring` |
@@ -102,7 +103,7 @@ classes, 41 agent actions, 10 approvals, 2 clarification sites, 17 component fam
 | Traffic-logging middleware | ✅ | `app.UseMiddleware<DemoTrafficLoggingMiddleware>` | `ab-middleware-authoring` |
 | Log inspection endpoints | ✅ | `/demo-log/{login,logout,view,/,traffic,summary,download,traffic/download}` | `ab-middleware-authoring` |
 | Prompt tracing | ✅ | `agentBuilder.EnablePromptTracing()` | `ab-context-assembly`, `ab-inspector` |
-| Dev tools / Agent Inspector panel | 🟡 | `UseDevTools()` commented out (`providers.devTools=false`); Pro license can enable durable inspector store | `ab-inspector` |
+| Dev tools / Agent Inspector panel | ✅ | `UseDevTools()` active in Development (`providers.devTools=true`); Pro license can enable durable inspector store | `ab-inspector` |
 | `AgentInspectorPanel` explicit embedding | ⛔ | not embedded directly | `ab-inspector` |
 
 ## 6. Provider & runtime
@@ -125,7 +126,7 @@ classes, 41 agent actions, 10 approvals, 2 clarification sites, 17 component fam
 | SQLite DB seeder | ✅ | `DemoWorkflowDatabaseSeeder` | `ab-entity-design` |
 | Remote-storage handoff adapter | 🔶 | `DemoRemoteStorageAdapter` (InMemory default; HTTP adapter configurable) | `ab-capability-authoring` |
 | Rate limiting / security gates | ✅ | `DemoSecurityOptions`, `AddRateLimiter` on agent endpoints | `ab-testing`, `ab-middleware-authoring` |
-| Demo workflow domain services | ✅ | 25 service files | `ab-entity-design`, `ab-conversation-store` |
+| Demo workflow domain services | ✅ | 33 service files | `ab-entity-design`, `ab-conversation-store` |
 
 ---
 
@@ -133,15 +134,15 @@ classes, 41 agent actions, 10 approvals, 2 clarification sites, 17 component fam
 
 | Area | ✅ | 🟡 | 🔶 | ⛔ |
 |---|---|---|---|---|
-| Agents & registration | 6 | 0 | 0 | 4 |
+| Agents & registration | 8 | 0 | 0 | 3 |
 | Capabilities & actions | 6 | 0 | 0 | 2 |
 | Chat & conversation | 4 | 0 | 1 | 5 |
 | MudBlazor components | 15 | 0 | 0 | 1 |
-| Inspector & observability | 5 | 1 | 0 | 1 |
+| Inspector & observability | 6 | 0 | 0 | 1 |
 | Provider & runtime | 5 | 1 | 0 | 2 |
 | Workflow/misc | 4 | 1 | 1 | 0 |
 
-**Not-demoed leaders worth adding next** (⛔ ≥1): service/MCP tools, fine-grained
+**Not-demoed leaders worth adding next** (⛔ ≥1): MCP tools, fine-grained
 `WithAllowedActions`, session browser, suggestion chips / proactive insights / slash
 commands, agent selector, `[AgentParam]`, generative-UI blocks
 (`AgentGenerativeSurface`), `ConfigureChatOptions` pinning, multitenancy, and UI-library
