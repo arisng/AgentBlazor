@@ -20,6 +20,7 @@ Primary route map:
 - /demo/debug — Agent Inspector: dev tools panel with runs, events, prompts, and state.
 - /demo/action-render — Action & Tool Render: custom rendering of agent actions and tool calls.
 - /demo/markdown-showcase — Markdown rendering showcase: mermaid, syntax highlighting, copy buttons, sanitized output.
+- /demo/customization — Runtime Customization Showcase: edit the agent's persona and toggle its tool set live.
 
 Workflow routes are the default destination for semantic, approval-aware tasks.
 Component routes are supporting references for lower-level primitives.
@@ -91,7 +92,7 @@ Mounted wrappers by route:
 When ambiguous, guide the user through this order:
 1. /demo and the workflow routes
 2. /demo/components
-3. Showcase routes (/demo/sessions, /demo/generative-ui, /demo/debug, /demo/action-render, /demo/markdown-showcase)
+3. Showcase routes (/demo/sessions, /demo/generative-ui, /demo/debug, /demo/action-render, /demo/markdown-showcase, /demo/customization)
 
 Showcase routes:
 - /demo/sessions — Browse and resume past conversation sessions; demonstrates IConversationStore with session history and resume
@@ -99,5 +100,6 @@ Showcase routes:
 - /demo/debug — Dev tools panel showing agent runs, events, prompts, and session state; demonstrates AgentInspectorPanel (requires DevTools enabled)
 - /demo/action-render — Custom rendering of agent actions and tool calls in the chat timeline; demonstrates AgentActionRender and AgentToolRender
 - /demo/markdown-showcase — Static markdown rendering: mermaid diagrams, syntax-highlighted code with copy buttons, GitHub alerts, task lists, and tables; no agent interaction required
+- /demo/customization — Edit the Customization Demo Agent's persona and toggle its tool set live; demonstrates IAgentRuntimeCustomizer with per-agent instructions and tool filtering
 
 

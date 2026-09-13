@@ -1,0 +1,205 @@
+@page "/demo/customization"
+@layout DemoLayout
+@using AgentBlazor.Components
+@using AgentBlazor.Demo.Services
+@using MudBlazor
+
+<PageTitle>Runtime Customization — AgentBlazor Demo</PageTitle>
+
+<div class="customization-showcase">
+    <MudText Typo="Typo.h4" Class="mb-2">Runtime Customization Showcase</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        Demonstrates the <Code>IAgentRuntimeCustomizer</Code> seam: edit the agent's persona
+        (system instructions) and toggle which tools it can use, then chat with the customized
+        agent. The standard-comparison chat is bound to an unconfigured agent — proof that
+        standard agents are unaffected.
+    </MudText>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="0" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Persona (system instructions)</MudText>
+                <MudTextField T="string"
+                              Label="Persona"
+                              HelperText="Appended to the agent's registered instructions, before the READ-SAFE data-schema block."
+                              Lines="5"
+                              Variant="Variant.Outlined"
+                              @bind-Value="_persona" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="ApplyPersonaAsync">
+                    Apply persona
+                </MudButton>
+            </MudPaper>
+
+            <MudPaper Elevation="0" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Enabled tools</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                    Whitelist of logical tool ids. Generated-UI tools are reserved and always projected.
+                </MudText>
+                @foreach (var tool in _toolOptions)
+                {
+                    <MudCheckBox T="bool"
+                                 Label="@tool.Label"
+                                 Value="@_enabledToolIds.Contains(tool.Id)"
+                                 ValueChanged="@(value => ToggleTool(tool.Id, value))" />
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="ApplyToolsAsync">
+                    Apply tools
+                </MudButton>
+            </MudPaper>
+
+            <MudPaper Elevation="0" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Status</MudText>
+                <MudText Typo="Typo.body2">
+                    <strong>Persona:</strong> @(_personaApplied ? "custom (see above)" : "default")
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    <strong>User-toggled logical ids:</strong> @_enabledToolIds.Count
+                    (reserved generated-UI tools are always projected and not counted)
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Other agents (e.g. "Workflow Hub Agent") are unaffected — the customizer returns
+                    null for unconfigured agents.
+                </MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mt-2" OnClick="ResetAsync">
+                    Reset to standard behavior
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="0" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Customized agent</MudText>
+                <AgentChatSurface Title="Customization Demo Agent"
+                                  Description="Persona and tools are controlled by the customization showcase."
+                                  DefaultAgentName="Customization Demo Agent"
+                                  SessionId="demo:customization-showcase"
+                                  LockAgentToCurrentRoute="false"
+                                  ShowAgentSelector="false"
+                                  EnableGeneratedUi="true"
+                                  RequireHandoffApproval="false"
+                                  Placeholder="Ask the customized agent…"
+                                  CssClass="customization-showcase__surface" />
+            </MudPaper>
+
+            <MudPaper Elevation="0" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Standard agent (comparison)</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                    Bound to an unconfigured agent — the customizer returns null, so behavior is unchanged.
+                </MudText>
+                <AgentChatSurface Title="Workflow Hub Agent"
+                                  Description="Unconfigured — standard behavior."
+                                  DefaultAgentName="Workflow Hub Agent"
+                                  SessionId="demo:customization-standard"
+                                  LockAgentToCurrentRoute="false"
+                                  ShowAgentSelector="false"
+                                  EnableGeneratedUi="true"
+                                  RequireHandoffApproval="false"
+                                  Placeholder="Ask the standard agent…"
+                                  CssClass="customization-showcase__surface" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</div>
+
+<style>
+    .customization-showcase__surface {
+        height: 26rem;
+    }
+</style>
+
+@code {
+    private const string ShowcaseAgentName = "Customization Demo Agent";
+
+    private static readonly IReadOnlyList<ToolOption> _toolOptions =
+    [
+        new("customization_demo.describe_persona", "Describe your current persona"),
+        new("customization_demo.list_enabled_tools", "List the tools you can use"),
+        new("customization_demo.run_quick_check", "Run a quick capability check (approval-gated)"),
+        new("lookup-glossary", "Look up a glossary term"),
+        new("current-time", "Return the current UTC time")
+    ];
+
+    private readonly HashSet<string> _enabledToolIds = new(StringComparer.OrdinalIgnoreCase);
+    private string _persona = string.Empty;
+    private bool _personaApplied;
+
+    [Inject]
+    private DemoAgentCustomizationStore Store { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        // Seed defaults on first load so the showcase starts in a known state.
+        if (Store.Get(ShowcaseAgentName) is null)
+        {
+            foreach (var tool in _toolOptions)
+            {
+                _enabledToolIds.Add(tool.Id);
+            }
+
+            _persona = "You are a helpful demo assistant. Keep replies concise and friendly.";
+            ApplyToStore();
+        }
+        else
+        {
+            var customization = Store.Get(ShowcaseAgentName)!;
+            _persona = customization.Instructions ?? string.Empty;
+            _personaApplied = !string.IsNullOrWhiteSpace(customization.Instructions);
+            if (customization.EnabledToolIds is { Count: > 0 } ids)
+            {
+                _enabledToolIds.Clear();
+                _enabledToolIds.UnionWith(ids);
+            }
+            else
+            {
+                foreach (var tool in _toolOptions)
+                {
+                    _enabledToolIds.Add(tool.Id);
+                }
+            }
+        }
+    }
+
+    private void ToggleTool(string toolId, bool enabled)
+    {
+        if (enabled)
+        {
+            _enabledToolIds.Add(toolId);
+        }
+        else
+        {
+            _enabledToolIds.Remove(toolId);
+        }
+    }
+
+    private void ApplyPersonaAsync()
+    {
+        _personaApplied = !string.IsNullOrWhiteSpace(_persona);
+        ApplyToStore();
+    }
+
+    private void ApplyToolsAsync()
+    {
+        ApplyToStore();
+    }
+
+    private void ResetAsync()
+    {
+        Store.Reset(ShowcaseAgentName);
+        _persona = string.Empty;
+        _personaApplied = false;
+        foreach (var tool in _toolOptions)
+        {
+            _enabledToolIds.Add(tool.Id);
+        }
+    }
+
+    private void ApplyToStore()
+    {
+        Store.Configure(
+            ShowcaseAgentName,
+            _personaApplied ? _persona : null,
+            _enabledToolIds.Count == _toolOptions.Count ? null : new HashSet<string>(_enabledToolIds, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private sealed record ToolOption(string Id, string Label);
+}

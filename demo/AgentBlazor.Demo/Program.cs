@@ -26,6 +26,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<DojoWorkspaceService>();
+builder.Services.AddSingleton<DemoAgentCustomizationStore>();
 builder.Services.AddScoped<DemoFileWorkflowService>();
 builder.Services.AddScoped<DojoRecipeReleaseWorkflowService>();
 builder.Services.AddScoped<IncidentEscalationWorkflowService>();
@@ -242,28 +243,28 @@ builder.Services.AddAgentBlazor(options =>
     {
         agentBuilder.EnablePromptTracing();
 
-        // Conversation persistence: the Demo demonstrates the incremental persistence
-                // model (append once, targeted UpdateTurnAsync patches for enriched/edited
-                // turns, never full-history rewrites) across three store backends:
-                //   - JsonFile (default) — durable JSON-file store
-                //   - EFCore           — durable SQLite EF Core store (custom IConversationStore)
-                //   - InMemory         — ephemeral
-                if (string.Equals(demoConversationOptions.Store, "JsonFile", StringComparison.OrdinalIgnoreCase))
+        // Conversation persistence: the Demo demonstrates the incremental persistence model 
+        // (append once, targeted UpdateTurnAsync patches for enriched/edited turns, never full-history rewrites) 
+        // across three store backends:
+        //   - JsonFile (default) — durable JSON-file store
+        //   - EFCore           — durable SQLite EF Core store (custom IConversationStore)
+        //   - InMemory         — ephemeral
+        if (string.Equals(demoConversationOptions.Store, "JsonFile", StringComparison.OrdinalIgnoreCase))
+        {
+            agentBuilder.UseJsonFileConversationStore(
+                demoConversationOptions.FilePath,
+                configure: conversationOptions =>
                 {
-                    agentBuilder.UseJsonFileConversationStore(
-                        demoConversationOptions.FilePath,
-                        configure: conversationOptions =>
-                        {
-                            conversationOptions.MaxTurnsPerSession = demoConversationOptions.MaxTurnsPerSession;
-                            conversationOptions.SessionTimeout = demoConversationOptions.SessionTimeout;
-                        });
-                }
-                else if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
-                {
-                    agentBuilder.UseConversationStore(sp => new DemoConversationStore(
-                        sp.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>(),
-                        sp.GetService<IOptions<ConversationOptions>>()));
-                }
+                    conversationOptions.MaxTurnsPerSession = demoConversationOptions.MaxTurnsPerSession;
+                    conversationOptions.SessionTimeout = demoConversationOptions.SessionTimeout;
+                });
+        }
+        else if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
+        {
+            agentBuilder.UseConversationStore(sp => new DemoConversationStore(
+                sp.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>(),
+                sp.GetService<IOptions<ConversationOptions>>()));
+        }
 
         agentBuilder.AddDataSchema(new AgentDataSchemaSet
         {
@@ -405,6 +406,19 @@ builder.Services.AddAgentBlazor(options =>
         {
             agent.WithDescription("Focused on validating runtime cancellation behavior in the live demo host.");
             agent.WithRoutePrefixes("/demo/workflows/runtime-probe");
+        });
+
+        // Runtime customization showcase: a dedicated agent whose persona (system instructions)
+        // and tool set are edited live on /demo/customization via the IAgentRuntimeCustomizer seam.
+        agentBuilder.AddRuntimeCustomizer<DemoAgentCustomizer>();
+        agentBuilder.AddWorkflow<CustomizationDemoCapabilities>("Customization Demo Agent", agent =>
+        {
+            agent.WithDescription("Focused on demonstrating per-agent runtime customization: edit the persona and toggle the tool set on the customization showcase, then chat with the customized agent.");
+            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
+            {
+                agent.WithInstructions(sharedAgentInstructions);
+            }
+            agent.WithRoutePrefixes("/demo/customization");
         });
     });
 });

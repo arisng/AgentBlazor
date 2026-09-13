@@ -11,7 +11,7 @@
             <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">Live demo</MudChip>
             <MudText Typo="Typo.h4" Class="mt-4 mb-2">Explore every AgentBlazor feature</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary">
-                9 workflow demos, 12+ agent-controllable components, and 5 feature showcases — all running live.
+                9 workflow demos, 12+ agent-controllable components, and 6 feature showcases — all running live.
             </MudText>
         </div>
 
@@ -189,7 +189,11 @@
             "Dev tools panel showing runs, events, prompts, and state for every agent turn.",
             "/demo/debug", "Open inspector",
             ["AgentInspectorPanel", "DevTools", "5-tab panel"]),
-    ];
+                new("Customization", "Runtime Customization",
+                    "Edit an agent's persona and toggle its tool set live, then chat with the customized agent.",
+                    "/demo/customization", "Open showcase",
+                    ["IAgentRuntimeCustomizer", "Per-agent persona", "Tool filtering"]),
+            ];
 
     private static string GetScaleLabel(DemoScenarioScale scale)
         => scale switch
