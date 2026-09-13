@@ -4,6 +4,7 @@ using AgentBlazor.Components;
 using AgentBlazor.Core.Data;
 using AgentBlazor.Core.Runtime.Adapters;
 using AgentBlazor.Core.Runtime.Conversation;
+using AgentBlazor.Core.Runtime.Customization;
 using AgentBlazor.Core.Runtime.Interfaces;
 using AgentBlazor.Core.Runtime.State;
 using AgentBlazor.Options;
@@ -180,6 +181,30 @@ public sealed class AgentBlazorBuilder
         Services.AddSingleton<IAgentRuntimeEventSubscriber>(subscriber);
         return this;
     }
+
+        /// <summary>
+        /// Registers a runtime customizer that can override system instructions and filter tools
+        /// per agent turn. A single customizer is supported — the last registration wins.
+        /// </summary>
+        public AgentBlazorBuilder AddRuntimeCustomizer<TCustomizer>()
+            where TCustomizer : class, IAgentRuntimeCustomizer
+        {
+            Services.RemoveAll<IAgentRuntimeCustomizer>();
+            Services.AddSingleton<IAgentRuntimeCustomizer, TCustomizer>();
+            return this;
+        }
+
+        /// <summary>
+        /// Registers a factory-backed runtime customizer. A single customizer is supported — the
+        /// last registration wins.
+        /// </summary>
+        public AgentBlazorBuilder AddRuntimeCustomizer(Func<IServiceProvider, IAgentRuntimeCustomizer> factory)
+        {
+            ArgumentNullException.ThrowIfNull(factory);
+            Services.RemoveAll<IAgentRuntimeCustomizer>();
+            Services.AddSingleton(factory);
+            return this;
+        }
 
     /// <summary>
     /// Replaces the default runtime adapter with a custom implementation.

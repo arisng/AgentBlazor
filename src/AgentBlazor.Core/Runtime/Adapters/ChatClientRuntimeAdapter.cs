@@ -13,6 +13,7 @@ using AgentBlazor.Core.Data;
 using AgentBlazor.Core.Runtime;
 using AgentBlazor.Core.Runtime.Agents;
 using AgentBlazor.Core.Runtime.Components;
+using AgentBlazor.Core.Runtime.Customization;
 using AgentBlazor.Core.Runtime.Interfaces;
 using AgentBlazor.Core.Runtime.ExecutionPlans;
 using AgentBlazor.Core.Runtime.Middleware;
@@ -130,7 +131,8 @@ public sealed class ChatClientRuntimeAdapter(
 
         traceBuilder.RecordEntry(request, registration.Name);
         var capabilityPolicy = ResolveAllowedCapabilityPolicy(registration);
-        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, cancellationToken).ConfigureAwait(false);
+        var customization = await ResolveCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, customization, cancellationToken).ConfigureAwait(false);
         if (projectedTools.Count == 0)
         {
             return await BuildNoAvailableActionsResponseAsync(
@@ -178,7 +180,7 @@ public sealed class ChatClientRuntimeAdapter(
                 return approvedResponse;
             }
 
-            var agent = await CreateAgentAsync(registration, request, turnState, effectiveCancellationToken).ConfigureAwait(false);
+            var agent = await CreateAgentAsync(registration, request, turnState, customization, effectiveCancellationToken).ConfigureAwait(false);
             CurrentTurnState.Value = turnState;
             var response = await agent.RunAsync(
                 new ChatMessage(ChatRole.User, BuildUserMessage(request)),
@@ -340,7 +342,8 @@ public sealed class ChatClientRuntimeAdapter(
 
         traceBuilder.RecordEntry(request, registration.Name);
         var capabilityPolicy = ResolveAllowedCapabilityPolicy(registration);
-        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, cancellationToken).ConfigureAwait(false);
+        var customization = await ResolveCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, customization, cancellationToken).ConfigureAwait(false);
         if (projectedTools.Count == 0)
         {
             var noActionsResponse = await BuildNoAvailableActionsResponseAsync(
@@ -415,7 +418,7 @@ public sealed class ChatClientRuntimeAdapter(
                 return approvedResponse;
             }
 
-            var agent = await CreateAgentAsync(registration, request, turnState, effectiveCancellationToken).ConfigureAwait(false);
+            var agent = await CreateAgentAsync(registration, request, turnState, customization, effectiveCancellationToken).ConfigureAwait(false);
             CurrentTurnState.Value = turnState;
             var usage = new UsageDetails();
             var hasUsage = false;
@@ -1017,7 +1020,7 @@ public sealed class ChatClientRuntimeAdapter(
         AgentRegistration registration,
         CancellationToken cancellationToken)
     {
-        var agent = await CreateAgentAsync(registration, request: null, turnState: null, cancellationToken).ConfigureAwait(false);
+        var agent = await CreateAgentAsync(registration, request: null, turnState: null, customization: null, cancellationToken).ConfigureAwait(false);
         var session = await agent.CreateSessionAsync(cancellationToken).ConfigureAwait(false);
         return new SessionState(session);
     }
@@ -1026,16 +1029,17 @@ public sealed class ChatClientRuntimeAdapter(
         AgentRegistration registration,
         AgentTurnRequest? request,
         TurnExecutionState? turnState,
-        CancellationToken cancellationToken)
+            AgentRuntimeCustomization? customization,
+            CancellationToken cancellationToken)
     {
-        var instructions = ResolveInstructions(registration);
+        var instructions = ResolveInstructions(registration, customization);
         var chatOptions = new ChatOptions();
         if (!string.IsNullOrWhiteSpace(instructions))
         {
             chatOptions.Instructions = instructions;
         }
 
-        var tools = await ResolveToolsAsync(registration, request, turnState, cancellationToken).ConfigureAwait(false);
+        var tools = await ResolveToolsAsync(registration, request, turnState, customization, cancellationToken).ConfigureAwait(false);
         if (tools.Count > 0)
         {
             chatOptions.Tools = tools.ToList();
@@ -1066,7 +1070,8 @@ public sealed class ChatClientRuntimeAdapter(
         AgentRegistration registration,
         AgentTurnRequest? request,
         TurnExecutionState? turnState,
-        CancellationToken cancellationToken)
+            AgentRuntimeCustomization? customization,
+            CancellationToken cancellationToken)
     {
         var tools = new List<AITool>();
         var allowedCapabilities = ResolveAllowedCapabilityPolicy(registration).AllowedCapabilities;
@@ -1082,6 +1087,11 @@ public sealed class ChatClientRuntimeAdapter(
                 continue;
             }
 
+            if (!IsToolEnabledByCustomization(customization, capability.ActionId))
+            {
+                continue;
+            }
+
             tools.Add(CreateCapabilityTool(capability, turnState));
         }
 
@@ -1089,6 +1099,12 @@ public sealed class ChatClientRuntimeAdapter(
         {
             foreach (var action in component.Actions)
             {
+                var logicalId = $"{component.ComponentId}.{action.ActionId}";
+                if (!IsToolEnabledByCustomization(customization, logicalId))
+                {
+                    continue;
+                }
+
                 var functionName = NormalizeToolName($"ui_{component.ComponentId}_{action.ActionId}");
                 tools.Add(CreateComponentActionTool(functionName, component, action, turnState));
 
@@ -1118,6 +1134,11 @@ public sealed class ChatClientRuntimeAdapter(
                 continue;
             }
 
+            if (!IsToolEnabledByCustomization(customization, tool.Name))
+            {
+                continue;
+            }
+
             tools.Add(CreateServiceTool(tool, turnState));
         }
 
@@ -1141,6 +1162,11 @@ public sealed class ChatClientRuntimeAdapter(
                 foreach (var tool in providerTools)
                 {
                     if (!IsNonComponentToolAllowed(registration, tool.Name))
+                    {
+                        continue;
+                    }
+
+                    if (!IsToolEnabledByCustomization(customization, tool.Name))
                     {
                         continue;
                     }
@@ -1186,6 +1212,19 @@ public sealed class ChatClientRuntimeAdapter(
 
         return registration.AllowedActions.Count == 0 ||
                registration.AllowedActions.Contains(toolName);
+    }
+
+    private static bool IsToolEnabledByCustomization(
+        AgentRuntimeCustomization? customization,
+        string logicalId)
+    {
+        // null or empty whitelist means no filtering.
+        if (customization?.EnabledToolIds is not { Count: > 0 } enabled)
+        {
+            return true;
+        }
+
+        return enabled.Contains(logicalId);
     }
 
     private AITool CreateCapabilityTool(
@@ -2040,21 +2079,26 @@ public sealed class ChatClientRuntimeAdapter(
             _options.Value.IsolateConversationsByAgent);
     }
 
-    private string? ResolveInstructions(AgentRegistration registration)
+    private string? ResolveInstructions(AgentRegistration registration, AgentRuntimeCustomization? customization)
     {
         var dataSchemaInstructions = BuildDataSchemaInstructions(registration);
-        if (!string.IsNullOrWhiteSpace(registration.Instructions) &&
-            !string.IsNullOrWhiteSpace(dataSchemaInstructions))
-        {
-            return $"{registration.Instructions.Trim()}\n\n{dataSchemaInstructions}";
-        }
-
+        var parts = new List<string>(3);
         if (!string.IsNullOrWhiteSpace(registration.Instructions))
         {
-            return registration.Instructions;
+            parts.Add(registration.Instructions.Trim());
         }
 
-        return dataSchemaInstructions;
+        if (!string.IsNullOrWhiteSpace(customization?.Instructions))
+        {
+            parts.Add(customization.Instructions.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(dataSchemaInstructions))
+        {
+            parts.Add(dataSchemaInstructions);
+        }
+
+        return parts.Count == 0 ? null : string.Join("\n\n", parts);
     }
 
     private string? BuildDataSchemaInstructions(AgentRegistration registration)
@@ -2124,10 +2168,24 @@ public sealed class ChatClientRuntimeAdapter(
         return builder.ToString().Trim();
     }
 
-    private async Task<AgentTurnResponse> BuildNoAgentResponseAsync(
-        PromptTraceBuilder traceBuilder,
+    private async Task<AgentRuntimeCustomization?> ResolveCustomizationAsync(
+        AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken)
+    {
+        var customizer = ResolveExecutionServiceProvider()?.GetService<IAgentRuntimeCustomizer>();
+        if (customizer is null)
+        {
+            return null;
+        }
+
+        return await customizer.GetCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AgentTurnResponse> BuildNoAgentResponseAsync(
+PromptTraceBuilder traceBuilder,
+AgentTurnRequest request,
+CancellationToken cancellationToken)
     {
         var response = RuntimeEarlyExitResponses.BuildNoAgentResponse(
             _agentRegistry.GetAll().Count,
@@ -2775,7 +2833,7 @@ public sealed class ChatClientRuntimeAdapter(
                 ResolveInstructions(ResolveAgentRegistration(request.AgentName, request.Context) ?? new AgentRegistration
                 {
                     Name = request.AgentName ?? "none"
-                }),
+                }, customization: null),
                 rawPlanResponse: null,
                 events: BuildInspectorEvents(request, response, turnState),
                 executionResults: turnState.GetExecutionResults(),
