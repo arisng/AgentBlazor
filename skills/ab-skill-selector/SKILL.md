@@ -1,16 +1,43 @@
 ---
 name: ab-skill-selector
-description: "Select the right ab-* skill for an AgentBlazor goal, or chain multiple ab-* skills in the correct order to achieve a multi-part goal. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in .github/skills apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, UI-library coexistence, CLI onboarding, Demo work, testing/UAT, release, fork sync, or roadmap triage. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
+description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, UI-library coexistence, or CLI onboarding. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
-# `ab-skill-selector` — Skill Selection & Chaining
+# `ab-skill-selector` — Consumer Skill Selection & Chaining
 
-Decides **which** ab-* skill owns a user goal and — when the goal spans several
-areas — **in what order** to chain them. It is the entry point for AgentBlazor
-work: it never re-implements what the owning skills already know, it points to
-them and sequences their execution.
+Decides **which** consumer ab-* skill owns a user goal and — when the goal
+spans several areas — **in what order** to chain them. It is the entry point
+for AgentBlazor consumer work: it never re-implements what the owning skills
+already know, it points to them and sequences their execution.
+
+**Scope**: This skill covers the 17 consumer-facing skills shipped in the
+AgentBlazor plugin (`skills/`). Internal/contributor skills (testing, UAT,
+release, fork sync, roadmap triage, demo auditing, entity design,
+contribution) are not in the plugin and not covered here.
+
+## Consumer skills inventory
+
+| # | Skill | Purpose |
+|---|-------|---------|
+| 1 | `ab-agent-registration` | Register agents/workflows, route prefixes, allowed components/actions, data schemas |
+| 2 | `ab-capability-authoring` | Author `[AgentCapability]`/`[AgentAction]`/`[AgentParam]` classes, `CapabilityResult`, approvals, outputs |
+| 3 | `ab-tool-authoring` | Service tools, MCP servers, tool parameters, per-agent tool filtering |
+| 4 | `ab-context-assembly` | System-prompt construction, runtime context injection, prompt tracing, runtime adapter |
+| 5 | `ab-prompt-engineering` | Author/align `WithInstructions` with the registered surface |
+| 6 | `ab-chat-composer` | Composer script loading, keyboard behavior, text retention |
+| 7 | `ab-in-chat-features` | Approvals, clarifications, handoff, generated UI, chips, slash commands |
+| 8 | `ab-chat-session-management` | Session browse/resume/hydrate from stored history |
+| 9 | `ab-conversation-store` | `IConversationStore` implementations, incremental persistence, action history |
+| 10 | `ab-middleware-authoring` | `IAgentTurnMiddleware` authoring, cross-cutting concerns |
+| 11 | `ab-inspector` | Agent Inspector, dev tools, run/event/prompt/state replay |
+| 12 | `ab-provider-config` | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning |
+| 13 | `ab-multitenancy` | Multi-tenant production (Finbuckle, per-tenant providers/stores, BFF) |
+| 14 | `ab-mud-components` | MudBlazor wrappers, generative UI blocks, controllable-component base classes |
+| 15 | `ab-ui-integration` | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) |
+| 16 | `ab-remote-chat` | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) |
+| 17 | `ab-cli` | Onboard an existing app via CLI (analyze / scaffold / doctor / validate) |
 
 ## When to use
 
@@ -29,34 +56,27 @@ them and sequences their execution.
 1. **Parse the goal.** Identify the AgentBlazor surface areas involved:
    registration, capabilities/actions, tools/MCP, chat surface/composer,
    sessions, persistence, providers, middleware, prompts, components,
-   multitenancy, remote chat, demo, testing, release, fork, roadmap.
+   multitenancy, remote chat.
 2. **Classify.** One area → single-skill selection. Two or more → chain.
 3. **Select skills.** Match each area to its skill via the selection table
    below; read `references/skill-catalog.md` for full per-skill signals and
    boundaries.
 4. **Order the chain.** Apply the ordering rules below; check
    `references/chain-playbooks.md` for known multi-skill patterns first.
-5. **Execute.** For each skill in order: load `.github/skills/<name>/SKILL.md`,
+5. **Execute.** For each skill in order: load `skills/<name>/SKILL.md`,
    follow its instructions, then record a **handoff note** — what changed, which
    files, decisions made, open questions — before loading the next skill.
-6. **Verify.** If the goal includes verification, end the chain with
-   `ab-testing` (unit/integration), `ab-uat-spec` (full regression), or
-   `ab-demo-feature-overseer` (Demo evidence).
 
 ## Ordering rules (for chains)
 
 - **Foundation before surface**: registration (`ab-agent-registration`) before
   capabilities/tools/components; those before prompts and in-chat UX.
-- **Data before UI**: `ab-entity-design` → `ab-conversation-store` →
+- **Data before UI**: `ab-conversation-store` →
   `ab-chat-session-management` → chat-surface skills.
 - **Author before align**: `ab-capability-authoring` / `ab-tool-authoring`
   before `ab-prompt-engineering` (prompts must match the registered surface).
 - **Setup before debug**: `ab-provider-config` / `ab-context-assembly` before
   `ab-inspector`-driven debugging.
-- **Verify last**: `ab-testing`, `ab-uat-spec`, `ab-demo-feature-overseer` end
-  the chain.
-- **Process skills are terminal**: `ab-release`, `git-fork-sync`,
-  `roadmap-triage`, `ab-contribution` wrap the technical work they cover.
 
 ## Selection table
 
@@ -75,18 +95,10 @@ them and sequences their execution.
 | MudBlazor wrappers, generative UI blocks, controllable-component base classes | `ab-mud-components` |
 | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) | `ab-ui-integration` |
 | `IConversationStore` implementations, incremental persistence, action history | `ab-conversation-store` |
-| EF Core entities, multitenancy columns, migrations | `ab-entity-design` |
 | `IAgentTurnMiddleware` authoring, cross-cutting concerns | `ab-middleware-authoring` |
 | Agent Inspector, dev tools, run/event/prompt/state replay | `ab-inspector` |
 | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning | `ab-provider-config` |
 | Multi-tenant production (Finbuckle, per-tenant providers/stores, BFF) | `ab-multitenancy` |
-| Unit/integration tests (xUnit, bUnit, coverlet) | `ab-testing` |
-| AgentChat full-regression UAT (51 cases) | `ab-uat-spec` |
-| Demo feature audit + evidence-gated catalog | `ab-demo-feature-overseer` |
-| Contributor workflows, PRs, coding standards | `ab-contribution` |
-| Release, versioning, publishing, private feeds | `ab-release` |
-| Fork upstream sync (mirror/merge model) | `git-fork-sync` |
-| Issue/PR/CI triage against the committed roadmap | `roadmap-triage` |
 
 ## Abstention
 
@@ -96,6 +108,9 @@ them and sequences their execution.
   flag it; never invent its content.
 - **No skill covers the goal** → say so explicitly instead of stretching a
   nearby skill.
+- **Goal requires internal/contributor skills** (testing, UAT, release, fork
+  sync, roadmap, demo audit, entity design, contribution) → those are not in
+  the plugin; point the user to the repo's `.github/skills/` directory.
 
 ## Files
 
@@ -113,3 +128,5 @@ them and sequences their execution.
 - One handoff note per phase: state what changed and what the next skill needs.
 - Keep the selection plan visible: state the skill list and order up front,
   then execute.
+- Consumer skills only: this plugin ships 17 skills. Do not reference skills
+  outside the plugin (`.github/skills/`) as if they were available.

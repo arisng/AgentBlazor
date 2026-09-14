@@ -1,4 +1,4 @@
-# Chain Playbooks — Multi-Skill Chains
+# Chain Playbooks — Consumer Multi-Skill Chains
 
 Common multi-skill goals, the ordered skill chain that achieves them, why that
 order, and what to hand off between phases. Read this when a goal spans two or
@@ -14,11 +14,8 @@ rules in `SKILL.md`.
 5. [Multi-tenant production deployment](#5-multi-tenant-production-deployment)
 6. [Debug agent misbehavior](#6-debug-agent-misbehavior)
 7. [Onboard an existing app](#7-onboard-an-existing-app)
-8. [Extend the Demo with a feature](#8-extend-the-demo-with-a-feature)
-9. [Verify with tests or UAT](#9-verify-with-tests-or-uat)
-10. [Remote chat in Blazor WebAssembly](#10-remote-chat-in-blazor-webassembly)
-11. [Coexist with another UI library](#11-coexist-with-another-ui-library)
-12. [Release a version](#12-release-a-version)
+8. [Remote chat in Blazor WebAssembly](#8-remote-chat-in-blazor-webassembly)
+9. [Coexist with another UI library](#9-coexist-with-another-ui-library)
 
 ---
 
@@ -30,12 +27,12 @@ clarification + next actions".
 
 **Chain**: `ab-capability-authoring` → `ab-agent-registration` →
 `ab-prompt-engineering` → (`ab-in-chat-features` if approval/clarification UX
-matters) → `ab-testing` (if tests are in scope).
+matters).
 
 **Why this order**: author the capability first (it defines the surface),
 register it onto the agent (surface becomes real), then align the prompt with
 the now-registered surface. In-chat UX tuning comes after the capability
-exists; tests verify last.
+exists.
 
 **Handoff notes**:
 - → registration: capability class name, action IDs, `RequiresApproval` flags,
@@ -86,17 +83,13 @@ MudBlazor components, then wire the composer/surface.
 **Goal examples**: "Persist conversations to SQL Server", "switch from
 in-memory to a durable store", "enable action history".
 
-**Chain**: `ab-conversation-store` → `ab-entity-design` (EF Core path) →
-`ab-chat-session-management` (hydration still works).
+**Chain**: `ab-conversation-store` → `ab-chat-session-management` (hydration
+still works).
 
-**Why this order**: pick the store strategy first; if EF Core, design the
-entities that back it; then confirm session browsing/hydration behaves with
-the new store.
+**Why this order**: pick the store strategy first; then confirm session
+browsing/hydration behaves with the new store.
 
 **Handoff notes**:
-- → entity design: store requirements (incremental `UpdateTurnAsync` /
-  `DeleteTurnAsync` / `ReorderTurnsAsync` keyed by `TurnId`), multitenancy
-  needs.
 - → session management: store type + any `SetUserIdAsync` wiring.
 
 ## 5. Multi-tenant production deployment
@@ -104,16 +97,14 @@ the new store.
 **Goal examples**: "Productionize AgentBlazor for SaaS with per-tenant
 databases and providers", "add Finbuckle tenant resolution".
 
-**Chain**: `ab-multitenancy` → `ab-entity-design` → `ab-middleware-authoring`
-→ `ab-provider-config` → `ab-conversation-store`.
+**Chain**: `ab-multitenancy` → `ab-middleware-authoring` →
+`ab-provider-config` → `ab-conversation-store`.
 
 **Why this order**: the deployment pattern defines the shape (tenant
-resolution, BFF), entities carry `TenantId`, middleware enriches/cost-controls
-per tenant, provider options get pinned per tenant, and stores become
-per-tenant.
+resolution, BFF), middleware enriches/cost-controls per tenant, provider
+options get pinned per tenant, and stores become per-tenant.
 
 **Handoff notes**:
-- → entity design: `TenantId` column requirements, isolation model.
 - → middleware: which cross-cutting concerns (cost control, tenant
   enrichment) the pattern requires.
 - → provider config: per-tenant `ChatOptions` pinning behind the proxy
@@ -156,37 +147,7 @@ aligned last.
   what remains to author.
 - → prompt engineering: the final registered surface.
 
-## 8. Extend the Demo with a feature
-
-**Goal examples**: "Add a demo for the inspector", "is feature X wired in the
-Demo?".
-
-**Chain**: `ab-demo-feature-overseer` → owning skill (via
-`references/feature-skill-map.md`) → `ab-demo-feature-overseer` (update
-catalog + coverage matrix).
-
-**Why this order**: audit first (evidence of what exists), implement via the
-owning skill, then re-audit and record the new feature in the catalog.
-
-**Handoff notes**:
-- → owning skill: the feature area and its audit tokens.
-- → overseer (return): what was wired, so the catalog row is evidence-gated.
-
-## 9. Verify with tests or UAT
-
-**Goal examples**: "Write tests for my new capability", "run the full
-AgentChat regression".
-
-**Chain**: `ab-testing` (unit/integration) **or** `ab-uat-spec` (full
-regression) → owning skill for any fixes.
-
-**Why this order**: verification runs against the implemented surface; any
-failures go back to the skill that owns the failing area.
-
-**Handoff notes**:
-- → fix skill: failing test/UAT case, evidence, and the owning area.
-
-## 10. Remote chat in Blazor WebAssembly
+## 8. Remote chat in Blazor WebAssembly
 
 **Goal examples**: "Host chat in a WASM client", "wire
 `/agentblazor/chat/run`".
@@ -203,7 +164,7 @@ on the server side.
   asset needs.
 - → store: session/agent/user identity choices made for the remote chat.
 
-## 11. Coexist with another UI library
+## 9. Coexist with another UI library
 
 **Goal examples**: "AgentBlazor breaks my Telerik styles", "add AgentBlazor
 to an app that uses Radzen".
@@ -217,17 +178,3 @@ correctly, then use components without regressions.
 **Handoff notes**:
 - → composer: the asset-loading strategy chosen (order, isolation).
 - → components: any class-name constraints from the integration.
-
-## 12. Release a version
-
-**Goal examples**: "Cut a release", "publish to the private feed".
-
-**Chain**: `git-fork-sync` (if upstream sync is needed first) →
-`ab-release` → `ab-contribution` (PR/review if applicable).
-
-**Why this order**: sync the fork before releasing, run the release workflow,
-then follow contribution process for any PRs.
-
-**Handoff notes**:
-- → release: sync state (mirror vs develop), divergence points.
-- → contribution: release artifacts, version bump, notes.

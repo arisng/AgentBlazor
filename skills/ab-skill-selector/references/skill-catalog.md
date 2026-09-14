@@ -1,7 +1,7 @@
-# Skill Catalog — Selection Detail
+# Skill Catalog — Consumer Selection Detail
 
-Full per-skill selection detail for every skill in `.github/skills`. Read this
-when the compact table in `SKILL.md` is ambiguous, or when a goal touches
+Full per-skill selection detail for the 17 consumer skills in `skills/`. Read
+this when the compact table in `SKILL.md` is ambiguous, or when a goal touches
 multiple areas and you need each skill's boundaries.
 
 ## Contents
@@ -12,25 +12,17 @@ multiple areas and you need each skill's boundaries.
 4. [ab-chat-session-management](#ab-chat-session-management)
 5. [ab-cli](#ab-cli)
 6. [ab-context-assembly](#ab-context-assembly)
-7. [ab-contribution](#ab-contribution)
-8. [ab-conversation-store](#ab-conversation-store)
-9. [ab-demo-feature-overseer](#ab-demo-feature-overseer)
-10. [ab-entity-design](#ab-entity-design)
-11. [ab-in-chat-features](#ab-in-chat-features)
-12. [ab-inspector](#ab-inspector)
-13. [ab-middleware-authoring](#ab-middleware-authoring)
-14. [ab-mud-components](#ab-mud-components)
-15. [ab-multitenancy](#ab-multitenancy)
-16. [ab-prompt-engineering](#ab-prompt-engineering)
-17. [ab-provider-config](#ab-provider-config)
-18. [ab-release](#ab-release)
-19. [ab-remote-chat](#ab-remote-chat)
-20. [ab-testing](#ab-testing)
-21. [ab-tool-authoring](#ab-tool-authoring)
-22. [ab-uat-spec](#ab-uat-spec)
-23. [ab-ui-integration](#ab-ui-integration)
-24. [git-fork-sync](#git-fork-sync)
-25. [roadmap-triage](#roadmap-triage)
+7. [ab-conversation-store](#ab-conversation-store)
+8. [ab-in-chat-features](#ab-in-chat-features)
+9. [ab-inspector](#ab-inspector)
+10. [ab-middleware-authoring](#ab-middleware-authoring)
+11. [ab-mud-components](#ab-mud-components)
+12. [ab-multitenancy](#ab-multitenancy)
+13. [ab-prompt-engineering](#ab-prompt-engineering)
+14. [ab-provider-config](#ab-provider-config)
+15. [ab-remote-chat](#ab-remote-chat)
+16. [ab-tool-authoring](#ab-tool-authoring)
+17. [ab-ui-integration](#ab-ui-integration)
 
 ---
 
@@ -50,8 +42,7 @@ multiple areas and you need each skill's boundaries.
   (`ab-capability-authoring`), tool definitions (`ab-tool-authoring`), or
   prompt prose (`ab-prompt-engineering`) — it wires them onto agents.
 - **Related**: `ab-capability-authoring`, `ab-tool-authoring`,
-  `ab-context-assembly`, `ab-prompt-engineering`, `ab-entity-design`
-  (store-backed registries).
+  `ab-context-assembly`, `ab-prompt-engineering`.
 
 ## ab-capability-authoring
 
@@ -133,15 +124,6 @@ multiple areas and you need each skill's boundaries.
 - **Related**: `ab-prompt-engineering`, `ab-middleware-authoring`,
   `ab-inspector`, `ab-agent-registration`.
 
-## ab-contribution
-
-- **Scope**: Contributor workflows — development setup, creating PRs, coding
-  standards, fork model, code review, contribution guidelines.
-- **Signals**: contribution, PR workflow, coding standards, dev environment
-  setup, review process.
-- **Boundaries**: process skill; does not cover technical implementation.
-- **Related**: `git-fork-sync`, `ab-release`.
-
 ## ab-conversation-store
 
 - **Scope**: Conversation history storage — choosing between
@@ -157,40 +139,8 @@ multiple areas and you need each skill's boundaries.
   incremental persistence, `IActionHistoryStore`, `ActionHistoryEntry`,
   `SqliteActionHistoryStore`, `UseProLicense`, agent action persistence.
 - **Boundaries**: does NOT cover session-browser UIs
-  (`ab-chat-session-management`) or EF entity design (`ab-entity-design`).
-- **Related**: `ab-chat-session-management`, `ab-entity-design`,
-  `ab-multitenancy`.
-
-## ab-demo-feature-overseer
-
-- **Scope**: Audit every demoable feature in `demo/AgentBlazor.Demo` and
-  maintain the evidence-gated features catalog — runs
-  `scripts/audit-demo-features.ps1`, updates
-  `references/demo-features-catalog.md` and the coverage matrix, maps features
-  to owning ab-* skills via `references/feature-skill-map.md`.
-- **Signals**: "what features are demoed", "is feature X implemented in the
-  Demo", "Demo features catalog", "audit the Demo project", "verify feature is
-  wired", extending the Demo with a new demoable feature.
-- **Boundaries**: Demo project only; never scans the library for Demo
-  "features". Delegates implementation detail to owning skills — it is an
-  overseer, not an implementer.
-- **Related**: every ab-* skill (via `feature-skill-map.md`).
-
-## ab-entity-design
-
-- **Scope**: EF Core domain entities — `ConversationSessionEntity`,
-  `ConversationTurnEntity`, `TenantInfo`; composite vs surrogate keys; FK
-  cascades and indexes; multitenancy columns (`TenantId`);
-  `IsolateConversationsByAgent` implications; audit columns, soft delete,
-  concurrency tokens; JSON columns vs owned entity types; migrations.
-- **Signals**: entity design, domain entities, EF Core entities, entity
-  relationships, FK cascade, composite key, global query filter, `TenantId`
-  column, `BaseSessionId`, `AgentName`, owned entity types, split queries,
-  concurrency token, audit columns, soft delete.
-- **Boundaries**: entity design only; store wiring is
-  `ab-conversation-store`, tenant resolution is `ab-multitenancy`.
-- **Related**: `ab-conversation-store`, `ab-multitenancy`,
-  `ab-agent-registration` (store-backed registries).
+  (`ab-chat-session-management`).
+- **Related**: `ab-chat-session-management`, `ab-multitenancy`.
 
 ## ab-in-chat-features
 
@@ -271,10 +221,10 @@ multiple areas and you need each skill's boundaries.
 - **Signals**: multi-tenant, multitenant, SaaS, tenant isolation, per-tenant,
   Finbuckle, BFF pattern, tenant context, `TenantAwareChatClient`, proxy
   `IChatClient`, productionizing AgentBlazor for SaaS.
-- **Boundaries**: deployment-level concern; entity columns are
-  `ab-entity-design`, per-tenant options pinning is `ab-provider-config`.
-- **Related**: `ab-entity-design`, `ab-provider-config`,
-  `ab-middleware-authoring`, `ab-conversation-store`.
+- **Boundaries**: deployment-level concern; per-tenant options pinning is
+  `ab-provider-config`.
+- **Related**: `ab-provider-config`, `ab-middleware-authoring`,
+  `ab-conversation-store`.
 
 ## ab-prompt-engineering
 
@@ -308,16 +258,6 @@ multiple areas and you need each skill's boundaries.
   (`ab-multitenancy`).
 - **Related**: `ab-multitenancy`, `ab-agent-registration`, `ab-inspector`.
 
-## ab-release
-
-- **Scope**: Release workflow and versioning — creating releases, updating
-  versions, publishing packages, managing private feeds; versioning strategy,
-  release notes, publishing workflows.
-- **Signals**: release, version bump, publish packages, private feed, release
-  notes.
-- **Boundaries**: process skill; terminal in a chain.
-- **Related**: `git-fork-sync`, `ab-contribution`.
-
 ## ab-remote-chat
 
 - **Scope**: Remote chat in Blazor WebAssembly — server
@@ -332,16 +272,6 @@ multiple areas and you need each skill's boundaries.
   (`ab-chat-composer`) or persistence (`ab-conversation-store`).
 - **Related**: `ab-chat-composer`, `ab-conversation-store`,
   `ab-chat-session-management`.
-
-## ab-testing
-
-- **Scope**: Testing patterns and conventions — xUnit, bUnit, coverlet, test
-  organization, project-specific testing conventions; writing unit/integration
-  tests and debugging test failures.
-- **Signals**: unit tests, integration tests, test failures, bUnit, coverlet,
-  test organization.
-- **Boundaries**: conventions only; full-regression UAT is `ab-uat-spec`.
-- **Related**: `ab-uat-spec`, `ab-demo-feature-overseer`.
 
 ## ab-tool-authoring
 
@@ -361,21 +291,6 @@ multiple areas and you need each skill's boundaries.
 - **Related**: `ab-agent-registration`, `ab-prompt-engineering`,
   `ab-capability-authoring`.
 
-## ab-uat-spec
-
-- **Scope**: AgentChat full-regression UAT spec (51 cases) against a live FSH
-  environment — per-aspect test-case buckets
-  (`references/buckets/`), conversation persistence/resource-context audits.
-  Load with testing-manual-harness, aspire-cli, playwright-cli, mssql-cli.
-- **Signals**: AgentChat UAT, full-regression UAT, conversation persistence
-  audit, resource-context audit, refresh-persistence, session-tab refresh,
-  browser-list staleness, `AgentChatSessionBrowser`,
-  agentchat-regression-spec/bucket, UAT bucket.
-- **Boundaries**: live-environment regression only; unit conventions are
-  `ab-testing`.
-- **Related**: `ab-testing`, `ab-conversation-store`,
-  `ab-chat-session-management`.
-
 ## ab-ui-integration
 
 - **Scope**: Integrate AgentBlazor (with its MudBlazor dependency) into a
@@ -390,24 +305,3 @@ multiple areas and you need each skill's boundaries.
 - **Boundaries**: integration/conflict surface only; component usage is
   `ab-mud-components`.
 - **Related**: `ab-mud-components`, `ab-chat-composer`.
-
-## git-fork-sync
-
-- **Scope**: Sync a git fork/clone from upstream and integrate upstream changes
-  into a divergent development branch — mirror/merge model, fast-forward
-  mirrors, reconciling uncommitted local changes.
-- **Signals**: sync upstream, update fork, mirror branch, merge upstream into
-  develop, reconcile local changes with upstream.
-- **Boundaries**: repo-agnostic; process skill, terminal in a chain.
-- **Related**: `ab-contribution`, `ab-release`.
-
-## roadmap-triage
-
-- **Scope**: Triage open issues, PRs, CI, and dependency signals against this
-  fork's committed roadmap (`arisng/AgentBlazor`) — prioritized next-work-item
-  shortlist, signal/noise/defer/blocked classification. Probe-and-report only;
-  never edits issues/PRs/CI.
-- **Signals**: triage, prioritize issues, next work items, filter noise,
-  signal noise, roadmap phase, checkpoint gate, issue queue.
-- **Boundaries**: fork-scoped (never upstream as a planning input); read-only.
-- **Related**: every ab-* skill (the chosen work item passes onward).

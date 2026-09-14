@@ -77,10 +77,10 @@ See [`DIVERGENCE.md`](DIVERGENCE.md) for full divergence tracking.
 ## Existing Skills & Documentation
 
 **Consumer skills** (`skills/` — included in Copilot plugin):
-- `ab-agent-registration`, `ab-capability-authoring`, `ab-chat-composer`, `ab-chat-session-management`, `ab-cli`, `ab-context-assembly`, `ab-conversation-store`, `ab-in-chat-features`, `ab-inspector`, `ab-middleware-authoring`, `ab-mud-components`, `ab-multitenancy`, `ab-prompt-engineering`, `ab-provider-config`, `ab-remote-chat`, `ab-tool-authoring`, `ab-ui-integration`
+- `ab-agent-registration`, `ab-capability-authoring`, `ab-chat-composer`, `ab-chat-session-management`, `ab-cli`, `ab-context-assembly`, `ab-conversation-store`, `ab-in-chat-features`, `ab-inspector`, `ab-middleware-authoring`, `ab-mud-components`, `ab-multitenancy`, `ab-prompt-engineering`, `ab-provider-config`, `ab-remote-chat`, `ab-skill-selector`, `ab-tool-authoring`, `ab-ui-integration`
 
 **Internal skills** (`.github/skills/` — repo-only, not in plugin):
-- `ab-contribution`, `ab-demo-feature-overseer`, `ab-entity-design`, `ab-release`, `ab-skill-selector`, `ab-testing`, `ab-uat-spec`, `git-fork-sync`, `roadmap-triage`
+- `ab-contribution`, `ab-demo-feature-overseer`, `ab-entity-design`, `ab-release`, `ab-testing`, `ab-uat-spec`, `git-fork-sync`, `roadmap-triage`
 
 **Documentation** (`docs/`):
 - [`quickstart.md`](docs/quickstart.md) — Getting started guide

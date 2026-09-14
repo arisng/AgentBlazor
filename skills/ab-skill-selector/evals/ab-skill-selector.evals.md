@@ -34,8 +34,8 @@ prompt mentions it.
 ### 4. Which-skill question
 **Prompt:** "Which skill should I use to persist conversations to SQL Server
 and still browse them later?"
-**Expected:** Chains `ab-entity-design` → `ab-conversation-store` →
-`ab-chat-session-management`, naming all three and the order.
+**Expected:** Chains `ab-conversation-store` → `ab-chat-session-management`,
+naming both and the order.
 
 ### 5. Multi-skill UI + persistence
 **Prompt:** "Build a session browser so users can resume past chats."
@@ -45,7 +45,7 @@ and still browse them later?"
 ### 6. Multi-skill provider + tenant
 **Prompt:** "We're going multi-tenant SaaS with per-tenant model options."
 **Expected:** Chain — `ab-multitenancy` → `ab-provider-config` (plus
-`ab-entity-design` / `ab-middleware-authoring` as needed for storage and tenant
+`ab-middleware-authoring` as needed for storage and tenant
 enrichment), not a single-skill answer.
 
 ### 7. Debug selection
@@ -57,7 +57,7 @@ actually sent."
 ### 8. Abstains correctly for missing skill
 **Prompt:** "Use the `ab-other-components` skill to build my Radzen UI."
 **Expected:** Flags that `ab-other-components` does not exist in
-`.github/skills`, does not invent its content, and selects `ab-ui-integration`
+`skills/`, does not invent its content, and selects `ab-ui-integration`
 + `ab-mud-components` instead.
 
 ## Negative cases (skill should not fire or gracefully abstain)
@@ -82,3 +82,9 @@ correct.
 adapter?"
 **Expected:** No skill covers this — the skill says so explicitly rather than
 stretching `ab-remote-chat` or `ab-multitenancy` to fit.
+
+### 13. Internal skill requested
+**Prompt:** "Write unit tests for my new capability."
+**Expected:** The skill notes that `ab-testing` is an internal skill not in the
+plugin, and suggests the user refer to the repo's `.github/skills/` directory
+for contributor/internal skills.
