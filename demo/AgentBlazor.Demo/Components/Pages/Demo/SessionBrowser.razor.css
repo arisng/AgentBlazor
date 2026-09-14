@@ -1,0 +1,126 @@
+.session-browser__layout {
+    display: grid;
+    grid-template-columns: 22rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.session-browser__list-card,
+.session-browser__detail-card {
+    min-width: 0;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(13, 25, 39, 0.96), rgba(9, 17, 27, 0.98));
+}
+
+.session-browser__list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 1rem 1rem 0.5rem;
+}
+
+.session-browser__list-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.session-browser__new-form {
+    display: grid;
+    gap: 0.7rem;
+    padding: 1rem;
+}
+
+.session-browser__list {
+    max-height: calc(100dvh - 22rem);
+    min-height: 12rem;
+    overflow-y: auto;
+    padding: 0.25rem 0.5rem 0.75rem;
+}
+
+.session-browser__item {
+    border-radius: 0.75rem;
+    margin-bottom: 0.25rem;
+    border: 1px solid transparent;
+}
+
+.session-browser__item--selected {
+    border-color: rgba(255, 106, 61, 0.55);
+    background: rgba(255, 106, 61, 0.08);
+}
+
+.session-browser__item-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.session-browser__item-preview {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.8rem;
+    color: rgba(214, 228, 247, 0.72);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.session-browser__item-meta {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+    color: rgba(214, 228, 247, 0.55);
+}
+
+.session-browser__detail-head {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem 1rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.session-browser__detail-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.session-browser__detail-key {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: rgba(214, 228, 247, 0.6);
+    word-break: break-all;
+}
+
+.session-browser__detail-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.session-browser__surface {
+    height: 62dvh;
+    min-height: 26rem;
+}
+
+.session-browser__surface ::deep .ab-chat-surface {
+    height: 100%;
+}
+
+@media (max-width: 960px) {
+    .session-browser__layout {
+        grid-template-columns: 1fr;
+    }
+
+    .session-browser__list {
+        max-height: 22rem;
+    }
+}

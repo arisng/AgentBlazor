@@ -1,50 +1,410 @@
 @page "/demo/sessions"
 @layout DemoLayout
+@using AgentBlazor.Agents
+@using AgentBlazor.Components
+@using AgentBlazor.Components.Chat
+@using AgentBlazor.Core.Runtime.Agents
 @using AgentBlazor.Demo.Services
 @using MudBlazor
+@implements IDisposable
 @inject DemoSessionBrowserService SessionService
+@inject IAgentRegistry AgentRegistry
+@inject IAgentChatSessionEvents SessionEvents
+@inject NavigationManager NavigationManager
 
 <PageTitle>Session Browser — AgentBlazor Demo</PageTitle>
 
 <div class="session-browser">
-    <MudText Typo="Typo.h4" Class="mb-4">Session Browser</MudText>
-    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
-        Browse and resume past conversation sessions.
+    <MudText Typo="Typo.h4" Class="mb-2">Session Browser</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Browse past conversations on the left, resume the selected session on the right.
+        Resume re-hydrates the exact stored key (<code>base + ::agent::name</code>) by passing
+        the base id as <code>SessionId</code> with <code>DefaultAgentName</code> — never a
+        <code>/demo?session=</code> link, which the launchpad route ignores.
     </MudText>
 
     @if (_sessions is null)
     {
         <MudProgressCircular Indeterminate="true" />
     }
-    else if (_sessions.Count == 0)
-    {
-        <MudAlert Severity="Severity.Info">No sessions found. Start a conversation to create one.</MudAlert>
-    }
     else
     {
-        <MudDataGrid T="SessionBrowserEntry" Items="_sessions" Hover="true" Striped="true">
-            <Columns>
-                <PropertyColumn Property="s => s.SessionId" Title="Session" />
-                <PropertyColumn Property="s => s.TurnCount" Title="Turns" />
-                <PropertyColumn Property="s => s.LastMessage" Title="Last Message" />
-                <TemplateColumn Title="Actions">
-                    <CellTemplate>
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
-                                   Href="@($"/demo?session={context.Item.SessionId}")">
-                            Resume
+        <div class="session-browser__layout">
+            @* ── Column 1: session list ── *@
+            <MudPaper Elevation="0" Class="session-browser__list-card">
+                <div class="session-browser__list-head">
+                    <MudText Typo="Typo.h6">Sessions (@_sessions.Count)</MudText>
+                    <div class="session-browser__list-actions">
+                        <MudButton Size="Size.Small"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="ShowNewPicker">
+                            New
                         </MudButton>
-                    </CellTemplate>
-                </TemplateColumn>
-            </Columns>
-        </MudDataGrid>
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                       Color="Color.Secondary"
+                                       Size="Size.Small"
+                                       aria-label="Refresh sessions"
+                                       OnClick="RefreshAsync" />
+                    </div>
+                </div>
+                @if (_sessions.Count == 0)
+                {
+                    <div class="pa-4">
+                        <MudAlert Severity="Severity.Info">No sessions yet. Click <strong>New</strong> to start a chat with any agent.</MudAlert>
+                    </div>
+                }
+                <div class="session-browser__list" role="listbox" aria-label="Conversation sessions">
+                    @foreach (var session in _sessions)
+                    {
+                        var selected = IsSelected(session);
+                        <MudPaper Elevation="0"
+                                  Class="@($"pa-3 mb-2 session-browser__item {(selected ? "session-browser__item--selected" : "")}")"
+                                  Style="cursor:pointer"
+                                  @onclick="() => SelectSession(session)">
+                            <div class="session-browser__item-title">
+                                <MudChip T="string" Size="Size.Small" Color="@(selected ? Color.Primary : Color.Default)" Variant="Variant.Filled">
+                                    @(session.AgentName ?? "Unknown agent")
+                                </MudChip>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                    @session.TurnCount turns
+                                </MudChip>
+                            </div>
+                            <span class="session-browser__item-preview" title="@session.LastMessage">@session.LastMessage</span>
+                            <span class="session-browser__item-meta">
+                                @(session.Route ?? "no route") • @session.LastActivity.ToLocalTime().ToString("g")
+                            </span>
+                            <div class="mt-2 d-flex gap-2">
+                                <MudButton Size="Size.Small"
+                                           Variant="@(selected ? Variant.Filled : Variant.Outlined)"
+                                           Color="Color.Primary"
+                                           OnClick="() => SelectSession(session)">
+                                    @(selected ? "Selected" : "Resume")
+                                </MudButton>
+                                @if (!string.IsNullOrWhiteSpace(session.Route))
+                                {
+                                    <MudButton Size="Size.Small"
+                                               Variant="Variant.Text"
+                                               Color="Color.Secondary"
+                                               Href="@session.Route">
+                                        Open workflow
+                                    </MudButton>
+                                }
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
+            </MudPaper>
+
+            @* ── Column 2: timeline + composer ── *@
+            <MudPaper Elevation="0" Class="session-browser__detail-card">
+                @if (_newDraft is not null)
+                {
+                    <div class="session-browser__detail-head">
+                        <div class="session-browser__detail-title">
+                            <MudText Typo="Typo.h6">@_newDraft.AgentName — new chat</MudText>
+                            @if (!string.IsNullOrWhiteSpace(_newDraft.Route))
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_newDraft.Route</MudChip>
+                            }
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">New</MudChip>
+                        </div>
+                        <MudText Typo="Typo.caption" Class="session-browser__detail-key">@_newDraft.BaseSessionId</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Fresh session — the first send persists it and it appears in the list.
+                        </MudText>
+                        <div class="session-browser__detail-actions">
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary" OnClick="CancelNew">
+                                Discard draft
+                            </MudButton>
+                        </div>
+                    </div>
+
+                    <AgentChatSurface @key="@($"new:{_newDraft.BaseSessionId}")"
+                                      Title="@($"{_newDraft.AgentName} — new chat")"
+                                      Description="@($"New conversation on {_newDraft.Route ?? "unknown route"}. The first send persists it.")"
+                                      DefaultAgentName="@_newDraft.AgentName"
+                                      SessionId="@_newDraft.BaseSessionId"
+                                      LockAgentToCurrentRoute="false"
+                                      ShowAgentSelector="false"
+                                      EnableGeneratedUi="true"
+                                      EnableAgentHandoff="false"
+                                      RequireHandoffApproval="false"
+                                      Placeholder="Start a new conversation…"
+                                      CssClass="session-browser__surface" />
+                }
+                else if (_showNewPicker)
+                {
+                    <div class="pa-4 session-browser__new-form">
+                        <MudText Typo="Typo.h6">New chat</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Pick an agent, then start chatting. The session is created on first send.
+                        </MudText>
+                        <MudSelect T="string"
+                                   Label="Agent"
+                                   Variant="Variant.Outlined"
+                                   Dense="true"
+                                   @bind-Value="_newAgentName">
+                            @foreach (var option in _agentOptions ?? [])
+                            {
+                                <MudSelectItem T="string" Value="@option.Name">@option.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                        @{
+                            var preview = _agentOptions?.FirstOrDefault(o =>
+                                string.Equals(o.Name, _newAgentName, StringComparison.OrdinalIgnoreCase));
+                        }
+                        @if (preview is not null)
+                        {
+                            @if (!string.IsNullOrWhiteSpace(preview.Description))
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">@preview.Description</MudText>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(preview.Route))
+                            {
+                                <div><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@preview.Route</MudChip></div>
+                            }
+                        }
+                        <div class="session-browser__detail-actions">
+                            <MudButton Size="Size.Small"
+                                       Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       Disabled="@string.IsNullOrWhiteSpace(_newAgentName)"
+                                       OnClick="StartNewChat">
+                                Start chat
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary" OnClick="CancelNew">
+                                Cancel
+                            </MudButton>
+                        </div>
+                    </div>
+                }
+                else if (_selected is null)
+                {
+                    <div class="pa-6">
+                        <MudAlert Severity="Severity.Info">Select a session on the left to resume it, or click <strong>New</strong> to start a chat with any agent.</MudAlert>
+                    </div>
+                }
+                else
+                {
+                    <div class="session-browser__detail-head">
+                        <div class="session-browser__detail-title">
+                            <MudText Typo="Typo.h6">@(_selected.AgentName ?? "Unknown agent") — resume</MudText>
+                            @if (!string.IsNullOrWhiteSpace(_selected.Route))
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_selected.Route</MudChip>
+                            }
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_selected.TurnCount turns</MudChip>
+                        </div>
+                        <MudText Typo="Typo.caption" Class="session-browser__detail-key">@_selected.SessionKey</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Base <code>@_selected.BaseSessionId</code>
+                            • Last @(_selected.LastActivity.ToLocalTime().ToString("g"))
+                            • Created @(_selected.CreatedAt.ToLocalTime().ToString("g"))
+                        </MudText>
+                        <div class="session-browser__detail-actions">
+                            @if (!string.IsNullOrWhiteSpace(_selected.Route))
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary" Href="@_selected.Route">
+                                    Open in workflow
+                                </MudButton>
+                            }
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary" OnClick="RefreshAsync">
+                                Refresh list
+                            </MudButton>
+                        </div>
+                        @if (string.IsNullOrWhiteSpace(_selected.AgentName))
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="mt-2">
+                                Legacy session without an <code>::agent::</code> suffix. The composer will start a new
+                                agent-scoped key; the stored turns remain visible after the next refresh.
+                            </MudAlert>
+                        }
+                    </div>
+
+                    <AgentChatSurface @key="_selected.SessionKey"
+                                      Title="@($"{_selected.AgentName ?? "Session"} — resume")"
+                                      Description="@($"Resuming {_selected.TurnCount} turns from {_selected.Route ?? "unknown route"}. New messages continue the same stored session.")"
+                                      DefaultAgentName="@_selected.AgentName"
+                                      SessionId="@ResolveSurfaceSessionId(_selected)"
+                                      LockAgentToCurrentRoute="false"
+                                      ShowAgentSelector="false"
+                                      EnableGeneratedUi="true"
+                                      EnableAgentHandoff="false"
+                                      RequireHandoffApproval="false"
+                                      Placeholder="Continue this conversation…"
+                                      CssClass="session-browser__surface" />
+                }
+            </MudPaper>
+        </div>
     }
 </div>
 
 @code {
+    private static readonly TimeSpan RefreshThrottle = TimeSpan.FromSeconds(2);
+
     private IReadOnlyList<SessionBrowserEntry>? _sessions;
+    private SessionBrowserEntry? _selected;
+    private DateTime _lastRefreshUtc = DateTime.MinValue;
+
+    private IReadOnlyList<AgentPickerOption>? _agentOptions;
+    private string? _newAgentName;
+    private NewChatDraft? _newDraft;
+    private bool _showNewPicker;
+
+    private sealed record NewChatDraft(string BaseSessionId, string AgentName, string? Route);
+
+    [SupplyParameterFromQuery(Name = "session")]
+    public string? SessionQuery { get; set; }
+
+    protected override void OnInitialized()
+    {
+        SessionEvents.SessionUpdated += OnSessionUpdated;
+    }
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+        _agentOptions = SessionService.GetAvailableAgents();
+        _newAgentName ??= _agentOptions.FirstOrDefault()?.Name;
+        TrySelectFromQuery();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_sessions is not null)
+        {
+            TrySelectFromQuery();
+        }
+    }
+
+    private void TrySelectFromQuery()
+    {
+        if (string.IsNullOrWhiteSpace(SessionQuery) || _sessions is null)
+        {
+            return;
+        }
+
+        var match = _sessions.FirstOrDefault(s =>
+            string.Equals(s.SessionKey, SessionQuery, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(s.BaseSessionId, SessionQuery, StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null)
+        {
+            _selected = match;
+            _newDraft = null;
+            _showNewPicker = false;
+        }
+    }
+
+    private void SelectSession(SessionBrowserEntry entry)
+    {
+        _selected = entry;
+        _newDraft = null;
+        _showNewPicker = false;
+
+        // Keep a shareable deep link without forcing a full navigation.
+        var uri = $"/demo/sessions?session={Uri.EscapeDataString(entry.SessionKey)}";
+        NavigationManager.NavigateTo(uri, replace: true);
+    }
+
+    private void ShowNewPicker()
+    {
+        _agentOptions ??= SessionService.GetAvailableAgents();
+        _newAgentName ??= _agentOptions.FirstOrDefault()?.Name;
+        _showNewPicker = true;
+    }
+
+    private void CancelNew()
+    {
+        _showNewPicker = false;
+    }
+
+    private void StartNewChat()
+    {
+        if (string.IsNullOrWhiteSpace(_newAgentName))
+        {
+            return;
+        }
+
+        var agent = _newAgentName.Trim();
+        var baseId = SessionService.BuildNewBaseSessionId(agent);
+        _newDraft = new NewChatDraft(baseId, agent, SessionService.GetRouteForAgent(agent));
+        _selected = null;
+        _showNewPicker = false;
+
+        NavigationManager.NavigateTo(
+            $"/demo/sessions?session={Uri.EscapeDataString(baseId)}",
+            replace: true);
+    }
+
+    private bool IsSelected(SessionBrowserEntry entry)
+        => _newDraft is null &&
+           _selected is not null &&
+           string.Equals(_selected.SessionKey, entry.SessionKey, StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveSurfaceSessionId(SessionBrowserEntry entry)
+        => string.IsNullOrWhiteSpace(entry.BaseSessionId) ? entry.SessionKey : entry.BaseSessionId;
+
+    private async Task LoadAsync()
+    {
         _sessions = await SessionService.GetRecentSessionsAsync();
+        _lastRefreshUtc = DateTime.UtcNow;
+
+        // Promote a new-chat draft to a real session once its first turn persists.
+        if (_newDraft is not null && _sessions is not null)
+        {
+            var promoted = _sessions.FirstOrDefault(s =>
+                string.Equals(s.BaseSessionId, _newDraft.BaseSessionId, StringComparison.OrdinalIgnoreCase));
+            if (promoted is not null)
+            {
+                _selected = promoted;
+                _newDraft = null;
+                NavigationManager.NavigateTo(
+                    $"/demo/sessions?session={Uri.EscapeDataString(promoted.SessionKey)}",
+                    replace: true);
+                return;
+            }
+        }
+
+        // Re-resolve the selection so turn counts stay fresh after sends.
+        if (_selected is not null && _sessions is not null)
+        {
+            var refreshed = _sessions.FirstOrDefault(s =>
+                string.Equals(s.SessionKey, _selected.SessionKey, StringComparison.OrdinalIgnoreCase));
+            if (refreshed is not null)
+            {
+                _selected = refreshed;
+            }
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        TrySelectFromQuery();
+        StateHasChanged();
+    }
+
+    private void OnSessionUpdated(AgentChatSessionUpdate update)
+    {
+        if (DateTime.UtcNow - _lastRefreshUtc < RefreshThrottle)
+        {
+            return;
+        }
+
+        _lastRefreshUtc = DateTime.UtcNow;
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        SessionEvents.SessionUpdated -= OnSessionUpdated;
     }
 }
+

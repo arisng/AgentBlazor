@@ -159,9 +159,10 @@
     private bool IsWorkflowRoute => CurrentRoutePath.StartsWith("/demo/workflows", StringComparison.OrdinalIgnoreCase);
     private bool IsSupportInboxRoute => CurrentRoutePath.StartsWith("/demo/workflows/support-inbox", StringComparison.OrdinalIgnoreCase);
     private bool IsCustomizationShowcaseRoute => CurrentRoutePath.StartsWith("/demo/customization", StringComparison.OrdinalIgnoreCase);
+    private bool IsSessionBrowserRoute => CurrentRoutePath.StartsWith("/demo/sessions", StringComparison.OrdinalIgnoreCase);
 
     private bool ShowAssistantPane => CurrentScenario is not null && IsWorkflowRoute && !IsComponentsRoute && !IsSupportInboxRoute;
-    private bool ShowAssistantWidget => !ShowAssistantPane && !IsCustomizationShowcaseRoute;
+    private bool ShowAssistantWidget => !ShowAssistantPane && !IsCustomizationShowcaseRoute && !IsSessionBrowserRoute;
     private bool ShouldLockAssistantToRoute => CurrentScenario is not null && IsWorkflowRoute;
     private bool ShowAssistantSelector => !ShouldLockAssistantToRoute;
 
