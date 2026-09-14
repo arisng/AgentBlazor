@@ -29,7 +29,7 @@ Guide for configuring the AI provider seam of AgentBlazor from a consumer app: w
 
 This skill is **consumer-side only**. Everything lives in the host app's `Program.cs` and configuration; the AgentBlazor library is referenced as the public NuGet package. Do not edit package internals.
 
-If you are looking for where AgentBlazor itself builds `ChatOptions` per agent (instructions, tools, `ToolMode`), see the `ab-agent-registration` and `ab-tool-registration` skills — those describe the *library's* option building; this skill describes the *consumer's* ability to configure the resulting options before they reach the wire.
+If you are looking for where AgentBlazor itself builds `ChatOptions` per agent (instructions, tools, `ToolMode`), see the `ab-agent-registration` and `ab-tool-authoring` skills — those describe the *library's* option building; this skill describes the *consumer's* ability to configure the resulting options before they reach the wire.
 
 ## Failure Mode
 
@@ -194,7 +194,7 @@ This is exactly how the 400 `reasoning_effort` bug was reproduced locally before
 ## Related Skills
 
 - **`ab-agent-registration`** — agent-level wiring (`AddAgent`, `AddWorkflow`, `WithRoutePrefixes`, `WithAllowedComponents`); the library builds per-agent `ChatOptions` the provider pin then adjusts
-- **`ab-tool-registration`** — `AddTool` / `UseMcpServer` / `WithAllowedActions`; tool projection is what triggers the gpt-5.6 validation path, and `ChatOptions.Tools`/`ToolMode` are part of the seam this skill configures
+- **`ab-tool-authoring`** — `AddTool` / `UseMcpServer` / `WithAllowedActions`; tool projection is what triggers the gpt-5.6 validation path, and `ChatOptions.Tools`/`ToolMode` are part of the seam this skill configures
 - **`ab-multitenancy`** — per-tenant provider clients replace the singleton, so the pin moves into the tenant factory (see [Multi-Tenant Per-Tenant Pinning](#multi-tenant-per-tenant-pinning))
 - **`ab-context-assembly`** — system prompt / context assembly lives on the same turn pipeline; provider options configure the transport, not the prompt
 - **`ab-cli`** — `agentblazor scaffold --provider openai` writes the baseline `UseOpenAI` block your `ConfigureChatOptions` call then extends

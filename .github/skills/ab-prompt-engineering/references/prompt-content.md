@@ -55,7 +55,7 @@ When the agent can control components (`WithAllowedComponents`), its prose shoul
 
 ## 5. Tool usage
 
-Describe service/MCP tools the agent may invoke and any ordering (via [`ab-tool-registration`](../../ab-tool-registration/SKILL.md)):
+Describe service/MCP tools the agent may invoke and any ordering (via [`ab-tool-authoring`](../../ab-tool-authoring/SKILL.md)):
 
 > - `lookup_ticket(ticketId, includeNotes)` — use to hydrate ticket details before composing a reply.
 

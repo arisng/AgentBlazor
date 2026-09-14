@@ -43,7 +43,7 @@ For one agent turn, the `ChatOptions` that reach the wire are built like this:
 2. The consumer callbacks run (in registration order) on a **clone** of those options.
 3. The provider serializes the clone.
 
-The consumer hook therefore sees (and can adjust) the library's instructions/tools/tool-mode. It cannot remove tools the library added — `Tools` is additive in practice; to *restrict* tools, use `WithAllowedActions` at agent registration (see `ab-tool-registration`).
+The consumer hook therefore sees (and can adjust) the library's instructions/tools/tool-mode. It cannot remove tools the library added — `Tools` is additive in practice; to *restrict* tools, use `WithAllowedActions` at agent registration (see `ab-tool-authoring`).
 
 ## No-Op Conditions
 

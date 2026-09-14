@@ -42,9 +42,9 @@ classes, 44 agent actions, 11 approvals, 3 clarification sites, 18 component fam
 | Shared instructions file | ✅ | `agent-instructions.txt` + `hasSharedInstructions=true` (12 of 12 seeds) | `ab-context-assembly` |
 | Semantic data schemas (`AgentDataSchemaSet`) | ✅ | `dataSchemas.schemaSets=[support-data]`, bound to Support Inbox | `ab-agent-registration` |
 | Allowed **actions** / capability actions (fine-grained) | ⛔ | no `WithAllowedActions` in Demo (runtime filtering via the customizer is a separate feature — see below) | `ab-agent-registration` |
-| Service **tools** (`AddTool`) | ✅ | `options.AddTool("lookup-glossary")`, `options.AddTool("current-time")` in `Program.cs`; filtered per agent by the customizer | `ab-tool-registration` |
-| **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-registration` |
-| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `CustomizationDemoCapabilities`; persona + tool set edited live on `/demo/customization`; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-registration` |
+| Service **tools** (`AddTool`) | ⛔ | All demo tools moved to `[AgentCapability]` class (`DemoAssemblyCapabilities`); zero `AddTool()` calls in Program.cs | `ab-tool-authoring` |
+| **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-authoring` |
+| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `CustomizationDemoCapabilities`; persona + tool set edited live on `/demo/customization`; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-authoring` |
 | Agent **selector** in chat | 🔶 | per-route `DefaultAgentName` lock on workflow surfaces; full registry picker proven on `/demo/sessions` New-chat (`MudSelect` over `IAgentRegistry.GetAll()`), not on workflow pages | `ab-in-chat-features` |
 
 ## 2. Capabilities & actions

@@ -85,7 +85,7 @@ Choose the bucket by **aspect**, then read it. `—` means no dedicated `ab-*` r
 | Responsive viewport | `buckets/responsive-viewport.md` | `VPRT-` | VPRT-001..003 | — |
 | Agent/capability registration + authoring | `buckets/agent-capabilities.md` | `CAP-` | *(empty scaffold)* | `ab-agent-registration`, `ab-capability-authoring` |
 | In-chat interactive features | `buckets/in-chat-features.md` | `FEAT-` | *(empty scaffold)* | `ab-in-chat-features` |
-| Tool/MCP invocation, turn middleware | `buckets/tools-middleware.md` | `TOOL-` | *(empty scaffold)* | `ab-tool-registration`, `ab-middleware-authoring` |
+| Tool/MCP invocation, turn middleware | `buckets/tools-middleware.md` | `TOOL-` | *(empty scaffold)* | `ab-tool-authoring`, `ab-middleware-authoring` |
 | UI coexistence, theming | `buckets/ui-theming-integration.md` | `THEM-` | *(empty scaffold)* | `ab-ui-integration`, `ab-mud-components` |
 | CLI analyze/scaffold/doctor/validate | `buckets/cli-tooling.md` | `CLI-` | *(empty scaffold)* | `ab-cli` |
 

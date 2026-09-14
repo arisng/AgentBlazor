@@ -1,7 +1,7 @@
 # UAT Bucket — Tools & Middleware
 
 > Aspect: service tool / MCP tool invocation and the agent turn-pipeline middleware (AgentBlazor).
-> Status: **SCAFFOLD** — no test cases yet. Populate incrementally as `ab-tool-registration`
+> Status: **SCAFFOLD** — no test cases yet. Populate incrementally as `ab-tool-authoring`
 > and `ab-middleware-authoring` work lands.
 > **Prefix:** `TOOL-###` (bucket-local sequence; scaffolds start at `TOOL-001` as cases land).
 > Shared prerequisites: see `../runbook.md` once cases land (boot, personas, auth, evidence).
@@ -10,7 +10,7 @@
 
 Cases here assert that tools and middleware behave correctly end-to-end:
 
-- **Tool registration** (`ab-tool-registration`): `AddTool` service tools, MCP servers
+- **Tool registration** (`ab-tool-authoring`): `AddTool` service tools, MCP servers
   (`UseMcpServer` / `HttpMcpToolProvider`), tool parameter binding (`AgentToolParameter`),
   DI access in handler delegates, per-agent action filters (`WithAllowedActions`).
 - **Middleware** (`ab-middleware-authoring`): `IAgentTurnMiddleware`, `AgentTurnContext`,

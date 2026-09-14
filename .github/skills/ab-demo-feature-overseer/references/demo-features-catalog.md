@@ -117,7 +117,7 @@ customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
   `Services/CustomizationDemoCapabilities.cs`; page `CustomizationShowcase.razor`.
 - **Audit evidence**: `runtimeCustomization.customizerRegistered = true`,
   `customizerTypes = [DemoAgentCustomizer]`.
-- **ab\* skill**: `ab-context-assembly` (per-agent instructions), `ab-tool-registration`
+- **ab\* skill**: `ab-context-assembly` (per-agent instructions), `ab-tool-authoring`
   (logical-id tool filtering).
 
 ## Chat & conversation

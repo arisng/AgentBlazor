@@ -328,7 +328,7 @@ Resolve the registry through DI where you mutate (it is a singleton), not a new 
 
 - **`ab-provider-config`** — provider-level `ChatOptions` configuration (`ConfigureChatOptions`), the seam that adjusts the transport options the agents' instructions/tools ride on
 - **`ab-capability-authoring`** — authoring `[AgentCapability]`/`[AgentAction]` classes for workflow agents
-- **`ab-tool-registration`** — global service/MCP tools and per-agent filtering
+- **`ab-tool-authoring`** — global service/MCP tools and per-agent filtering
 - **`ab-cli`** — onboarding existing solutions with `agentblazor init`/`analyze`/`scaffold`
 - **`ab-multitenancy`** — required prerequisite for tenant-scoped dynamic agents (AsyncLocal tenant context + proxy `IChatClient`)
 - **`ab-entity-design`** — entity/migration patterns for the store backing a data-driven registry

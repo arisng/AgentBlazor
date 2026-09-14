@@ -17,7 +17,7 @@ These notes describe how `agentblazor` CLI commands behave when onboarding an **
 | Per-tenant conversation store | — | Manual (see `ab-conversation-store`) |
 | Tenant enrichment & cost-control middleware | — | Manual (see `ab-middleware-authoring`) |
 | Tenant-scoped agents & routes | — | Manual (see `ab-agent-registration`) |
-| Per-tenant tool isolation | — | Manual (see `ab-tool-registration`) |
+| Per-tenant tool isolation | — | Manual (see `ab-tool-authoring`) |
 | Circuit cookie | — | Manual |
 
 ## Per-command multitenancy notes
@@ -27,7 +27,7 @@ These notes describe how `agentblazor` CLI commands behave when onboarding an **
 - **`analyze` / `analyze --scan-scope solution`** — scans every project. `AnalysisModelFilters` strips `*Provider` services and infrastructure, and `ServiceAnalyzer` drops classes ending in `Provider` — so **tenant-resolution infrastructure (Finbuckle stores/resolvers) is filtered out as "infrastructure," not surfaced as agent-relevant.** Route-quality notes may flag per-tenant multi-route hosts as low action-mapping. Expect to manually translate filtered tenant assets when reading the onboarding report.
 - **`scaffold`** — generates a *single-direct-provider* wiring inside the `AddAgentBlazor(...)` lambda (`UseOpenAI` / `UseAzureOpenAI` / `UseOllama`). Replace that block with the proxy `IChatClient` + `TenantAwareChatClient` per `ab-multitenancy` Step 6. **Idempotent for registration**: the planner only plans the `agentblazor-services` patch when readiness reports `Missing`, and the applier only inserts when `AddAgentBlazor(` is absent — so re-running scaffold after the manual swap is safe and will not touch your registration.
 - **`doctor` / `validate`** — **provider-agnostic.** They check for `AddAgentBlazor(`, `AddWorkflow<` / `.AddWorkflow(`, `MapAgentBlazorEndpoints(`, Mud providers, package refs, and target-framework shape only — there is *no* check that inspects whether `UseOpenAI` or any `IChatClient` was registered. A proxy-wrapped `AddAgentBlazor(...)` passes cleanly. Do **not** expect provider false positives; instead, know that these tools **cannot** validate the proxy/tenant pattern at all — their "PASS" does not mean multitenancy wiring is correct.
-- **`scaffold workflows`** — discovers `[AgentCapability]` / workflow services across all projects (with `--scan-scope solution`), but does not scope them to tenants. Per-tenant agent/tool isolation and route binding must be reviewed/applied manually per `ab-agent-registration` + `ab-tool-registration`.
+- **`scaffold workflows`** — discovers `[AgentCapability]` / workflow services across all projects (with `--scan-scope solution`), but does not scope them to tenants. Per-tenant agent/tool isolation and route binding must be reviewed/applied manually per `ab-agent-registration` + `ab-tool-authoring`.
 
 ## Cross-reference map
 
@@ -37,7 +37,7 @@ These notes describe how `agentblazor` CLI commands behave when onboarding an **
 | Per-tenant conversation store | `ab-conversation-store` (TenantConversationStore) |
 | Tenant enrichment & cost-control middleware | `ab-middleware-authoring` (TenantCostControlMiddleware) |
 | Tenant-scoped agents & route binding | `ab-agent-registration` |
-| Per-tenant tool isolation | `ab-tool-registration` |
+| Per-tenant tool isolation | `ab-tool-authoring` |
 | `[AgentCapability]` / `[AgentAction]` shape (tenant-agnostic) | `ab-capability-authoring` |
 
 ## Onboarding flow (existing multi-tenant solution)

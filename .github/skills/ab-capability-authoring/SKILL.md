@@ -1,11 +1,27 @@
 ---
 name: ab-capability-authoring
-description: "Author semantic capability classes with AgentAction methods for AgentBlazor workflow agents. Use when defining [AgentCapability]-annotated classes, [AgentAction]-annotated methods, [AgentParam]-annotated parameters, returning CapabilityResult, setting approval boundaries, shaping structured outputs, warnings, and next-actions. Triggers: AgentCapabilityAttribute, AgentActionAttribute, AgentParamAttribute, CapabilityResult, RequiresApproval, WithNextActions, WithOutput, WithWarnings, AddCapability, AgentCapabilityDescriptor."
+description: "Author semantic capability classes with AgentAction methods for AgentBlazor workflow agents. Use when defining [AgentCapability]-annotated classes, [AgentAction]-annotated methods, [AgentParam]-annotated parameters, returning CapabilityResult, setting approval boundaries, shaping structured outputs, warnings, and next-actions. Triggers: AgentCapabilityAttribute, AgentActionAttribute, AgentParamAttribute, CapabilityResult, RequiresApproval, WithNextActions, WithOutput, WithWarnings, AddCapability, AgentCapabilityDescriptor, ClarificationQuestion, AgentRuntimeContextKeys, ContextKey, AvailableWhen."
 metadata:
-  version: 0.1.1
+  version: 0.2.0
 ---
 
 # `ab-capability-authoring` — Capability Authoring
+
+## When to use this skill
+
+| You need… | Use this skill |
+|---|---|
+| A multi-step workflow action (ticket triage, draft reply, escalate) | ✅ Capability action via `[AgentAction]` |
+| Structured output (`CapabilityResult` with outputs, warnings, next-actions) | ✅ Capability action |
+| User approval before execution (`RequiresApproval`) | ✅ Capability action |
+| DI-injected services (scoped via constructor) | ✅ Capability class |
+| Rich parameter metadata (`ContextKey`, `AllowedValues`, `Required`) | ✅ `[AgentParam]` |
+| Runtime availability gating (`AvailableWhen`) | ✅ `[AgentAction(AvailableWhen = "...")]` |
+| A simple function call with a string return (API lookup, DB query) | ❌ Use **`ab-tool-authoring`** instead |
+| An MCP server proxy | ❌ Use **`ab-tool-authoring`** instead |
+| Global tool filtering only (`WithAllowedActions`) | ❌ Use **`ab-tool-authoring`** instead |
+
+**Rule of thumb:** if the action needs structured output, approval gates, DI services, or rich parameter metadata, use a capability. If it's a simple single-call function with a string return, use a service tool.
 
 ## The Capability Pattern
 
@@ -42,7 +58,7 @@ public sealed class AgentCapabilityAttribute : Attribute
     public string? CapabilityId { get; }    // Stable ID. Defaults to snake_case type name, "Capabilities" suffix trimmed
     public string? Name { get; set; }       // Human-readable title
     public string? Description { get; set; } // Longer description
-    public string? Category { get; set; }   // Grouping category
+    public string? Category { get; set; }   // Grouping category (descriptive only — no runtime filtering)
 }
 ```
 
@@ -112,7 +128,24 @@ public async Task<CapabilityResult> StartRunAsync(
 
 **`Required` and `ContextKey`:** Setting `Required = true` on a `ContextKey`-bound parameter is valid but functionally redundant — the runtime already returns `missing_runtime_context` if the key is absent, regardless of `Required`. Use `Required` only on parameters the LLM must supply; `ContextKey` parameters are always required by definition.
 
-**Common keys** are defined in `AgentRuntimeContextKeys` (e.g. `SessionId`, `RunId`, `UserId`, `CurrentRoute`). Custom keys injected via middleware are also valid. See [`ab-context-assembly` — context dictionary](../ab-context-assembly/references/context-dictionary.md#consuming-context-in-capability-actions) for the full key reference and consumer patterns.
+**Common keys** defined in `AgentRuntimeContextKeys`:
+
+| Key | Wire name | Use case |
+|---|---|---|
+| `SessionId` | `agentblazor.session_id` | Current chat session |
+| `RunId` | `agentblazor.run_id` | Current agent turn/run |
+| `UserId` | `agentblazor.user_id` | Authenticated user |
+| `CurrentRoute` | `agentblazor.current_route` | Active Blazor route |
+| `AgentName` | `agentblazor.agent_name` | Resolved agent name |
+| `AgentLock` | `agentblazor.agent_lock` | Locked agent (if any) |
+| `AgentHandoffFrom` | `agentblazor.handoff_from` | Previous agent in handoff chain |
+| `AgentHandoffTo` | `agentblazor.handoff_to` | Target agent in handoff chain |
+| `AgentHandoffAt` | `agentblazor.handoff_at` | Timestamp of handoff |
+| `ContextVersion` | `agentblazor.context_version` | Schema version of context dict |
+| `SharedStateSnapshot` | `agentblazor.shared_state_snapshot` | Cross-component shared state |
+| `SharedStateDelta` | `agentblazor.shared_state_delta` | Incremental state changes |
+
+Custom keys injected via middleware are also valid. See [`ab-context-assembly` — context dictionary](../ab-context-assembly/references/context-dictionary.md#consuming-context-in-capability-actions) for the full key reference and consumer patterns.
 
 ## `CapabilityResult` — Return Type
 
@@ -129,7 +162,20 @@ All `[AgentAction]` methods must return `CapabilityResult` (or `Task<CapabilityR
 | `CapabilityResult.MissingArgument(name, shape, actionId)` | `Succeeded = false` + structured error outputs | Missing required param |
 | `CapabilityResult.InvalidArgumentShape(name, expected, actual, actionId)` | Rich error + `WithNextAction` | Wrong param type |
 | `CapabilityResult.RecoverableFailure(summary)` | `Succeeded = false` + `Outputs["errorCode"] = "recoverable_failure"` | Transient error |
-| `CapabilityResult.NeedsClarification(question)` | `RequiresClarification = true` | AI needs user input |
+| `CapabilityResult.NeedsClarification(question)` | `RequiresClarification = true, ClarificationQuestion = question` | AI needs user input |
+
+### Key Properties
+
+| Property | Type | Set By |
+|---|---|---|
+| `Summary` | `string` | All factories (positional param) |
+| `Succeeded` | `bool` | All factories (default `true`) |
+| `IsBlocked` | `bool` | `Blocked()` |
+| `RequiresClarification` | `bool` | `NeedsClarification()` |
+| `ClarificationQuestion` | `string?` | `NeedsClarification()` |
+| `Warnings` | `IReadOnlyList<string>` | `WithWarning(s)` |
+| `NextActions` | `IReadOnlyList<string>` | `WithNextAction(s)` |
+| `Outputs` | `IReadOnlyDictionary<string, object?>` | `WithOutput(s)` or `with` expression |
 
 ### Result Shaping Methods
 
@@ -240,7 +286,7 @@ builder.AddWorkflow<SupportInboxCapabilities>("Support Inbox Agent", agent =>
 
 1. `IAgentCapabilityRegistry` (`ReflectionAgentCapabilityRegistry`) scans registered `[AgentCapability]` types at startup
 2. Discovers `[AgentAction]` methods, builds `AgentCapabilityActionDescriptor` records with JSON input schemas
-3. `ChatClientRuntimeAdapter` projects them as `AITool` functions named `capability_{capabilityId}_{actionId}`
+3. `ChatClientRuntimeAdapter` projects them as `AITool` functions named `capability_{capabilityId}_{localActionId}` (the `ActionId` uses dot notation `{capabilityId}.{localActionId}`; `NormalizeToolName` replaces `.` → `_` for wire compatibility)
 4. When the LLM calls one, `ExecuteAsync()` resolves the capability instance from DI (`ActivatorUtilities`), binds JSON arguments to method parameters (using `[AgentParam]` metadata), and invokes the method
 5. The returned `CapabilityResult` is processed back to the agent as structured text
 

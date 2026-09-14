@@ -66,7 +66,7 @@ authoring a consumer-visible system prompt; route to `ab-context-assembly` inste
 ### 9. Tool-definition mechanics, not prose
 **Prompt:** "How do I add a service tool and let a specific agent use it?"
 **Expected:** The skill does not fire — this is a registration/setup question for
-`ab-tool-registration`; alignment of prose is out of scope here.
+`ab-tool-authoring`; alignment of prose is out of scope here.
 
 ### 10. Agent with no capabilities
 **Prompt:** "My agent only has component access and service tools — no workflow capabilities. Write its system prompt."

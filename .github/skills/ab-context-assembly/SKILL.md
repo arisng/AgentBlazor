@@ -81,7 +81,7 @@ See **`ab-agent-registration`** for the DB-backed registry part (replace path, `
 - [`ab-prompt-engineering`](../ab-prompt-engineering/SKILL.md) — authoring and keeping aligned the `WithInstructions` prose that this skill's pipeline transports
 - [`ab-agent-registration`](../ab-agent-registration/SKILL.md) — how to register agents and set `WithInstructions`, `WithDataSchemas`
 - [`ab-middleware-authoring`](../ab-middleware-authoring/SKILL.md) — how to implement `IAgentTurnMiddleware` for cross-cutting enrichment
-- [`ab-tool-registration`](../ab-tool-registration/SKILL.md) — how tool descriptions are registered and sent to the LLM
+- [`ab-tool-authoring`](../ab-tool-authoring/SKILL.md) — how tool descriptions are registered and sent to the LLM
 - [`ab-provider-config`](../ab-provider-config/SKILL.md) — provider-level `ChatOptions` configuration; the transport seam under the prompt pipeline
 - [`ab-conversation-store`](../ab-conversation-store/SKILL.md) — how conversation history is persisted and how to control `MaxHistoryInPrompt`
 - [`ab-in-chat-features`](../ab-in-chat-features/SKILL.md) — how the chat components build runtime context and how `ShowDevTools` enables the inspector

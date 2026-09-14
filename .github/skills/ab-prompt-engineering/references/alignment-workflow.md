@@ -54,7 +54,7 @@ What the register must contain per item:
 - **Component** — `AgentId`/component id, exposed `[AgentAction]` ids (e.g. `filter`, `set_field`, `open`), and `[AgentReadable]` state names (e.g. `currentPage`, `isValid`).
    Ground truth: [`ab-mud-components`](../../ab-mud-components/SKILL.md).
 - **Tool** — service/MCP tool names + parameter descriptors + which agents get them (via `WithAllowedActions`).
-   Ground truth: [`ab-tool-registration`](../../ab-tool-registration/SKILL.md).
+   Ground truth: [`ab-tool-authoring`](../../ab-tool-authoring/SKILL.md).
 - **Gate** — every `RequiresApproval = true` action, every auto-clarifying required param (`[AgentParam(Required = true)]`), handoff approval policy.
    Ground truth: [`ab-in-chat-features`](../../ab-in-chat-features/SKILL.md).
 - **Schema** — `WithDataSchemas(...)` names and the entities they expose.

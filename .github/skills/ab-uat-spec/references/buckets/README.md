@@ -24,7 +24,7 @@ in a bucket.
 | `responsive-viewport`    | Viewport matrix                                        | `VPRT-` | VPRT-001..003 | —                                                  | Populated |
 | `agent-capabilities`     | Agent/capability registration + authoring              | `CAP-`  | — (empty)     | `ab-agent-registration`, `ab-capability-authoring` | Scaffold  |
 | `in-chat-features`       | Approvals, clarification, generated UI, chips          | `FEAT-` | — (empty)     | `ab-in-chat-features`                              | Scaffold  |
-| `tools-middleware`       | Tool/MCP invoke, turn pipeline, cost control           | `TOOL-` | — (empty)     | `ab-tool-registration`, `ab-middleware-authoring`  | Scaffold  |
+| `tools-middleware`       | Tool/MCP invoke, turn pipeline, cost control           | `TOOL-` | — (empty)     | `ab-tool-authoring`, `ab-middleware-authoring`  | Scaffold  |
 | `ui-theming-integration` | CSS coexistence, theming                               | `THEM-` | — (empty)     | `ab-ui-integration`, `ab-mud-components`           | Scaffold  |
 | `cli-tooling`            | CLI analyze/scaffold/doctor/validate                   | `CLI-`  | — (empty)     | `ab-cli`                                           | Scaffold  |
 | `context-assembly`       | KV-cache context assembly, provider cache schemas      | `CTX-`  | CTX-001..006  | `ab-context-assembly`                              | Populated |

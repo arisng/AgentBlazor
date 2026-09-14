@@ -1,9 +1,25 @@
 ---
-name: ab-tool-registration
-description: "Register service tools and MCP server tools for AgentBlazor agents. Use when adding custom tool functions (AddTool), connecting MCP servers (UseMcpServer), defining tool parameters (AgentToolParameter), building handler delegates with DI access, and filtering tools per agent (WithAllowedActions). Triggers: AddTool, UseMcpServer, AgentServiceTool, AgentToolParameter, IAgentServiceToolRegistry, IMcpToolProvider, HttpMcpToolProvider, WithAllowedActions."
+name: ab-tool-authoring
+description: "Author service tools, connect MCP servers, and configure the tool surface for AgentBlazor agents. Use when adding custom tool functions (AddTool), connecting MCP servers (UseMcpServer), defining tool parameters (AgentToolParameter), building handler delegates with DI access, filtering tools per agent (WithAllowedActions), understanding tool resolution order and execution dispatch, or diagnosing tool errors and approval gates. Triggers: AddTool, UseMcpServer, AgentServiceTool, AgentToolParameter, IAgentServiceToolRegistry, IMcpToolProvider, HttpMcpToolProvider, WithAllowedActions, tool resolution order, tool execution dispatch, EnabledToolIds, IAgentRuntimeCustomizer, RequiresApproval, tool naming, NormalizeToolName, ToolCallStart, ToolCallResult, ToolCallEnd."
+metadata:
+    version: 0.3.0
 ---
 
-# `ab-tool-registration` — Tool Registration
+# `ab-tool-authoring` — Tool Authoring
+
+## When to use this skill
+
+| You need… | Use this skill |
+|---|---|
+| A simple function call (API lookup, DB query, string transform) | ✅ Service tool via `AddTool()` |
+| To proxy an external MCP server's toolset | ✅ MCP tool via `UseMcpServer()` |
+| Stateless, single-call actions with a string result | ✅ Service tool |
+| To filter which tools each agent can see | ✅ `WithAllowedActions` / `IAgentRuntimeCustomizer` |
+| A multi-step workflow action with DI, structured output, or approval gates | ❌ Use **`ab-capability-authoring`** instead |
+| Rich results (warnings, next-actions, UI suggestions, outputs dict) | ❌ Use **`ab-capability-authoring`** instead |
+| Actions that need `[AgentParam]` metadata (`ContextKey`, `AllowedValues`) | ❌ Use **`ab-capability-authoring`** instead |
+
+**Rule of thumb:** if the action is a single function with a string return, use a service tool. If it needs structured output, approval, DI-injected services, or parameter metadata, use a capability action.
 
 ## Tool Types
 
@@ -35,13 +51,15 @@ The `Handler` delegate receives:
 public sealed record AgentToolParameter(
     string Name,
     string Description,
-    string Type = "string",     // JSON schema type
+    string Type = "string",     // JSON schema type — any value accepted
     bool Required = true);
 ```
 
+`Type` is a free-form JSON schema type string. Common values: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"array"`, `"object"`. The field is unvalidated — use whatever your LLM provider expects.
+
 ## Registering a Service Tool
 
-On `AgentBlazorRegistrationOptions`:
+On `AgentBlazorRegistrationOptions` (both overloads return `AgentBlazorRegistrationOptions` for fluent chaining):
 
 ```csharp
 services.AddAgentBlazor(options =>
@@ -121,6 +139,8 @@ options.ConfigureBuilder(builder =>
 
 The runtime checks: if `AgentRegistration.AllowedActions` is non-empty, only tools whose full name matches are projected. If empty, all tools pass through.
 
+> **Capability actions use a separate filter path.** `WithAllowedActions` filters service/MCP tools and component actions. Capability actions (`[AgentAction]`) are filtered by `WithAllowedCapabilityActions` on the registration builder — the runtime checks `AllowedCapabilityActions` first via `IsCapabilityToolAllowed()`, then falls back to `IsNonComponentToolAllowed()`. This matters in multi-agent setups where different agents expose different capability subsets.
+
 ## Per-Turn Tool Filtering (Runtime Customization Seam)
 
 For **runtime** (per-agent, per-conversation) tool filtering — beyond the startup-time `WithAllowedActions` — use the `IAgentRuntimeCustomizer` seam. When agent definitions come from a **database-backed registry** (Agent Builder), resolve the enabled-tool set from the persisted store keyed by `registration.Name` — see the `ab-context-assembly` [Agent Builder × customizer integration](../ab-context-assembly/SKILL.md).
@@ -148,6 +168,16 @@ public sealed class MyCustomizer : IAgentRuntimeCustomizer
     }
 }
 ```
+
+## Tool Naming Normalization
+
+`NormalizeToolName` (internal) transforms tool names for wire compatibility:
+
+- Non-alphanumeric / non-underscore characters → `_`
+- Must start with a letter — prefixed with `tool_` if not
+- Names > 64 characters are truncated: `{prefix}_{tail8}_{sha256hash8}`
+
+This matters when referencing tools in `WithAllowedActions` or `EnabledToolIds`. The **logical id** (what you register) may differ from the **normalized wire name** (what the LLM sees). Use the logical id in all configuration — the runtime resolves the mapping.
 
 ### Logical tool-id contract
 
@@ -182,6 +212,23 @@ All are projected as `AITool` objects into `ChatOptions.Tools`. For workflow age
 
 > **Note (tools + reasoning effort):** some model families (e.g. `gpt-5.6-luna`) reject tool-bearing chat-completions requests with HTTP 400 naming `reasoning_effort` unless effort is explicitly pinned. The fix is consumer-side, not tool-side: pin `ReasoningEffort.None` via `ConfigureChatOptions` — see the **`ab-provider-config` skill**.
 
+## Approval Gates
+
+Capability and component actions support `RequiresApproval`. When set, the runtime pauses execution, emits an `ApprovalRequired` stream event, and waits for user approval before proceeding:
+
+```csharp
+[AgentAction("Delete production data", RequiresApproval = true)]
+public Task<CapabilityResult> DeleteDataAsync(...) { ... }
+```
+
+The approval flow:
+1. LLM calls the tool with `RequiresApproval = true`
+2. Runtime emits `AgentTurnStreamEvent.ApprovalRequired` with tool name + args
+3. Chat surface renders an approval dialog (see `ab-in-chat-features`)
+4. User approves → execution proceeds; user rejects → runtime returns rejection message to LLM
+
+Generated-UI tools (`action.confirmation`) handle their own confirmation inline — they are separate from the capability approval gate.
+
 ## Tool Execution Dispatch
 
 | Tool Type | Handler in Runtime | Delegates To |
@@ -190,7 +237,32 @@ All are projected as `AITool` objects into `ChatOptions.Tools`. For workflow age
 | Component Action | `InvokeComponentActionAsync()` | `IComponentActionExecutor.ExecuteAsync()` → mounted Blazor component |
 | Service | `InvokeServiceToolAsync()` | `tool.Handler(args, sp, ct)` — your delegate |
 | MCP | `InvokeServiceToolAsync()` | `tool.Handler(...)` → `HttpMcpToolProvider.CallToolAsync()` → MCP server |
-| Generated UI | `InvokeGeneratedUiToolAsync()` | `IAgentUiToolCatalog.BuildDocument()` → renders block |
+| Generated UI | `InvokeGeneratedUiToolAsync()` | Records tool call on `turnState`; `BuildDocument()` called post-turn by `RuntimeGeneratedUi` → renders block |
+
+## Tool Streaming Events
+
+The runtime emits `AgentTurnStreamEvent` entries for every tool call, powering the inspector and streaming UI:
+
+| Event | When |
+|---|---|
+| `StepStarted` | Tool execution begins |
+| `ToolCallStart` | LLM tool call received |
+| `ToolCallArgs` | Arguments streaming (partial) |
+| `ToolCallResult` | Handler returned a result |
+| `ToolCallEnd` | Tool execution finished |
+| `StepFinished` | Tool execution complete (success or failure) |
+| `ApprovalRequired` | `RequiresApproval` gate hit — waiting for user |
+| `ClarificationRequired` | Agent requests clarification from user |
+
+## Tool Error Handling
+
+| Scenario | Behavior |
+|---|---|
+| Service tool handler throws | Runtime catches, records `ActionOutcome.Failed`, returns error message to LLM |
+| MCP `GetToolsAsync` connection failure | Returns empty tool list (retries next turn) |
+| `IServiceProvider` unavailable | Returns `"IServiceProvider not available"` error to LLM |
+| Generated UI validation error | Returns structured error (missing fields, invalid `chartType`, etc.) |
+| Tool not found by name | LLM receives "tool not found" — no crash, no retry |
 
 ## `IAgentServiceToolRegistry` (singleton)
 
@@ -206,7 +278,8 @@ Default implementation: `InMemoryAgentServiceToolRegistry`. When you call `AddTo
 
 ## Related skills
 
-- **`ab-provider-config`** — provider-level `ChatOptions` configuration (`ConfigureChatOptions`); the consumer seam that can pin reasoning effort for tool-bearing models
+- **`ab-capability-authoring`** — how `[AgentAction]` capability methods become tools (the sibling skill for capabilities vs service tools)
 - **`ab-agent-registration`** — how agents are registered and which tools they project
-- **`ab-capability-authoring`** — how `[AgentAction]` capability methods become tools
-- **`ab-in-chat-features`** — how generated-UI tools render in chat
+- **`ab-in-chat-features`** — how generated-UI tools render in chat, including approval dialogs
+- **`ab-provider-config`** — provider-level `ChatOptions` configuration (`ConfigureChatOptions`); the consumer seam that can pin reasoning effort for tool-bearing models
+- **`ab-middleware-authoring`** — cross-cutting concerns in the agent turn pipeline (logging, cost control) that execute around tool dispatch

@@ -43,7 +43,7 @@ Run this end-to-end when writing a new prompt, and re-run `verify` + `prevent` w
 1. **Inventory the registered surface** — what the agent can actually do. Back it with `scripts/survey-agent-surface.ps1` for evidence.
    - Capabilities + `[AgentAction]` methods: [`ab-capability-authoring`](../ab-capability-authoring/SKILL.md)
    - Components the agent can control (`WithAllowedComponents`) + their readable state: [`ab-mud-components`](../ab-mud-components/SKILL.md)
-   - Service tools + MCP tools (`AddTool`, `UseMcpServer`) filtered via `WithAllowedActions`: [`ab-tool-registration`](../ab-tool-registration/SKILL.md)
+   - Service tools + MCP tools (`AddTool`, `UseMcpServer`) filtered via `WithAllowedActions`: [`ab-tool-authoring`](../ab-tool-authoring/SKILL.md)
    - Approval gates, clarifications, handoff: [`ab-in-chat-features`](../ab-in-chat-features/SKILL.md)
    - Agent registration surface (`WithInstructions`, `WithDescription`, `WithAllowedActions`, `WithDataSchemas`): [`ab-agent-registration`](../ab-agent-registration/SKILL.md)
 2. **Author the prompt** — draft the prose around the inventory so every registered action has a "when to call" rule and every boundary is described. Follow [`references/prompt-content.md`](references/prompt-content.md).
@@ -66,7 +66,7 @@ Run this end-to-end when writing a new prompt, and re-run `verify` + `prevent` w
 - [`ab-agent-registration`](../ab-agent-registration/SKILL.md) — how `WithInstructions`/`WithDescription`/`WithDataSchemas` fit into agent registration; route locking and allowed scopes.
 - [`ab-capability-authoring`](../ab-capability-authoring/SKILL.md) — authoring `[AgentCapability]`/`[AgentAction]`/`[AgentParam]`; the actions your prompt must describe, their approval flags and `Instructions`.
 - [`ab-mud-components`](../ab-mud-components/SKILL.md) — component actions + readable state your prompt can reference (e.g. "filter the grid", "read currentPage").
-- [`ab-tool-registration`](../ab-tool-registration/SKILL.md) — service/MCP tools your prompt may instruct the agent to use.
+- [`ab-tool-authoring`](../ab-tool-authoring/SKILL.md) — service/MCP tools your prompt may instruct the agent to use.
 - [`ab-in-chat-features`](../ab-in-chat-features/SKILL.md) — approval, clarification, handoff, generated-UI boundaries your prompt must describe correctly.
 - [`ab-context-assembly`](../ab-context-assembly/SKILL.md) — *how* the prompt is sent and traced; the mechanical seam under this skill's prose.
 - [`ab-middleware-authoring`](../ab-middleware-authoring/SKILL.md) — how to implement `IAgentTurnMiddleware` for cross-cutting context enrichment that the prompt should instruct the agent to use.
