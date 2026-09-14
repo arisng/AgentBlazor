@@ -18,7 +18,7 @@ description: >-
   Triggers: "what features are demoed", "is feature X implemented in the Demo",
   "Demo features catalog", "audit the Demo project", "verify feature is wired".
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # Demo Feature Overseer

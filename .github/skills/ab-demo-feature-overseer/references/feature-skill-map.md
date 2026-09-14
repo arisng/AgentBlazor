@@ -17,12 +17,13 @@ referenced skill to reason correctly about its wiring.
 
 | Feature area                       | Demo surface | Primary skill                          | Audit tokens                              |
 |------------------------------------|--------------|----------------------------------------|-------------------------------------------|
-| Standalone agent registration      | `Program.cs` | `ab-agent-registration`                | `AddAgent("...")`                         |
-| Workflow-capability agent reg      | `Program.cs` | `ab-agent-registration`                | `AddWorkflow<TCapability>("...")`         |
-| Route prefixes & allowed components| `Program.cs` | `ab-agent-registration`                | `WithRoutePrefixes`, `WithAllowedComponents` |
-| Shared instructions file           | `Program.cs`, `agent-instructions.txt` | `ab-context-assembly` | `WithInstructions`                    |
-| Per-agent data schemas             | `Program.cs` | `ab-agent-registration`                | `AddDataSchema`, `WithDataSchemas`        |
+| Standalone agent registration      | `Services/DemoAgentDatabaseSeeder.cs` (seeds into DB registry) | `ab-agent-registration`                | `Agent("...")` in `BuildSeeds()`, `DatabaseBackedAgentRegistry` |
+| Workflow-capability agent reg      | `Services/DemoAgentDatabaseSeeder.cs` + `Program.cs` `AddCapability<T>` | `ab-agent-registration`                | `Workflow<TCapability>("...")` in `BuildSeeds()`, `AddCapability<` |
+| Route prefixes & allowed components| seeds (`Agent`/`Workflow`) in `DemoAgentDatabaseSeeder.cs` | `ab-agent-registration`                | `routePrefixes:`, `components:` in `BuildSeeds()` |
+| Shared instructions file           | `agent-instructions.txt` → `DemoAgentDatabaseSeeder` | `ab-context-assembly` | `sharedInstructions` → seeder constructor |
+| Per-agent data schemas             | `Program.cs` + seeds | `ab-agent-registration`                | `AddDataSchema`, `dataSchemas:` in `BuildSeeds()` |
 | Runtime customization (per-agent persona + tool filtering) | `Program.cs`, `Services/DemoAgentCustomizer.cs`, `Services/DemoAgentCustomizationStore.cs`, `Components/Pages/Demo/CustomizationShowcase.razor` | `ab-context-assembly`, `ab-tool-registration` | `AddRuntimeCustomizer`, `IAgentRuntimeCustomizer` |
+| Agent Builder (database-backed dynamic registry + persona/tool edit + chat) | `Program.cs`, `Services/DatabaseBackedAgentRegistry.cs`, `Services/DemoAgentDatabaseSeeder.cs`, `Data/AgentDefinitionEntity.cs`, `Data/DemoAgentDbContext.cs`, `Components/Pages/Demo/AgentBuilder.razor` | `ab-agent-registration`, `ab-context-assembly`, `ab-entity-design` | `DatabaseBackedAgentRegistry`, `IAgentRegistry`, `DemoAgentDbContext`, `/demo/agent-builder` |
 
 ## Capabilities & actions
 

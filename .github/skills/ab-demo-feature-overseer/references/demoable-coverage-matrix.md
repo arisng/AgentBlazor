@@ -24,9 +24,9 @@ case actually wired in the Demo project** — not just because the library suppo
 or because some parameter default is active. If the Demo never exercises the feature,
 mark it ⛔.
 
-_Evidence snapshot: 2026-09-10 (9 workflow agents, 3 standalone agents, 9 capability
-classes, 44 agent actions, 11 approvals, 2 clarification sites, 18 component families,
-30 routes, 9 scenarios, 2 middleware, 8 log endpoints; runtime customization seam wired)._
+_Evidence snapshot: 2026-09-14 (9 workflow agents, 3 standalone agents, 9 capability
+classes, 44 agent actions, 11 approvals, 3 clarification sites, 18 component families,
+30 routes, 9 scenarios, 2 middleware, 8 log endpoints; runtime customization seam wired; Agent Builder dynamic-registry showcase wired)._
 
 ---
 
@@ -36,15 +36,16 @@ classes, 44 agent actions, 11 approvals, 2 clarification sites, 18 component fam
 |---|---|---|---|
 | Standalone agent registration | ✅ | `agentRegistrations[3]` → Workflow Hub, Supplier Analyst, Workflow Orchestrator | `ab-agent-registration` |
 | Workflow-capability agent registration | ✅ | `agentRegistrations[9]`, `workflows[9]` | `ab-agent-registration` |
+| **Dynamic agent registration (DB-backed `IAgentRegistry`, replace)** | ✅ | `DatabaseBackedAgentRegistry : IAgentRegistry` + `AddSingleton<IAgentRegistry>` before `AddAgentBlazor`; page `/demo/agent-builder`; entity `AgentDefinitionEntity` + `DemoAgentDbContext` | `ab-agent-registration`, `ab-entity-design` |
 | Route prefixes per agent | ✅ | `agentRegistrations[].routePrefixes` | `ab-agent-registration` |
 | Allowed components per agent | ✅ | `agentRegistrations[].allowedComponents` | `ab-agent-registration` |
-| Shared instructions file | ✅ | `agent-instructions.txt` + `hasSharedInstructions=true` (10 of 11) | `ab-context-assembly` |
+| Shared instructions file | ✅ | `agent-instructions.txt` + `hasSharedInstructions=true` (12 of 12 seeds) | `ab-context-assembly` |
 | Semantic data schemas (`AgentDataSchemaSet`) | ✅ | `dataSchemas.schemaSets=[support-data]`, bound to Support Inbox | `ab-agent-registration` |
 | Allowed **actions** / capability actions (fine-grained) | ⛔ | no `WithAllowedActions` in Demo (runtime filtering via the customizer is a separate feature — see below) | `ab-agent-registration` |
 | Service **tools** (`AddTool`) | ✅ | `options.AddTool("lookup-glossary")`, `options.AddTool("current-time")` in `Program.cs`; filtered per agent by the customizer | `ab-tool-registration` |
 | **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-registration` |
 | Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `CustomizationDemoCapabilities`; persona + tool set edited live on `/demo/customization`; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-registration` |
-| Agent **selector** in chat | ⛔ | chat surfaces are locked to a per-route `DefaultAgentName` (`LockAgentToCurrentRoute`); `ShowAgentSelector` only toggles pane-vs-widget, never a user-visible multi-agent picker | `ab-in-chat-features` |
+| Agent **selector** in chat | 🔶 | per-route `DefaultAgentName` lock on workflow surfaces; full registry picker proven on `/demo/sessions` New-chat (`MudSelect` over `IAgentRegistry.GetAll()`), not on workflow pages | `ab-in-chat-features` |
 
 ## 2. Capabilities & actions
 
@@ -67,8 +68,8 @@ classes, 44 agent actions, 11 approvals, 2 clarification sites, 18 component fam
 | Floating chat widget (`AgentChatWidget`) | ✅ | `DemoLayout` | `ab-chat-composer` |
 | Generated-UI cards (`EnableGeneratedUi`) | ✅ | `EnableGeneratedUi=true` on both surfaces | `ab-in-chat-features` |
 | Session key isolation | ✅ | `SessionId` from `ComponentRegistry.SessionId` | `ab-chat-session-management` |
-| Conversation persistence (durable store) | 🔶 | default store (InMemory); `agentblazor-demo.db` present; no `Use*ConversationStore` override | `ab-conversation-store` |
-| Session browser / history resume | ⛔ | no session-browser component | `ab-chat-session-management` |
+| Conversation persistence (durable store) | ✅ | `UseJsonFileConversationStore` (default `Store=JsonFile`) or `UseConversationStore(DemoConversationStore)` when `Store=EFCore` (appsettings); InMemory only if explicitly set | `ab-conversation-store` |
+| Session browser / history resume | ✅ | `SessionBrowser.razor` master-detail + New-chat picker + `AgentChatSurface` (`DefaultAgentName` + base `SessionId`, no lock, handoff off); `DemoSessionBrowserService` (`GetActiveSessionsAsync`/`GetHistoryAsync`/`GetAvailableAgents`/`BuildNewBaseSessionId`); `?session=` deep link; widget suppressed on `/demo/sessions` | `ab-chat-session-management` |
 | Suggestion chips / predefined prompts | ⛔ | no `PredefinedPrompts`/`Suggestions` params | `ab-in-chat-features` |
 | Proactive insights | ⛔ | no proactive-insight wiring; only host-side workflow "insight" panels | `ab-in-chat-features` |
 | Slash commands | ⛔ | no slash-command surface | `ab-in-chat-features` |
@@ -134,7 +135,7 @@ classes, 44 agent actions, 11 approvals, 2 clarification sites, 18 component fam
 
 | Area | ✅ | 🟡 | 🔶 | ⛔ |
 |---|---|---|---|---|
-| Agents & registration | 8 | 0 | 0 | 3 |
+| Agents & registration | 8 | 0 | 1 | 2 |
 | Capabilities & actions | 6 | 0 | 0 | 2 |
 | Chat & conversation | 4 | 0 | 1 | 5 |
 | MudBlazor components | 15 | 0 | 0 | 1 |
@@ -143,8 +144,8 @@ classes, 44 agent actions, 11 approvals, 2 clarification sites, 18 component fam
 | Workflow/misc | 4 | 1 | 1 | 0 |
 
 **Not-demoed leaders worth adding next** (⛔ ≥1): MCP tools, fine-grained
-`WithAllowedActions`, session browser, suggestion chips / proactive insights / slash
-commands, agent selector, `[AgentParam]`, generative-UI blocks
+`WithAllowedActions`, suggestion chips / proactive insights / slash
+commands, `[AgentParam]`, generative-UI blocks
 (`AgentGenerativeSurface`), `ConfigureChatOptions` pinning, multitenancy, and UI-library
 coexistence.
 

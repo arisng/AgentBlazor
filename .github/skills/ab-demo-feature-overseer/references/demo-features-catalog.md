@@ -4,17 +4,34 @@ Maintained empirical audit of demoable features in `demo/AgentBlazor.Demo`. Stat
 evidence-gated — see `catalog-schema.md` for the taxonomy. Regenerate evidence with
 `.github/skills/ab-demo-feature-overseer/scripts/audit-demo-features.ps1` before editing.
 
-Last audited: 2026-09-10 (audit.json: 9 workflow agents, 3 standalone agents,
-9 capability classes, 44 agent actions, 11 approvals, 2 clarification sites,
+Last audited: 2026-09-14 (audit.json: 9 workflow agents, 3 standalone agents, sourced from `DemoAgentDatabaseSeeder.BuildSeeds()`;
+9 capability classes, 44 agent actions, 11 approvals, 3 clarification sites,
 18 component page families, 30 routes, 9 launchpad scenarios; runtime
-customization seam wired)._
+customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
 
 ## Agents
+
+### Agent Builder — database-backed dynamic registry
+- **Status**: implemented
+- **What it demonstrates**: building + registering agents **at runtime** against a
+  database-backed `IAgentRegistry` (replace path) — create/edit/delete agents, edit
+  persona + enabled tool set, chat with a just-built agent. The dynamic counterpart
+  to static `AddAgent`/`AddWorkflow`.
+- **Where**: `Program.cs` → `AddSingleton<DatabaseBackedAgentRegistry>()` +
+  `AddSingleton<IAgentRegistry>(...)` BEFORE `AddAgentBlazor`; page
+  `Components/Pages/Demo/AgentBuilder.razor` (`/demo/agent-builder`); services
+  `DatabaseBackedAgentRegistry.cs`, `DemoAgentDatabaseSeeder.cs`; entity
+  `Data/AgentDefinitionEntity.cs` + `Data/DemoAgentDbContext.cs`.
+- **Audit evidence**: page route `@page "/demo/agent-builder"` in `routes[]`;
+  `DatabaseBackedAgentRegistry` implements `IAgentRegistry`; `DemoAgentDbContext`.
+- **ab\* skill**: `ab-agent-registration` (Dynamic Agent Registration),
+  `ab-context-assembly` (customizer integration), `ab-entity-design`.
 
 ### Workflow-capability agents
 - **Status**: implemented (9)
 - **What it demonstrates**: semantic workflow agents routing to their showcase route.
-- **Where**: `Program.cs` → `AddWorkflow<TCapability>`.
+- **Where**: capability classes registered via `AddCapability<T>` in `Program.cs`;
+  agent definitions seeded into the database registry by `DemoAgentDatabaseSeeder`.
 - **Audit evidence**: `workflows[]` — Supplier Compliance, Support Inbox, File
   Workflow, Recipe Release, Incident Escalation, Response Orchestration, Release
   Dossier, Runtime Probe, Customization Demo.
@@ -23,15 +40,15 @@ customization seam wired)._
 ### Standalone agents
 - **Status**: implemented (3)
 - **What it demonstrates**: non-workflow agents with route/component scope.
-- **Where**: `Program.cs` → `AddAgent`.
+- **Where**: seeded into the database registry by `DemoAgentDatabaseSeeder.BuildSeeds()`.
 - **Audit evidence**: `agents[]` — Workflow Hub, Supplier Analyst, Workflow
   Orchestrator.
 - **ab\* skill**: `ab-agent-registration`.
 
 ### Shared instructions & route/component scope
 - **Status**: implemented
-- **Where**: `agent-instructions.txt` → `WithInstructions`; `WithRoutePrefixes`,
-  `WithAllowedComponents`.
+- **Where**: `agent-instructions.txt` → passed to `DemoAgentDatabaseSeeder`;
+  agents seeded with `Instructions` + `Metadata["route_prefixes"]` + `AllowedComponents`.
 - **Audit evidence**: `agentRegistrations[].hasSharedInstructions`; per-agent
   `allowedComponents[]` and `routePrefixes`.
 - **ab\* skill**: `ab-context-assembly`, `ab-agent-registration`.
@@ -127,12 +144,29 @@ customization seam wired)._
 - **Where**: pages use `ComponentRegistry.SessionId`; chat surfaces pass `SessionId`.
 - **ab\* skill**: `ab-chat-session-management`.
 
+### Session browser / history resume
+- **Status**: implemented
+- **What**: two-column master-detail on `/demo/sessions` — session list left,
+  `AgentChatSurface` timeline + composer right; New-chat button with agent picker
+  (registry-sourced, `demo:{guid}:{route}` draft IDs promoted on first send);
+  resume and new surfaces use `SessionId=base` + `DefaultAgentName` with
+  `LockAgentToCurrentRoute="false"`, no `LockedAgentName`, `EnableAgentHandoff="false"`;
+  `?session=` deep links and agent→route affinity chips.
+- **Where**: `Components/Pages/Demo/SessionBrowser.razor` (+ `.razor.css`),
+  `Services/DemoSessionBrowserService.cs` (`GetAvailableAgents`, `BuildNewBaseSessionId`,
+  `GetRouteForAgent`, key split, real `LastActivityAt`),
+  `Components/Layout/DemoLayout.razor` (widget suppressed on `/demo/sessions`).
+- **Audit evidence**: `SessionBrowser.razor` hosts `AgentChatSurface` with
+  `DefaultAgentName` (no `LockedAgentName`); `DemoSessionBrowserService` calls
+  `GetActiveSessionsAsync` + `GetHistoryAsync` + `IAgentRegistry.GetAll()`;
+  `DemoLayout` gates `ShowAssistantWidget` on `IsSessionBrowserRoute`.
+- **ab\* skill**: `ab-chat-session-management`.
+
 ### Conversation persistence
-- **Status**: partial — uses default store (no `Use*ConversationStore` override → InMemory).
-- **Audit evidence**: empty match for conversation-store calls in Demo source.
+- **Status**: implemented — durable store (JSON-file by default; SQLite EF Core when `DemoConversation.Store=EFCore`; InMemory only when explicitly set).
+- **Where**: `Program.cs` ConfigureBuilder → `UseJsonFileConversationStore(...)` (default) or `UseConversationStore(sp => new DemoConversationStore(...))` when `Store=EFCore`; selector `Configuration/DemoConversationOptions.cs` (`Store` default `"JsonFile"`, overridden to `"EFCore"` in `appsettings.json`).
+- **Audit evidence**: `UseJsonFileConversationStore` / `UseConversationStore(DemoConversationStore)` calls in demo source; `demo_conversation_sessions`/`demo_conversation_turns` tables.
 - **ab\* skill**: `ab-conversation-store`.
-- **Note**: `agentblazor-demo.db` exists in the project dir; Pro license can opt into
-  durable stores (see **Pro license** / **Persistence**).
 
 ## Agent-controllable components (MudBlazor)
 
@@ -252,5 +286,4 @@ All statuses `implemented`; pages per `components[].files`.
 
 ### Session browser / chat-history resume
 - **Status**: not-demoed — no session-browser component or `GetActiveSessionsAsync`
-  usage in the Demo.
-- **Note**: supported by library (`ab-chat-session-management`); not yet surfaced.
+  usage in theimplemented — see **Chat & conversation → Session browser / history resume** (`/demo/sessions` master-detail + New-chat picker + `?session=` deep links)
