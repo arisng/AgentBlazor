@@ -11,6 +11,7 @@
   - [BaseSessionId + AgentName: Separate Columns from SessionId](#basesessionid--agentname-separate-columns-from-sessionid)
   - [Cascade Delete on Session → Turns](#cascade-delete-on-session--turns)
   - [TenantId Denormalized on ConversationTurnEntity](#tenantid-denormalized-on-conversationturneentity)
+  - [AgentDefinitionEntity: Standalone Registry Store](#agentdefinitionentity-standalone-registry-store)
 - [The IsolateConversationsByAgent 1:N Relationship](#the-isolateconversationsbyagent-1n-relationship)
 
 ---
@@ -90,6 +91,31 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 ║  └──────────────────────────────────────────────────────────────────────────┘  ║
 ║                                                                                ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  Consumer DbContext (agent definition store — backs IAgentRegistry)           ║
+║                                                                              ║
+║  ┌──────────────────────────────────────────────────────────┐                ║
+║  │  AgentDefinitionEntity                                   │                ║
+║  ├──────────────────────────────────────────────────────────┤                ║
+║  │  PK  Id                  Guid                            │                ║
+║  │  UQ  Name                string      (case-insensitive)  │                ║
+║  │      Description         string?                         │                ║
+║  │      Instructions        string?                         │                ║
+║  │      AllowedComponentsJson  string    (JSON array)       │                ║
+║  │      AllowedActionsJson     string    (JSON array)       │                ║
+║  │      AllowedDataSchemasJson string    (JSON array)       │                ║
+║  │      Persona             string?  (customizer override)  │                ║
+║  │      EnabledToolsJson    string?  (JSON array)           │                ║
+║  │      MetadataJson        string    (JSON object)         │                ║
+║  │      TenantId            string?  (multitenancy)         │                ║
+║  │      CreatedAtUtc        DateTime                        │                ║
+║  │      UpdatedAtUtc        DateTime                        │                ║
+║  └──────────────────────────────────────────────────────────┘                ║
+║                                                                              ║
+║  Standalone entity — no FK to ConversationSessionEntity.                     ║
+║  Maps to AgentRegistration on read for IAgentRegistry.TryGet/GetAll.         ║
+╚════════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ### Legend
@@ -114,6 +140,7 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 | 2 | **TenantInfo → Turn** (logical) | `TenantInfo` (TenantDbContext) | `ConversationTurnEntity` (ConversationDbContext) | `TenantId` (string, denormalized) | None — different DbContext | None | `IX_ConversationTurns_TenantId` non-clustered |
 | 3 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (Guid) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
 | 4 | **BaseSessionId → Sessions** (logical grouping) | N/A (same table) | `ConversationSessionEntity` | `BaseSessionId` (string?) | None — self-referencing grouping | None | `IX_ConversationSessions_BaseSessionId` non-clustered |
+| 5 | **AgentDefinitionEntity** (standalone) | N/A (no parent) | `AgentDefinitionEntity` | N/A | N/A — standalone entity | None | `IX_AgentDefinitions_Name` unique, `IX_AgentDefinitions_TenantId` non-clustered |
 
 ### Index Details
 
@@ -127,6 +154,8 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 | `IX_ConversationSessions_LastActivityAtUtc` | `LastActivityAtUtc` | Non-clustered | Expired-session cleanup |
 | `IX_ConversationTurns_SessionId` | `SessionId` | Non-clustered | FK lookups — efficient turn retrieval by session |
 | `IX_ConversationTurns_TenantId` | `TenantId` | Non-clustered | Tenant-scoped turn queries without JOIN |
+| `IX_AgentDefinitions_Name` | `Name` | Unique, non-clustered | Case-insensitive agent lookup (primary path for `TryGet`) |
+| `IX_AgentDefinitions_TenantId` | `TenantId` | Non-clustered | Tenant-scoped agent queries, cleanup by tenant |
 
 All string index columns use case-insensitive collation (`Latin1_General_CP1_CI_AS` on SQL Server). Non-clustered because the clustered PK is on `Id` (GUID — avoids fragmentation from sequential inserts).
 
@@ -260,6 +289,34 @@ session.Turns.Add(new ConversationTurnEntity
     // ...
 });
 ```
+
+### AgentDefinitionEntity: Standalone Registry Store
+
+**Decision:** `AgentDefinitionEntity` is a standalone entity (no FK to `ConversationSessionEntity`) that backs a database-driven `IAgentRegistry`. It lives in the consumer's `DbContext`, not the library's `ConversationDbContext`.
+
+**Why standalone:**
+
+1. **Different lifecycle.** Agent definitions change via the Agent Builder UI (add/edit/delete). Conversation sessions accumulate passively as users chat. Coupling them via FK would create artificial deletion cascades and shared migration timelines.
+
+2. **Different query patterns.** `IAgentRegistry.TryGet(name)` is a simple key lookup on `Name`. `IConversationStore` operations are session-scoped with incremental turn persistence. The access patterns don't overlap.
+
+3. **Optional for most apps.** Most apps use static `AddAgent`/`AddWorkflow` and never need this entity. Making it standalone means apps that don't use a DB-backed registry pay no schema cost.
+
+4. **JSON columns for collections.** `AllowedComponentsJson`, `AllowedActionsJson`, `AllowedDataSchemasJson`, and `EnabledToolsJson` are stored as `nvarchar(max)` JSON strings. This avoids junction tables for a write-heavy builder flow where collections are small (< 20 items) and rarely queried by content. Upgrade to owned entity types (`ToJson()`) only if you need `WHERE JSON_VALUE(...)` queries.
+
+5. **Persona + EnabledTools as top-level columns.** These feed the `IAgentRuntimeCustomizer` seam on every turn. Top-level columns are cheaper to load than extracting from `MetadataJson`, and they have explicit null semantics (null = "no customization" vs empty string = "empty persona").
+
+```sql
+-- Case-insensitive unique index on Name (CRITICAL — runtime does case-insensitive lookups)
+CREATE UNIQUE INDEX IX_AgentDefinitions_Name
+    ON AgentDefinitions(Name COLLATE Latin1_General_CP1_CI_AS);
+
+-- Tenant-scoped queries
+CREATE INDEX IX_AgentDefinitions_TenantId
+    ON AgentDefinitions(TenantId);
+```
+
+> **SQLite collation trap.** SQLite's `LOWER()` is ASCII-only. A unique index on `LOWER(Name)` will reject `üser` ≠ `ÜSER` while a `WHERE LOWER(Name) = LOWER(@input)` query won't find either. Use ` COLLATE NOCASE` on the column or a generated column with a proper Unicode lower function.
 
 ---
 

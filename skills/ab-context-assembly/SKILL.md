@@ -64,13 +64,18 @@ Conversation history is managed automatically by the package — persisted via `
 
 When a consumer app lets users **build agents at runtime** (a database-backed `IAgentRegistry`), compose that with the `IAgentRuntimeCustomizer` seam so a just-built agent immediately honors its persona + tool set:
 
-1. **Persist persona + enabled tools alongside the agent definition.** In your store (DB-backed registry), keep per-agent persona + enabled-tool columns (or metadata keys your registry re-hydrates). The `AgentRegistration.Metadata` dictionary is a convenient carrier.
+1. **Persist persona + enabled tools alongside the agent definition.** Use [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — it has dedicated top-level columns `Persona` (string?) and `EnabledToolsJson` (string? — JSON array of tool ids). Avoids burying these in the `MetadataJson` dictionary, keeping them type-safe and cheap to load on every turn. In the DB-backed registry's `MapToRegistration`, read `Persona`/`EnabledToolsJson` and stash them somewhere the customizer can resolve (e.g. a `ConcurrentDictionary<string, AgentDefinitionEntity>` keyed by `Name`, or store them directly on a custom `AgentRegistration` extension).
 2. **Have a single registered `IAgentRuntimeCustomizer` resolve from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`).
 3. **Construct `AgentRuntimeCustomization` from the persisted values:**
    ```csharp
-   return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
-       Instructions: persona,                       // appended after registered instructions
-       EnabledToolIds: enabledToolIds));            // null = no filtering
+   var definition = await db.AgentDefinitions.FindAsync(registration.Name);
+   return Task.FromResult<AgentRuntimeCustomization?>(definition?.Persona is null && definition?.EnabledToolsJson is null
+       ? null
+       : new AgentRuntimeCustomization(
+           Instructions: definition!.Persona,                          // appended after registered instructions
+           EnabledToolIds: definition.EnabledToolsJson is null
+               ? null
+               : AgentDefinitionEntity.DeserializeSet(definition.EnabledToolsJson)));
    ```
 4. **A built agent's edits take effect on the next turn** — no restart required (the customizer runs per turn in the adapter's instruction/tool projection).
 

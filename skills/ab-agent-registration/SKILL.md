@@ -172,6 +172,23 @@ Agent registrations are held in-memory by default (`AgentRegistrationBuilder` �
 - Multitenancy considerations for per-tenant agent registrations
 - Migration strategy for evolving agent configurations alongside code changes
 
+**Proven backing entity: `AgentDefinitionEntity`.** The canonical entity for a database-backed `IAgentRegistry` is [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — a surrogate-keyed entity with `Name` as the case-insensitive lookup key, JSON collection columns (`AllowedComponentsJson`, `AllowedActionsJson`, `AllowedDataSchemasJson`), top-level `Persona`/`EnabledToolsJson` columns for the `IAgentRuntimeCustomizer` seam, `TenantId` for multitenancy, and audit columns. The entity provides `DeserializeSet`/`SerializeSet` helpers for JSON ↔ collection round-trips. Map it to `AgentRegistration` on read:
+
+```csharp
+AgentRegistration MapToRegistration(AgentDefinitionEntity e) => new()
+{
+    Name = e.Name,
+    Description = e.Description,
+    Instructions = e.Instructions,
+    AllowedComponents = AgentDefinitionEntity.DeserializeSet(e.AllowedComponentsJson),
+    AllowedActions = AgentDefinitionEntity.DeserializeSet(e.AllowedActionsJson),
+    AllowedDataSchemas = AgentDefinitionEntity.DeserializeSet(e.AllowedDataSchemasJson),
+    Metadata = AgentDefinitionEntity.DeserializeDictionary(e.MetadataJson),
+};
+```
+
+> **Seeding workflow agents.** When a persisted definition backs a workflow agent, also populate `AllowedCapabilityActions` in the registration (the entity has no column for it — derive it from the `[AgentCapability]`/`[AgentAction]` attributes at hydration time, since `AgentCapabilityConventions` is internal).
+
 > **Case-insensitive lookups vs collation.** The runtime resolves agents case-insensitively (the demo's cache uses `StringComparer.OrdinalIgnoreCase`). If you persist agent definitions and query by `Name`, prefer a **case-insensitive collation/index on `Name`** over `Name.ToLower() == x.ToLower()`, because SQLite `LOWER()` is **ASCII-only** and `LOWER()` in a predicate defeats the unique index (a "no such matching row" trap on non-ASCII or mixed-case names). Mirror the case-insensitive lookup with a case-insensitive unique index so first-boot seeding and runtime edits match the same row.
 
 ---
@@ -322,7 +339,7 @@ Resolve the registry through DI where you mutate (it is a singleton), not a new 
 - **Global-dynamic only, no tenant?** Skip Step 1. Use a single dictionary keyed by name (mirror `InMemoryAgentRegistry`) but hydrate/live-update from your own source.
 - **Admin surface?** Let a control-plane endpoint resolve `IAgentRegistry` from DI and call `AddOrUpdate`; the runtime picks up changes on the next turn that resolves that agent.
 - **Missing agent for a tenant:** return `null` from `TryGet` (runtime falls back through its own chain) or a synthetic registration from `GetAll()` — your call based on whether an empty agent set is a valid state.
-- **Data source:** reuse the entity design guidance in `ab-entity-design` for the backing tables (tenant column, agent metadata columns, JSON columns vs owned types).
+- **Data source:** reuse the entity design guidance in `ab-entity-design` for the backing tables (tenant column, agent metadata columns, JSON columns vs owned types). The canonical entity is `AgentDefinitionEntity` — see `ab-entity-design` for the full definition, column specs, and index strategy.
 
 ## Related skills
 

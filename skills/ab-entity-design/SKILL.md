@@ -1,6 +1,6 @@
 ---
 name: ab-entity-design
-description: "Design EF Core domain entities for AgentBlazor with concrete relationships supporting multitenancy and session identity resolution. Use when modeling ConversationSessionEntity, ConversationTurnEntity, TenantInfo entities; deciding between composite keys vs surrogate keys; designing FK cascades and indexes; adding multitenancy columns (TenantId); handling IsolateConversationsByAgent entity implications; adding audit columns, soft delete, or concurrency tokens; choosing between JSON columns vs owned entity types; or planning EF Core migrations. Triggers: entity design, domain entities, EF Core entities, entity relationships, FK cascade, composite key, global query filter, TenantId column, BaseSessionId, AgentName, ConversationSessionEntity, ConversationTurnEntity, owned entity types, split queries, concurrency token, audit columns, soft delete."
+description: "Design EF Core domain entities for AgentBlazor with concrete relationships supporting multitenancy and session identity resolution. Use when modeling ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity, TenantInfo entities; deciding between composite keys vs surrogate keys; designing FK cascades and indexes; adding multitenancy columns (TenantId); handling IsolateConversationsByAgent entity implications; adding audit columns, soft delete, or concurrency tokens; choosing between JSON columns vs owned entity types; or planning EF Core migrations. Triggers: entity design, domain entities, EF Core entities, entity relationships, FK cascade, composite key, global query filter, TenantId column, BaseSessionId, AgentName, ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity, owned entity types, split queries, concurrency token, audit columns, soft delete."
 metadata:
   version: 0.2.1
 ---
@@ -140,6 +140,98 @@ public sealed class ConversationTurnEntity
 }
 ```
 
+### AgentDefinitionEntity
+
+Consumer apps that back a dynamic `IAgentRegistry` with a database (see `ab-agent-registration` "Entity Persistence") need a persistence entity for agent definitions. The canonical shape — proven in the Agent Builder showcase — is `AgentDefinitionEntity`:
+
+```csharp
+public sealed class AgentDefinitionEntity
+{
+    /// <summary>Surrogate primary key (GUID). Name is the lookup key; Id avoids coupling.</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Unique, case-insensitive agent lookup key (matches AgentRegistration.Name).
+    /// Use a case-insensitive collation/index — NOT Name.ToLower() — because SQLite LOWER()
+    /// is ASCII-only and defeats unique indexes on non-ASCII names.
+    /// </summary>
+    public required string Name { get; set; }
+
+    public string? Description { get; set; }
+
+    /// <summary>Static system prompt (maps to AgentRegistrationBuilder.WithInstructions).</summary>
+    public string? Instructions { get; set; }
+
+    // JSON collection columns — same pattern as ConversationTurnEntity JSON columns.
+    // See query-and-concurrency.md for string vs owned-entity trade-offs.
+    /// <summary>JSON array of component ids, e.g. ["AgentForm","AgentDialog"].</summary>
+    public string AllowedComponentsJson { get; set; } = "[]";
+
+    /// <summary>JSON array of action ids, e.g. ["compId.actionId"].</summary>
+    public string AllowedActionsJson { get; set; } = "[]";
+
+    /// <summary>JSON array of data schema names.</summary>
+    public string AllowedDataSchemasJson { get; set; } = "[]";
+
+    /// <summary>
+    /// Optional persona (system-instruction override) for IAgentRuntimeCustomizer.
+    /// Persisted so the Agent Builder composes with the customizer seam (see ab-context-assembly).
+    /// </summary>
+    public string? Persona { get; set; }
+
+    /// <summary>
+    /// Optional JSON array of enabled tool ids for IAgentRuntimeCustomizer.
+    /// null = no filtering per the AgentRuntimeCustomization contract.
+    /// </summary>
+    public string? EnabledToolsJson { get; set; }
+
+    /// <summary>JSON object of AgentRegistration.Metadata (e.g. route_prefixes).</summary>
+    public string MetadataJson { get; set; } = "{}";
+
+    /// <summary>Optional tenant identifier (nullable for single-tenant apps).</summary>
+    public string? TenantId { get; set; }
+
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+```
+
+**Key design decisions:**
+
+| Decision | Rationale |
+|---|---|
+| Surrogate `Id` + unique `Name` | Runtime resolves agents by `Name` (case-insensitive). Surrogate PK avoids coupling storage to the lookup key format. |
+| JSON columns for collections | `AllowedComponents`, `AllowedActions`, `AllowedDataSchemas`, and `EnabledTools` are small, infrequently-queried lists. JSON avoids junction tables for a write-heavy builder flow. Upgrade to owned entity types if you need `WHERE JSON_VALUE(...)` queries. |
+| `Persona` + `EnabledToolsJson` as top-level columns | Not buried in `MetadataJson` — the customizer seam reads them on every turn; top-level columns are cheaper to load and type-safe. |
+| `TenantId` nullable | Single-tenant apps (e.g. the Demo) omit it. Multitenant apps add a global query filter per `ab-multitenancy`. |
+| Audit columns (`CreatedAtUtc` / `UpdatedAtUtc`) | Standard pattern for entity lifecycle tracking. Update `UpdatedAtUtc` on every `AddOrUpdate`. |
+
+**Conversion helpers** — the entity provides static methods for JSON ↔ collection round-trips:
+
+```csharp
+public static IReadOnlySet<string> DeserializeSet(string json)
+    => new HashSet<string>(
+        string.IsNullOrWhiteSpace(json) ? [] :
+        JsonSerializer.Deserialize<List<string>>(json, JsonOptions) ?? [],
+        StringComparer.OrdinalIgnoreCase);
+
+public static string SerializeSet(IEnumerable<string> values)
+    => JsonSerializer.Serialize(values ?? [], JsonOptions);
+
+public static Dictionary<string, string> DeserializeDictionary(string json)
+    => string.IsNullOrWhiteSpace(json)
+        ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        : JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOptions)
+            ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+public static string SerializeDictionary(IReadOnlyDictionary<string, string> metadata)
+    => JsonSerializer.Serialize(metadata ?? new Dictionary<string, string>(), JsonOptions);
+```
+
+These are intentionally on the entity (not a shared utility) so the mapping layer stays self-contained.
+
+**See also:** `ab-agent-registration` → "Entity Persistence" for the full mapping between `AgentDefinitionEntity` and `AgentRegistration`, and `ab-context-assembly` → "Agent Builder × customizer integration" for how `Persona`/`EnabledToolsJson` feed the runtime customizer.
+
 ### Token usage & cost columns (consumer extension)
 
 The library turn carries raw usage (`ConversationTurn.Usage`), so consumer turn entities
@@ -179,6 +271,8 @@ Cost is consumer policy — never part of the library turn. See `ab-conversation
 | `IX_ConversationSessions_LastActivityAtUtc` | `LastActivityAtUtc` | Non-clustered | Expired-session cleanup queries |
 | `IX_ConversationTurns_SessionId` | `SessionId` | Non-clustered | FK lookups — efficient turn retrieval by session |
 | `IX_ConversationTurns_SessionId_TurnId` | `(SessionId, TurnId)` | Unique, non-clustered | Turn identity lookups for incremental `UpdateTurnAsync` / `DeleteTurnAsync` / `ReorderTurnsAsync` |
+| `IX_AgentDefinitions_Name` | `Name` | Unique, non-clustered | Case-insensitive agent lookup (primary path for `TryGet`) |
+| `IX_AgentDefinitions_TenantId` | `TenantId` | Non-clustered | Tenant-scoped agent queries, cleanup by tenant |
 
 All string index columns use case-insensitive collation. Non-clustered because the clustered PK is on `Id` (GUID — avoids fragmentation from sequential inserts).
 
