@@ -1,6 +1,8 @@
 @page "/demo/customization"
 @layout DemoLayout
+@using AgentBlazor.App
 @using AgentBlazor.Components
+@using AgentBlazor.Core.Runtime.Tools
 @using AgentBlazor.Demo.Services
 @using MudBlazor
 
@@ -19,12 +21,9 @@
         <MudItem xs="12" md="5">
             <MudPaper Elevation="0" Class="pa-4 mb-4">
                 <MudText Typo="Typo.h6" Class="mb-2">Persona (system instructions)</MudText>
-                <MudTextField T="string"
-                              Label="Persona"
+                <MudTextField T="string" Label="Persona"
                               HelperText="Appended to the agent's registered instructions, before the READ-SAFE data-schema block."
-                              Lines="5"
-                              Variant="Variant.Outlined"
-                              @bind-Value="_persona" />
+                              Lines="5" Variant="Variant.Outlined" @bind-Value="_persona" />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="ApplyPersonaAsync">
                     Apply persona
                 </MudButton>
@@ -34,13 +33,18 @@
                 <MudText Typo="Typo.h6" Class="mb-2">Enabled tools</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
                     Whitelist of logical tool ids. Generated-UI tools are reserved and always projected.
+                    Discovered dynamically from <Code>IAgentServiceToolRegistry</Code> and
+                    <Code>IAgentCapabilityRegistry</Code>.
                 </MudText>
-                @foreach (var tool in _toolOptions)
+                @foreach (var group in _toolOptions.GroupBy(t => t.Category).OrderBy(g => g.Key))
                 {
-                    <MudCheckBox T="bool"
-                                 Label="@tool.Label"
-                                 Value="@_enabledToolIds.Contains(tool.Id)"
-                                 ValueChanged="@(value => ToggleTool(tool.Id, value))" />
+                    <MudText Typo="Typo.caption" Color="Color.Primary" Class="mt-2 mb-0" Style="font-weight:600;">@group.Key
+                    </MudText>
+                    @foreach (var tool in group)
+                    {
+                        <MudCheckBox T="bool" Label="@tool.Label" Value="@_enabledToolIds.Contains(tool.Id)"
+                                     ValueChanged="@(value => ToggleTool(tool.Id, value))" />
+                    }
                 }
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" OnClick="ApplyToolsAsync">
                     Apply tools
@@ -71,13 +75,9 @@
                 <MudText Typo="Typo.h6" Class="mb-2">Customized agent</MudText>
                 <AgentChatSurface Title="Customization Demo Agent"
                                   Description="Persona and tools are controlled by the customization showcase."
-                                  DefaultAgentName="Customization Demo Agent"
-                                  SessionId="demo:customization-showcase"
-                                  LockAgentToCurrentRoute="false"
-                                  ShowAgentSelector="false"
-                                  EnableGeneratedUi="true"
-                                  RequireHandoffApproval="false"
-                                  Placeholder="Ask the customized agent…"
+                                  DefaultAgentName="Customization Demo Agent" SessionId="demo:customization-showcase"
+                                  LockAgentToCurrentRoute="false" ShowAgentSelector="false" EnableGeneratedUi="true"
+                                  RequireHandoffApproval="false" Placeholder="Ask the customized agent…"
                                   CssClass="customization-showcase__surface" />
             </MudPaper>
 
@@ -86,15 +86,10 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
                     Bound to an unconfigured agent — the customizer returns null, so behavior is unchanged.
                 </MudText>
-                <AgentChatSurface Title="Workflow Hub Agent"
-                                  Description="Unconfigured — standard behavior."
-                                  DefaultAgentName="Workflow Hub Agent"
-                                  SessionId="demo:customization-standard"
-                                  LockAgentToCurrentRoute="false"
-                                  ShowAgentSelector="false"
-                                  EnableGeneratedUi="true"
-                                  RequireHandoffApproval="false"
-                                  Placeholder="Ask the standard agent…"
+                <AgentChatSurface Title="Workflow Hub Agent" Description="Unconfigured — standard behavior."
+                                  DefaultAgentName="Workflow Hub Agent" SessionId="demo:customization-standard"
+                                  LockAgentToCurrentRoute="false" ShowAgentSelector="false" EnableGeneratedUi="true"
+                                  RequireHandoffApproval="false" Placeholder="Ask the standard agent…"
                                   CssClass="customization-showcase__surface" />
             </MudPaper>
         </MudItem>
@@ -110,14 +105,9 @@
 @code {
     private const string ShowcaseAgentName = "Customization Demo Agent";
 
-    private static readonly IReadOnlyList<ToolOption> _toolOptions =
-    [
-        new("customization_demo.describe_persona", "Describe your current persona"),
-        new("customization_demo.list_enabled_tools", "List the tools you can use"),
-        new("customization_demo.run_quick_check", "Run a quick capability check (approval-gated)"),
-        new("lookup-glossary", "Look up a glossary term"),
-        new("current-time", "Return the current UTC time")
-    ];
+    private sealed record ToolOption(string Id, string Label, string Category);
+
+    private IReadOnlyList<ToolOption> _toolOptions = [];
 
     private readonly HashSet<string> _enabledToolIds = new(StringComparer.OrdinalIgnoreCase);
     private string _persona = string.Empty;
@@ -126,8 +116,19 @@
     [Inject]
     private DemoAgentCustomizationStore Store { get; set; } = default!;
 
+    [Inject]
+    private IAgentServiceToolRegistry ServiceToolRegistry { get; set; } = default!;
+
+    [Inject]
+    private IAgentCapabilityRegistry CapabilityRegistry { get; set; } = default!;
+
+    [Inject]
+    private IServiceProvider ServiceProvider { get; set; } = default!;
+
     protected override void OnInitialized()
     {
+        DiscoverToolOptions();
+
         // Seed defaults on first load so the showcase starts in a known state.
         if (Store.Get(ShowcaseAgentName) is null)
         {
@@ -157,6 +158,29 @@
                 }
             }
         }
+    }
+
+    private void DiscoverToolOptions()
+    {
+        var tools = new List<ToolOption>();
+
+        foreach (var tool in ServiceToolRegistry.GetTools())
+        {
+            tools.Add(new ToolOption(tool.Name, $"[Service] {tool.Name}: {tool.Description}", "Service Tool"));
+        }
+
+        foreach (var cap in CapabilityRegistry.GetCapabilities(ServiceProvider))
+        {
+            foreach (var action in cap.Actions)
+            {
+                var label = $"[Capability] {action.Name} ({cap.Name})";
+                if (action.RequiresApproval)
+                    label += " \u26a0 Approval";
+                tools.Add(new ToolOption(action.ActionId, label, cap.Name));
+            }
+        }
+
+        _toolOptions = tools;
     }
 
     private void ToggleTool(string toolId, bool enabled)
@@ -198,8 +222,7 @@
         Store.Configure(
             ShowcaseAgentName,
             _personaApplied ? _persona : null,
-            _enabledToolIds.Count == _toolOptions.Count ? null : new HashSet<string>(_enabledToolIds, StringComparer.OrdinalIgnoreCase));
+            _enabledToolIds.Count == _toolOptions.Count ? null : new HashSet<string>(_enabledToolIds,
+StringComparer.OrdinalIgnoreCase));
     }
-
-    private sealed record ToolOption(string Id, string Label);
 }

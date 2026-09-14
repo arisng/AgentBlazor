@@ -1,7 +1,9 @@
 @page "/demo/agent-builder"
 @layout DemoLayout
 @using AgentBlazor.Agents
+@using AgentBlazor.App
 @using AgentBlazor.Components
+@using AgentBlazor.Core.Runtime.Tools
 @using AgentBlazor.Demo.Services
 @using MudBlazor
 
@@ -40,13 +42,19 @@
 
                 <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">Enabled tools</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
-                    Whitelist of logical tool ids. Empty = no filtering.
+                    Whitelist of logical tool ids. Empty = no filtering. Discovered dynamically from
+                    <Code>IAgentServiceToolRegistry</Code> and <Code>IAgentCapabilityRegistry</Code>.
                 </MudText>
-                @foreach (var tool in _toolOptions)
+                @foreach (var group in _toolOptions.GroupBy(t => t.Category).OrderBy(g => g.Key))
                 {
-                    <MudCheckBox T="bool" Label="@tool.Label"
-                                 Value="@_enabledToolIds.Contains(tool.Id)"
-                                 ValueChanged="@(value => ToggleTool(tool.Id, value))" />
+                    <MudText Typo="Typo.caption" Color="Color.Primary" Class="mt-2 mb-0"
+                             Style="font-weight:600;">@group.Key</MudText>
+                    @foreach (var tool in group)
+                    {
+                        <MudCheckBox T="bool" Label="@tool.Label"
+                                     Value="@_enabledToolIds.Contains(tool.Id)"
+                                     ValueChanged="@(value => ToggleTool(tool.Id, value))" />
+                    }
                 }
 
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
@@ -117,13 +125,9 @@
 </style>
 
 @code {
-    private sealed record ToolOption(string Id, string Label);
+    private sealed record ToolOption(string Id, string Label, string Category);
 
-    private static readonly IReadOnlyList<ToolOption> _toolOptions =
-    [
-        new("lookup-glossary", "Look up a glossary term"),
-        new("current-time", "Return the current UTC time")
-    ];
+    private IReadOnlyList<ToolOption> _toolOptions = [];
 
     private readonly HashSet<string> _enabledToolIds = new(StringComparer.OrdinalIgnoreCase);
 
@@ -140,9 +144,49 @@
     [Inject]
     private DatabaseBackedAgentRegistry Registry { get; set; } = default!;
 
+    [Inject]
+    private IAgentServiceToolRegistry ServiceToolRegistry { get; set; } = default!;
+
+    [Inject]
+    private IAgentCapabilityRegistry CapabilityRegistry { get; set; } = default!;
+
+    [Inject]
+    private IServiceProvider ServiceProvider { get; set; } = default!;
+
     protected override void OnInitialized()
     {
+        DiscoverToolOptions();
         Refresh();
+    }
+
+    /// <summary>
+    /// Dynamically discovers all available tools from the global service-tool
+    /// registry and the capability registry, replacing the former hardcoded list.
+    /// </summary>
+    private void DiscoverToolOptions()
+    {
+        var tools = new List<ToolOption>();
+
+        // 1. Global service tools (AddTool / UseMcpServer)
+        foreach (var tool in ServiceToolRegistry.GetTools())
+        {
+            tools.Add(new ToolOption(tool.Name, $"[Service] {tool.Name}: {tool.Description}", "Service Tool"));
+        }
+
+        // 2. Capability actions (AddCapability<T>)
+        foreach (var cap in CapabilityRegistry.GetCapabilities(ServiceProvider))
+        {
+            foreach (var action in cap.Actions)
+            {
+                // ActionId is the full composite id: {capabilityId}.{localActionId}
+                var label = $"[Capability] {action.Name} ({cap.Name})";
+                if (action.RequiresApproval)
+                    label += " \u26a0 Approval";
+                tools.Add(new ToolOption(action.ActionId, label, cap.Name));
+            }
+        }
+
+        _toolOptions = tools;
     }
 
     private void Refresh()

@@ -61,6 +61,11 @@ if (string.IsNullOrWhiteSpace(demoConversationOptions.ConnectionString))
         $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo-conversations.db")}";
 }
 
+// Per-session usage rollups for the session browser. The Null query is the default
+// (JsonFile/InMemory stores have no usage columns); the EFCore branch below replaces
+// it with the SQLite-backed query.
+builder.Services.AddSingleton<IDemoConversationUsageQuery, NullDemoConversationUsageQuery>();
+
 // EF Core conversation store (DemoConversation:Store=EFCore) — a custom
 // IConversationStore implementation demonstrating the production-database pattern.
 // SQLite-backed, durable, uses an IDbContextFactory so the singleton store never
@@ -70,6 +75,7 @@ if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.Ordi
     builder.Services.AddDbContextFactory<DemoConversationDbContext>(options =>
         options.UseSqlite(demoConversationOptions.ConnectionString));
     builder.Services.AddSingleton<DemoConversationDatabaseInitializer>();
+    builder.Services.AddSingleton<IDemoConversationUsageQuery, DemoConversationUsageQuery>();
     builder.Services.Configure<ConversationOptions>(conversationOptions =>
     {
         conversationOptions.MaxTurnsPerSession = demoConversationOptions.MaxTurnsPerSession;
@@ -80,6 +86,9 @@ builder.Services.AddHttpClient("demo-remote-storage");
 builder.Services.AddSingleton<IDemoRemoteStorageAdapter, DemoRemoteStorageAdapter>();
 builder.Services.AddSingleton<IDemoChatRequestLog, JsonlDemoChatRequestLog>();
 builder.Services.AddSingleton<IDemoTrafficLog, JsonlDemoTrafficLog>();
+// Single source of truth for token pricing — shared by the JSONL request log and the
+// EF Core conversation store so both agree on what a turn cost.
+builder.Services.AddSingleton<DemoUsageCostCalculator>();
 builder.Services.AddSingleton<DemoSessionBrowserService>();
 builder.Services.AddSingleton<AgentBlazor.Core.Paid.IAdaptiveSuggestionService, DemoSuggestionService>();
 
@@ -300,6 +309,7 @@ builder.Services.AddAgentBlazor(options =>
         {
             abBuilder.UseConversationStore(sp => new DemoConversationStore(
                 sp.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>(),
+                sp.GetRequiredService<DemoUsageCostCalculator>(),
                 sp.GetService<IOptions<ConversationOptions>>()));
         }
 
@@ -351,6 +361,7 @@ builder.Services.AddAgentBlazor(options =>
         abBuilder.AddCapability<ReleaseDossierCapabilities>();
         abBuilder.AddCapability<RuntimeProbeCapabilities>();
         abBuilder.AddCapability<CustomizationDemoCapabilities>();
+        abBuilder.AddCapability<DemoAssemblyCapabilities>();
 
         // Runtime customization showcase: persona + tool set edited live on
         // /demo/customization via the IAgentRuntimeCustomizer seam.
