@@ -2,21 +2,18 @@
 name: ab-demo-feature-overseer
 description: >-
   Oversee and audit every demoable feature in the AgentBlazor.Demo project
-  (demo/AgentBlazor.Demo) and maintain the empirical, evidence-gated features
-  catalog. Use when auditing which AgentBlazor features are implemented in the
-  Demo app, verifying whether a feature is actually wired (agents, workflow
-  capabilities, agent actions, approvals, clarifications, agent-controllable
-  components, chat surfaces, providers, inspector, middleware, logging, routes,
-  launchpad scenarios), updating the Demo features catalog
+  (demo/AgentBlazor.Demo) and maintain the evidence-gated features catalog. Use
+  when auditing which AgentBlazor features are implemented in the Demo app,
+  verifying whether a feature is actually wired (agents, workflow capabilities,
+  agent actions, approvals, clarifications, agent-controllable components, chat
+  surfaces, providers, inspector, middleware, logging, routes, launchpad
+  scenarios), updating the Demo features catalog
   (references/demo-features-catalog.md), or extending the Demo with a new
   demoable feature. Runs the probe-based audit script
   (scripts/audit-demo-features.ps1) for evidence and routes implementation detail
-  to the relevant ab-* skill (ab-agent-registration, ab-capability-authoring,
-  ab-chat-composer, ab-chat-session-management, ab-context-assembly,
-  ab-conversation-store, ab-entity-design, ab-in-chat-features, ab-inspector,
-  ab-middleware-authoring, ab-mud-components, ab-provider-config, ab-testing).
-  Triggers: "what features are demoed", "is feature X implemented in the Demo",
-  "Demo features catalog", "audit the Demo project", "verify feature is wired".
+  to the relevant ab-* skill. Triggers: "what features are demoed", "is feature
+  X implemented in the Demo", "Demo features catalog", "audit the Demo project",
+  "verify feature is wired".
 metadata:
   version: 0.2.0
 ---
