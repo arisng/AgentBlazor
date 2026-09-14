@@ -69,6 +69,7 @@ classes, 44 agent actions, 11 approvals, 3 clarification sites, 18 component fam
 | Generated-UI cards (`EnableGeneratedUi`) | ✅ | `EnableGeneratedUi=true` on both surfaces | `ab-in-chat-features` |
 | Session key isolation | ✅ | `SessionId` from `ComponentRegistry.SessionId` | `ab-chat-session-management` |
 | Conversation persistence (durable store) | ✅ | `UseJsonFileConversationStore` (default `Store=JsonFile`) or `UseConversationStore(DemoConversationStore)` when `Store=EFCore` (appsettings); InMemory only if explicitly set | `ab-conversation-store` |
+| Token usage & cost persistence | ✅ | `ConversationTurn.Usage` → `demo_conversation_turns` columns (`PromptTokens`/`EstimatedCost`/rate snapshot incl. `CachedInputTokenCostPerMillion`); `DemoTokenPricing` section (cached rate 0.0075); `DemoUsageCostCalculator` shared with JSONL log; `DemoConversationUsageQuery` + session-browser chips with cache-hit % and K/M/B formatting; idempotent column upgrade in `DemoConversationDatabaseInitializer` | `ab-conversation-store` |
 | Session browser / history resume | ✅ | `SessionBrowser.razor` master-detail + New-chat picker + `AgentChatSurface` (`DefaultAgentName` + base `SessionId`, no lock, handoff off); `DemoSessionBrowserService` (`GetActiveSessionsAsync`/`GetHistoryAsync`/`GetAvailableAgents`/`BuildNewBaseSessionId`); `?session=` deep link; widget suppressed on `/demo/sessions` | `ab-chat-session-management` |
 | Suggestion chips / predefined prompts | ⛔ | no `PredefinedPrompts`/`Suggestions` params | `ab-in-chat-features` |
 | Proactive insights | ⛔ | no proactive-insight wiring; only host-side workflow "insight" panels | `ab-in-chat-features` |
@@ -137,7 +138,7 @@ classes, 44 agent actions, 11 approvals, 3 clarification sites, 18 component fam
 |---|---|---|---|---|
 | Agents & registration | 8 | 0 | 1 | 2 |
 | Capabilities & actions | 6 | 0 | 0 | 2 |
-| Chat & conversation | 4 | 0 | 1 | 5 |
+| Chat & conversation | 5 | 0 | 1 | 5 |
 | MudBlazor components | 15 | 0 | 0 | 1 |
 | Inspector & observability | 6 | 0 | 0 | 1 |
 | Provider & runtime | 5 | 1 | 0 | 2 |

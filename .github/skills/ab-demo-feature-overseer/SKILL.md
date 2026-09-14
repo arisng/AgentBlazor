@@ -15,7 +15,7 @@ description: >-
   X implemented in the Demo", "Demo features catalog", "audit the Demo project",
   "verify feature is wired".
 metadata:
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # Demo Feature Overseer

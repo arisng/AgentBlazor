@@ -119,6 +119,21 @@ Since no built-in session list component exists, build one using `IConversationS
 }
 ```
 
+### Showing token usage & cost in a session browser (proven Demo pattern)
+
+`IConversationStore` exposes turns only; token/cost rollups are a consumer concern:
+
+- Add a consumer query service over your store's DB (Demo: `IDemoConversationUsageQuery` /
+  `DemoConversationUsageQuery`) returning per-session totals (`PromptTokens`,
+  `CompletionTokens`, `CachedInputTokens`, `TotalTokens`, `EstimatedCost`, currency).
+- Register a **Null implementation** when the store backend has no usage columns
+  (JsonFile/InMemory) so the browser never branches on the backend — mirror the library's
+  Null-store convention.
+- Display: labelled chips in the detail header (`Prompt 2M · Completion 500K · Cached 800K ·
+  Cache hit 40% · Total 2.5M · $0.00045 USD`), a compact `in / out` split with a full hover
+  breakdown in the list. Cache-hit % = `CachedInputTokens / PromptTokens × 100` (hide when
+  there is no prompt usage). Format tokens with K/M/B abbreviations (`1.5M`, not `1500K`).
+
 For richer display (showing turn count, last activity, summary), call `GetHistoryAsync()` for each session:
 
 ```csharp

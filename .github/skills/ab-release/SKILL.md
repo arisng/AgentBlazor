@@ -13,7 +13,7 @@ AgentBlazor uses **semver** with the following pattern:
 - **Minor**: New features (e.g., `0.2.24`)
 - **Patch**: Bug fixes (e.g., `0.2.24-internal.1`)
 
-**Current version**: `0.2.24-internal.1` (private build)
+**Current version**: `0.2.25-internal.2` (private build)
 
 ## Version Updates
 

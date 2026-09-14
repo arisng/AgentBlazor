@@ -2,7 +2,7 @@
 name: ab-chat-session-management
 description: "Manage agent chat sessions — browse past conversations, select and resume sessions, and hydrate chat UI from stored history. Use when building session browser/selector UIs, wiring session selection to AgentChatSurface/AgentChatWidget, querying IConversationStore for active or user-scoped sessions (GetActiveSessionsAsync, GetSessionsForUserAsync, GetHistoryAsync), understanding the session-key isolation model (AgentConversationScope), setting up user-to-session associations (SetUserIdAsync), or working with the AgentChatSurface hydration pipeline (HydrateTimelineFromHistoryAsync, TryResumeActiveRunAsync). Triggers: session browser, session list, resume chat, browse past chats, session selector, chat history browser, switch session, load session, session management."
 metadata:
-    version: 0.3.0
+    version: 0.3.1
 ---
 
 # Chat Session Management — AgentBlazor

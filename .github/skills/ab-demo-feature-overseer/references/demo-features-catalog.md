@@ -168,6 +168,12 @@ customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
 - **Audit evidence**: `UseJsonFileConversationStore` / `UseConversationStore(DemoConversationStore)` calls in demo source; `demo_conversation_sessions`/`demo_conversation_turns` tables.
 - **ab\* skill**: `ab-conversation-store`.
 
+### Token usage & cost persistence
+- **Status**: implemented — per-turn token usage + estimated cost persisted on `demo_conversation_turns` (EF Core store only), surfaced per-session in the session browser.
+- **Where**: `src/AgentBlazor.Core/Runtime/Conversation/ConversationTurnUsage.cs` (library turn usage, populated from `AgentTurnResponse.Usage`); `Configuration/DemoTokenPricingOptions.cs` + `DemoTokenPricing` section (input 0.15 / output 0.60 / cached 0.0075 per 1M); `Services/DemoUsageCostCalculator.cs` (shared pricing — JSONL log + DB agree, cached tokens billed at the discounted rate); `Services/DemoConversationStore.cs` (write on append + patch on update); `Services/DemoConversationUsageQuery.cs` (per-session rollups); `Services/DemoConversationDatabaseInitializer.cs` (idempotent additive column upgrade, no migrations); `Components/Pages/Demo/SessionBrowser.razor` (token/cost chips, cache-hit %, K/M/B formatting).
+- **Audit evidence**: `ConversationTurnUsage.FromUsageDetails` in `RuntimePersistenceRecords` + `AgentChatSurface`; `PromptTokens`/`EstimatedCost`/`InputTokenCostPerMillion`/`CachedInputTokenCostPerMillion` columns in `demo_conversation_turns`; `DemoTokenPricing` keys in `appsettings.json`; `GetCacheHitPercent` + `FormatTokens` (K/M/B) in `SessionBrowser.razor`; `IDemoConversationUsageQuery` registrations in `Program.cs` (Null default, SQLite-backed when `Store=EFCore`).
+- **ab\* skill**: `ab-conversation-store`.
+
 ## Agent-controllable components (MudBlazor)
 
 All statuses `implemented`; pages per `components[].files`.

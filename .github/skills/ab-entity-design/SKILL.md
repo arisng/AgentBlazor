@@ -2,7 +2,7 @@
 name: ab-entity-design
 description: "Design EF Core domain entities for AgentBlazor with concrete relationships supporting multitenancy and session identity resolution. Use when modeling ConversationSessionEntity, ConversationTurnEntity, TenantInfo entities; deciding between composite keys vs surrogate keys; designing FK cascades and indexes; adding multitenancy columns (TenantId); handling IsolateConversationsByAgent entity implications; adding audit columns, soft delete, or concurrency tokens; choosing between JSON columns vs owned entity types; or planning EF Core migrations. Triggers: entity design, domain entities, EF Core entities, entity relationships, FK cascade, composite key, global query filter, TenantId column, BaseSessionId, AgentName, ConversationSessionEntity, ConversationTurnEntity, owned entity types, split queries, concurrency token, audit columns, soft delete."
 metadata:
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # Entity Design — AgentBlazor
@@ -139,6 +139,21 @@ public sealed class ConversationTurnEntity
     public ConversationSessionEntity Session { get; set; } = null!;
 }
 ```
+
+### Token usage & cost columns (consumer extension)
+
+The library turn carries raw usage (`ConversationTurn.Usage`), so consumer turn entities
+commonly add these columns (proven in the Demo's `demo_conversation_turns`):
+
+| Column | Type | Notes |
+|---|---|---|
+| `PromptTokens` / `CompletionTokens` / `TotalTokens` / `CachedInputTokens` | `long?` | Raw provider counts; null when the turn never reached the model |
+| `EstimatedCost` | `decimal?` | Consumer-priced; SQLite: `HasConversion<double>()` so SUM/ORDER BY work (REAL) |
+| `EstimatedCostCurrency` | `string?` | e.g. `USD` |
+| `InputTokenCostPerMillion` / `OutputTokenCostPerMillion` / `CachedInputTokenCostPerMillion` | `decimal?` | Rate snapshot for auditability after rate changes |
+
+Cost is consumer policy — never part of the library turn. See `ab-conversation-store`
+("Turn usage & cost persistence").
 
 ## Entity Design Principles
 

@@ -2,7 +2,7 @@
 name: ab-conversation-store
 description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; implementing incremental persistence operations (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync) keyed by ConversationTurn.TurnId; wiring UseJsonFileConversationStore; or enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore. Consumer-side only; never edit package internals. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, TurnId, conversation persistence, incremental persistence, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, UseProLicense, agent action persistence, action history SQL."
 metadata:
-    version: 0.3.0
+    version: 0.3.1
 ---
 
 # Conversation Store — AgentBlazor
@@ -161,9 +161,35 @@ The store API must **never trust a client-supplied UserId**. Resolve it server-s
 - `/user` and `/active` collections are **self-scoped**: they always filter by the caller's own id — the client cannot query another user's conversations.
 - Do not accept `UserId` on wire contracts (e.g., `AppendTurnRequest`); the caller id is the only identity source.
 
+## Turn usage & cost persistence (`ConversationTurn.Usage`)
+
+Since v0.2.25 the library turn carries raw provider usage:
+
+- `ConversationTurn.Usage` (`ConversationTurnUsage`) — `InputTokens` / `OutputTokens` /
+  `TotalTokens` / `CachedInputTokens`, projected from `AgentTurnResponse.Usage` via
+  `ConversationTurnUsage.FromUsageDetails` at both turn-creation sites
+  (`RuntimePersistenceRecords.CreateConversationTurn`, `AgentChatSurface.CreateConversationTurn`).
+  Null for turns that never reached the model (short-circuits, no-agent, approval
+  continuations) — an unpriced turn is not the same as a free one.
+- **Any store can persist it** — the Demo's EF Core store writes it onto
+  `demo_conversation_turns` (`PromptTokens`/`CompletionTokens`/`TotalTokens`/
+  `CachedInputTokens`), patches it in `UpdateTurnAsync`, and maps it back in `MapToTurn`.
+  `AgentChatSurface.AreEquivalentTurns` compares `Usage`, so enriched turns re-patch usage.
+- **Cost is consumer policy, not part of the turn.** Price through ONE shared calculator
+  (the Demo's `DemoUsageCostCalculator`) so every surface (JSONL log, DB, cost caps) agrees.
+  Cached input tokens are a discounted subset of input — price them at a separate cached
+  rate (`DemoTokenPricing:CachedInputTokenCostPerMillion`, gpt-4o-mini = $0.0075/1M) and
+  clamp `cached ≤ input`. Snapshot the rates onto each persisted row so historical cost
+  stays auditable after a rate change.
+- **Schema evolution without migrations** — `EnsureCreatedAsync` never evolves an existing
+  DB. For SQLite, add missing columns idempotently at startup (`PRAGMA table_info` +
+  `ALTER TABLE ADD COLUMN`, duplicate-column race guard) — the Demo's
+  `DemoConversationDatabaseInitializer` pattern. For SQL Server use EF migrations (see
+  `references/ef-core-sqlserver.md`).
+
 ## Usage-record model (ConversationId-keyed)
 
-> **Scope note:** this is the **BFF/API-layer usage contract** (e.g. Playground.Lifeline's `AgentUsageRecords`). The library's own `IUsageAnalyticsService` (`SqliteUsageAnalyticsService`) instead derives aggregates directly from the `action_history` table — these are two different things.
+> **Scope note:** this is the **BFF/API-layer usage contract** (e.g. Playground.Lifeline's `AgentUsageRecords`). The library's own `IUsageAnalyticsService` (`SqliteUsageAnalyticsService`) instead derives aggregates directly from the `action_history` table — and `ConversationTurn.Usage` (see "Turn usage & cost persistence" above) is the per-turn model stores persist. These are three different things.
 
 LLM usage analytics are stored separately from conversation turns (`AgentUsageRecord`):
 

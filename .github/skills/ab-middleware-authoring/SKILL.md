@@ -259,3 +259,5 @@ Reference implementation: `UsageRecordingMiddleware` in `Playground.Lifeline/Ser
 - **Transport** — POST via an auth-wired `HttpClient` resolved from `IAgentExecutionScopeAccessor.Current` (circuit scope), with an `IServiceScopeFactory` fallback for HTTP-endpoint paths.
 - **Never throw** — the whole capture/POST is wrapped in try/catch; failures are logged as warnings, never propagated into the turn.
 - **Store-mode gate** — register the middleware only when the tenant-backed conversation store is enabled (usage persistence goes through the module API in that mode).
+- **Price cached input at the discounted rate** — `UsageDetails.CachedInputTokenCount` is a subset of the input tokens; bill it at the provider's cached rate (e.g. gpt-4o-mini $0.0075/1M vs $0.15/1M) and clamp `cached ≤ input`.
+- **One calculator, all surfaces** — route every surface that prices a turn (request log, DB persistence, cost caps) through a single shared calculator so they can never disagree; snapshot the rates onto persisted rows for auditability. See `ab-conversation-store` ("Turn usage & cost persistence").

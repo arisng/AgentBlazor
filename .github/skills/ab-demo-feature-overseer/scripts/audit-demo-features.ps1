@@ -296,6 +296,9 @@ if (Test-Path $appSettings) {
                 rateLimitingEnabled         = $cfg.DemoSecurity.RateLimiting.Enabled
                 dailyCostLimitUsd           = $cfg.DemoLogging.DailyCostLimitUsd
                 remoteStorageAdapter        = $cfg.DemoRemoteStorage.Adapter
+                inputTokenCostPerMillion    = $cfg.DemoTokenPricing.InputTokenCostPerMillion
+                outputTokenCostPerMillion   = $cfg.DemoTokenPricing.OutputTokenCostPerMillion
+                cachedInputTokenCostPerMillion = $cfg.DemoTokenPricing.CachedInputTokenCostPerMillion
             }
         }
     } catch { Write-Warning "Could not parse appsettings.json: $_" }
