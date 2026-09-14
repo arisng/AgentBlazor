@@ -17,3 +17,7 @@ body {
 a {
     color: inherit;
 }
+
+.mud-paper {
+    background-color: unset !important;
+}

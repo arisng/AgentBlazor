@@ -4,9 +4,10 @@
 #
 # Usage:
 #   task                     → lists all tasks
-#   task demo                → run demo with EF Core store (default)
-#   task demo:run:jsonfile   → run demo with JsonFile store
-#   task demo:run:inmemory   → run demo with InMemory store
+#   task demo                → run Demo with EF Core store (default)
+#   task demo:run:jsonfile   → run Demo with JsonFile store
+#   task starter             → run Starter sample (default)
+#   task starter:run:openai  → run Starter with OpenAI provider
 #   task build               → build entire solution (Release)
 #   task test                → run all unit/integration tests
 #   task pack                → pack all NuGet packages
@@ -20,14 +21,9 @@ version: '3'
 
 vars:
   DEMO_PROJECT: demo/AgentBlazor.Demo/AgentBlazor.Demo.csproj
+  STARTER_PROJECT: samples/AgentBlazor.Starter/AgentBlazor.Starter.csproj
   SOLUTION: AgentBlazor.slnx
   E2E_DIR: tests/e2e
-  OPENAI_API_KEY:
-    sh: echo ${OPENAI_API_KEY:-}
-  OPENAI_MODEL:
-    sh: echo ${OPENAI_MODEL:-gpt-4o-mini}
-  OLLAMA_MODEL:
-    sh: echo ${OLLAMA_MODEL:-qwen2.5-coder:7b}
 
 # ── Global environment ────────────────────────────────────────────────────────
 env:
@@ -213,10 +209,12 @@ tasks:
     env:
       DemoConversation__Store: EFCore
       ASPNETCORE_ENVIRONMENT: Development
-      OPENAI_API_KEY: '{{.OPENAI_API_KEY}}'
-      OPENAI_MODEL: '{{.OPENAI_MODEL}}'
     preconditions:
-      - sh: test -n "{{.OPENAI_API_KEY}}"
+      - sh: test -n "$OPENAI_API_KEY"
+        platforms: [linux, darwin]
+        msg: "Set OPENAI_API_KEY environment variable first"
+      - cmd: if "%OPENAI_API_KEY%"=="" exit /b 1
+        platforms: [windows]
         msg: "Set OPENAI_API_KEY environment variable first"
     cmds:
       - dotnet run --project {{.DEMO_PROJECT}} -c Release
@@ -275,6 +273,80 @@ tasks:
         platforms: [windows]
       - cmd: rm -f /tmp/agentblazor-demo.db /tmp/agentblazor-demo-conversations.db
         platforms: [linux, darwin]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  STARTER SAMPLE — Build & Run
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  starter:build:
+    desc: Build the Starter sample (Release)
+    cmds:
+      - dotnet build {{.STARTER_PROJECT}} -c Release
+
+  starter:build:debug:
+    desc: Build the Starter sample (Debug)
+    cmds:
+      - dotnet build {{.STARTER_PROJECT}} -c Debug
+
+  starter:
+    desc: "Run Starter sample (no provider configured)"
+    aliases: [s]
+    summary: >-
+      Launches the Starter Blazor app with JsonFile conversation store.
+      No LLM provider configured — useful for UI-only testing.
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.STARTER_PROJECT}} -c Release
+
+  starter:run:openai:
+    desc: "Run Starter with OpenAI provider (requires OPENAI_API_KEY)"
+    summary: >-
+      Durable JsonFile conversation store with OpenAI as the LLM provider.
+      Set OPENAI_API_KEY and optionally OPENAI_MODEL before running.
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+    preconditions:
+      - sh: test -n "$OPENAI_API_KEY"
+        platforms: [linux, darwin]
+        msg: "Set OPENAI_API_KEY environment variable first"
+      - cmd: if "%OPENAI_API_KEY%"=="" exit /b 1
+        platforms: [windows]
+        msg: "Set OPENAI_API_KEY environment variable first"
+    cmds:
+      - dotnet run --project {{.STARTER_PROJECT}} -c Release
+
+  starter:run:ollama:
+    desc: "Run Starter with Ollama provider (local, requires Ollama running)"
+    summary: >-
+      Durable JsonFile conversation store with Ollama as the LLM provider.
+      Ollama must be running locally on the default endpoint.
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      OLLAMA_MODEL: $OLLAMA_MODEL
+      OLLAMA_ENDPOINT: 'http://127.0.0.1:11434/v1'
+    cmds:
+      - dotnet run --project {{.STARTER_PROJECT}} -c Release
+
+  starter:run:debug:
+    desc: "Run Starter in Debug mode (no provider)"
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+    cmds:
+      - dotnet run --project {{.STARTER_PROJECT}} -c Debug
+
+  starter:watch:
+    desc: Run Starter with dotnet watch (hot-reload on code changes)
+    cmds:
+      - dotnet watch run --project {{.STARTER_PROJECT}} -c Debug
+
+  starter:new-agent:
+    desc: "Scaffold a new agent registration in the Starter sample"
+    summary: >-
+      Runs the AgentBlazor CLI init command in the Starter sample to create
+      a new agent registration with the required attributes and boilerplate.
+    cmds:
+      - dotnet run --project {{.STARTER_PROJECT}}
 
   # ═══════════════════════════════════════════════════════════════════════════
   #  END-TO-END TESTS
@@ -407,7 +479,7 @@ tasks:
   #  DEVELOPMENT SHORTCUTS
   # ═══════════════════════════════════════════════════════════════════════════
 
-  watch:
+  demo:watch:
     desc: Run Demo with dotnet watch (hot-reload on code changes)
     cmds:
       - dotnet watch run --project {{.DEMO_PROJECT}} -c Debug
@@ -420,14 +492,6 @@ tasks:
       - task: format:verify
       - task: css:check
       - task: test
-
-  new-agent:
-    desc: "Scaffold a new agent registration (interactive, uses Starter sample)"
-    summary: >-
-      Runs the AgentBlazor CLI init command in the Starter sample to create
-      a new agent registration with the required attributes and boilerplate.
-    cmds:
-      - dotnet run --project samples/AgentBlazor.Starter/AgentBlazor.Starter.csproj
 
   # ═══════════════════════════════════════════════════════════════════════════
   #  INFO & HELPERS
