@@ -34,8 +34,8 @@ prompt mentions it.
 ### 4. Which-skill question
 **Prompt:** "Which skill should I use to persist conversations to SQL Server
 and still browse them later?"
-**Expected:** Chains `ab-conversation-store` → `ab-chat-session-management`,
-naming both and the order.
+**Expected:** Chains `ab-entity-design` → `ab-conversation-store` →
+`ab-chat-session-management`, naming all three and the order.
 
 ### 5. Multi-skill UI + persistence
 **Prompt:** "Build a session browser so users can resume past chats."

@@ -30,6 +30,7 @@ contribution) are not in the plugin and not covered here.
 | 7 | `ab-in-chat-features` | Approvals, clarifications, handoff, generated UI, chips, slash commands |
 | 8 | `ab-chat-session-management` | Session browse/resume/hydrate from stored history |
 | 9 | `ab-conversation-store` | `IConversationStore` implementations, incremental persistence, action history |
+| 10 | `ab-entity-design` | EF Core entities, multitenancy columns, migrations |
 | 10 | `ab-middleware-authoring` | `IAgentTurnMiddleware` authoring, cross-cutting concerns |
 | 11 | `ab-inspector` | Agent Inspector, dev tools, run/event/prompt/state replay |
 | 12 | `ab-provider-config` | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning |
@@ -71,7 +72,7 @@ contribution) are not in the plugin and not covered here.
 
 - **Foundation before surface**: registration (`ab-agent-registration`) before
   capabilities/tools/components; those before prompts and in-chat UX.
-- **Data before UI**: `ab-conversation-store` →
+- **Data before UI**: `ab-entity-design` → `ab-conversation-store` →
   `ab-chat-session-management` → chat-surface skills.
 - **Author before align**: `ab-capability-authoring` / `ab-tool-authoring`
   before `ab-prompt-engineering` (prompts must match the registered surface).
@@ -95,6 +96,7 @@ contribution) are not in the plugin and not covered here.
 | MudBlazor wrappers, generative UI blocks, controllable-component base classes | `ab-mud-components` |
 | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) | `ab-ui-integration` |
 | `IConversationStore` implementations, incremental persistence, action history | `ab-conversation-store` |
+| EF Core entities, multitenancy columns, migrations | `ab-entity-design` |
 | `IAgentTurnMiddleware` authoring, cross-cutting concerns | `ab-middleware-authoring` |
 | Agent Inspector, dev tools, run/event/prompt/state replay | `ab-inspector` |
 | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning | `ab-provider-config` |

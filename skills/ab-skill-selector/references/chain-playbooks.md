@@ -83,13 +83,17 @@ MudBlazor components, then wire the composer/surface.
 **Goal examples**: "Persist conversations to SQL Server", "switch from
 in-memory to a durable store", "enable action history".
 
-**Chain**: `ab-conversation-store` → `ab-chat-session-management` (hydration
-still works).
+**Chain**: `ab-conversation-store` → `ab-entity-design` (EF Core path) →
+`ab-chat-session-management` (hydration still works).
 
-**Why this order**: pick the store strategy first; then confirm session
-browsing/hydration behaves with the new store.
+**Why this order**: pick the store strategy first; if EF Core, design the
+entities that back it; then confirm session browsing/hydration behaves with
+the new store.
 
 **Handoff notes**:
+- → entity design: store requirements (incremental `UpdateTurnAsync` /
+  `DeleteTurnAsync` / `ReorderTurnsAsync` keyed by `TurnId`), multitenancy
+  needs.
 - → session management: store type + any `SetUserIdAsync` wiring.
 
 ## 5. Multi-tenant production deployment
@@ -97,14 +101,16 @@ browsing/hydration behaves with the new store.
 **Goal examples**: "Productionize AgentBlazor for SaaS with per-tenant
 databases and providers", "add Finbuckle tenant resolution".
 
-**Chain**: `ab-multitenancy` → `ab-middleware-authoring` →
-`ab-provider-config` → `ab-conversation-store`.
+**Chain**: `ab-multitenancy` → `ab-entity-design` → `ab-middleware-authoring`
+→ `ab-provider-config` → `ab-conversation-store`.
 
 **Why this order**: the deployment pattern defines the shape (tenant
-resolution, BFF), middleware enriches/cost-controls per tenant, provider
-options get pinned per tenant, and stores become per-tenant.
+resolution, BFF), entities carry `TenantId`, middleware enriches/cost-controls
+per tenant, provider options get pinned per tenant, and stores become
+per-tenant.
 
 **Handoff notes**:
+- → entity design: `TenantId` column requirements, isolation model.
 - → middleware: which cross-cutting concerns (cost control, tenant
   enrichment) the pattern requires.
 - → provider config: per-tenant `ChatOptions` pinning behind the proxy

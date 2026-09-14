@@ -13,7 +13,8 @@ multiple areas and you need each skill's boundaries.
 5. [ab-cli](#ab-cli)
 6. [ab-context-assembly](#ab-context-assembly)
 7. [ab-conversation-store](#ab-conversation-store)
-8. [ab-in-chat-features](#ab-in-chat-features)
+8. [ab-entity-design](#ab-entity-design)
+9. [ab-in-chat-features](#ab-in-chat-features)
 9. [ab-inspector](#ab-inspector)
 10. [ab-middleware-authoring](#ab-middleware-authoring)
 11. [ab-mud-components](#ab-mud-components)
@@ -141,6 +142,22 @@ multiple areas and you need each skill's boundaries.
 - **Boundaries**: does NOT cover session-browser UIs
   (`ab-chat-session-management`).
 - **Related**: `ab-chat-session-management`, `ab-multitenancy`.
+
+## ab-entity-design
+
+- **Scope**: EF Core domain entities — `ConversationSessionEntity`,
+  `ConversationTurnEntity`, `TenantInfo`; composite vs surrogate keys; FK
+  cascades and indexes; multitenancy columns (`TenantId`);
+  `IsolateConversationsByAgent` implications; audit columns, soft delete,
+  concurrency tokens; JSON columns vs owned entity types; migrations.
+- **Signals**: entity design, domain entities, EF Core entities, entity
+  relationships, FK cascade, composite key, global query filter, `TenantId`
+  column, `BaseSessionId`, `AgentName`, owned entity types, split queries,
+  concurrency token, audit columns, soft delete.
+- **Boundaries**: entity design only; store wiring is
+  `ab-conversation-store`, tenant resolution is `ab-multitenancy`.
+- **Related**: `ab-conversation-store`, `ab-multitenancy`,
+  `ab-agent-registration` (store-backed registries).
 
 ## ab-in-chat-features
 
