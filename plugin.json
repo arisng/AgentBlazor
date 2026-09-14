@@ -17,24 +17,5 @@
     "workflow",
     "capability",
     "multitenancy"
-  ],
-  "skills": [
-    ".github/skills/ab-agent-registration",
-    ".github/skills/ab-capability-authoring",
-    ".github/skills/ab-chat-composer",
-    ".github/skills/ab-chat-session-management",
-    ".github/skills/ab-cli",
-    ".github/skills/ab-context-assembly",
-    ".github/skills/ab-conversation-store",
-    ".github/skills/ab-in-chat-features",
-    ".github/skills/ab-inspector",
-    ".github/skills/ab-middleware-authoring",
-    ".github/skills/ab-mud-components",
-    ".github/skills/ab-multitenancy",
-    ".github/skills/ab-prompt-engineering",
-    ".github/skills/ab-provider-config",
-    ".github/skills/ab-remote-chat",
-    ".github/skills/ab-tool-authoring",
-    ".github/skills/ab-ui-integration"
   ]
 }
