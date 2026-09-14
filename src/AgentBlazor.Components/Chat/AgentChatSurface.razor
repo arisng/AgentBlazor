@@ -1454,7 +1454,8 @@
             PlannedActions = response.LegacyPlannedActions,
             ExecutionResults = response.LegacyExecutionResults,
             ExecutionPlan = response.ExecutionPlan,
-            GeneratedUi = response.GeneratedUi
+            GeneratedUi = response.GeneratedUi,
+            Usage = ConversationTurnUsage.FromUsageDetails(response.Usage)
         };
 
     private static bool AreEquivalentTurns(ConversationTurn left, ConversationTurn right)
@@ -1464,6 +1465,7 @@
                left.HasNormalizedExecutionPlan == right.HasNormalizedExecutionPlan &&
                left.LegacyPlannedActions.Count == right.LegacyPlannedActions.Count &&
                left.LegacyExecutionResults.Count == right.LegacyExecutionResults.Count &&
+               left.Usage == right.Usage &&
                GetExecutionPlanSignature(left.ExecutionPlan) == GetExecutionPlanSignature(right.ExecutionPlan);
     }
 

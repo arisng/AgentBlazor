@@ -19,7 +19,8 @@ internal static class RuntimePersistenceRecords
             PlannedActions = response.LegacyPlannedActions,
             ExecutionResults = response.LegacyExecutionResults,
             ExecutionPlan = response.ExecutionPlan,
-            GeneratedUi = response.GeneratedUi
+            GeneratedUi = response.GeneratedUi,
+            Usage = Conversation.ConversationTurnUsage.FromUsageDetails(response.Usage)
         };
     }
 

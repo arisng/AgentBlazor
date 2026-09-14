@@ -79,6 +79,18 @@ public sealed record ConversationTurn
     public AgentUiDocument? GeneratedUi { get; init; }
 
     /// <summary>
+    /// Token usage reported by the model provider for this turn, when available.
+    /// <see langword="null"/> for turns that never reached the model (short-circuited,
+    /// no-agent, or approval-continuation turns) and for providers that omit usage.
+    /// <para>
+    /// Stores persist this so per-turn and per-session token accounting survives
+    /// restarts. Cost is not part of the turn — consumers derive it from these counts
+    /// and their own pricing policy.
+    /// </para>
+    /// </summary>
+    public ConversationTurnUsage? Usage { get; init; }
+
+    /// <summary>
     /// Whether any actions were successfully executed.
     /// </summary>
     public bool HasSuccessfulActions =>
