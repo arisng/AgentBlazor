@@ -70,10 +70,13 @@ public class DemoChatRequestLoggingMiddlewareTests
         };
 
         var requestLog = new JsonlDemoChatRequestLog(Microsoft.Extensions.Options.Options.Create(options));
+        var costCalculator = new DemoUsageCostCalculator(
+            Microsoft.Extensions.Options.Options.Create(new DemoTokenPricingOptions()));
         return new DemoChatRequestLoggingMiddleware(
             requestLog,
             Microsoft.Extensions.Options.Options.Create(options),
             Microsoft.Extensions.Options.Options.Create(new AgentBlazorOptions()),
+            costCalculator,
             NullLogger<DemoChatRequestLoggingMiddleware>.Instance);
     }
 
