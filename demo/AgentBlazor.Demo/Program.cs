@@ -36,6 +36,7 @@ builder.Services.AddScoped<ResponseOrchestrationWorkflowService>();
 builder.Services.AddScoped<ReleaseDossierWorkflowService>();
 builder.Services.Configure<DemoSecurityOptions>(builder.Configuration.GetSection(DemoSecurityOptions.SectionName));
 builder.Services.Configure<DemoLoggingOptions>(builder.Configuration.GetSection(DemoLoggingOptions.SectionName));
+builder.Services.Configure<DemoTokenPricingOptions>(builder.Configuration.GetSection(DemoTokenPricingOptions.SectionName));
 builder.Services.Configure<DemoRemoteStorageOptions>(builder.Configuration.GetSection(DemoRemoteStorageOptions.SectionName));
 builder.Services.Configure<DemoConversationOptions>(builder.Configuration.GetSection(DemoConversationOptions.SectionName));
 builder.Services.Configure<DemoWorkflowOptions>(builder.Configuration.GetSection(DemoWorkflowOptions.SectionName));

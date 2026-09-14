@@ -35,6 +35,16 @@ internal sealed class DemoConversationDbContext(DbContextOptions<DemoConversatio
         turn.Property(static x => x.TurnId).HasMaxLength(64).IsRequired();
         turn.Property(static x => x.UserMessage).IsRequired();
         turn.Property(static x => x.AgentResponse).IsRequired();
+
+        // Token usage + estimated cost. SQLite has no decimal type, so EF Core would
+        // otherwise persist these as TEXT — which cannot be SUMmed or ORDERed
+        // numerically. Store them as REAL instead so per-session cost rollups work.
+        turn.Property(static x => x.EstimatedCost).HasConversion<double>();
+        turn.Property(static x => x.InputTokenCostPerMillion).HasConversion<double>();
+        turn.Property(static x => x.OutputTokenCostPerMillion).HasConversion<double>();
+        turn.Property(static x => x.CachedInputTokenCostPerMillion).HasConversion<double>();
+        turn.Property(static x => x.EstimatedCostCurrency).HasMaxLength(8);
+
         turn.HasOne(static x => x.Session)
             .WithMany(static s => s.Turns)
             .HasForeignKey(static x => x.SessionId)

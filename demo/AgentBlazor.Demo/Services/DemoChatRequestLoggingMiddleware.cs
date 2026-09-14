@@ -15,10 +15,12 @@ internal sealed class DemoChatRequestLoggingMiddleware(
     IDemoChatRequestLog requestLog,
     IOptions<DemoLoggingOptions> options,
     IOptions<AgentBlazorOptions> agentOptions,
+    DemoUsageCostCalculator costCalculator,
     ILogger<DemoChatRequestLoggingMiddleware> logger) : IAgentTurnMiddleware
 {
     private readonly DemoLoggingOptions _options = options.Value;
     private readonly AgentBlazorOptions _agentOptions = agentOptions.Value;
+    private readonly DemoUsageCostCalculator _costCalculator = costCalculator;
 
     public async Task InvokeAsync(
         AgentTurnContext context,
@@ -124,7 +126,10 @@ internal sealed class DemoChatRequestLoggingMiddleware(
         IReadOnlyList<AgentExecutionStep> executionSteps = executionPlan?.Steps ?? [];
         var failedExecutionCount = executionSteps.Count(static step =>
             step.Status is not AgentExecutionStepStatus.Completed);
-        var estimatedCost = EstimateCost(usage?.InputTokenCount, usage?.OutputTokenCount);
+        var estimatedCost = _costCalculator.EstimateCost(
+            usage?.InputTokenCount,
+            usage?.OutputTokenCount,
+            usage?.CachedInputTokenCount);
 
         return new DemoChatRequestLogEntry
         {
@@ -145,7 +150,7 @@ internal sealed class DemoChatRequestLoggingMiddleware(
             CompletionTokens = usage?.OutputTokenCount,
             TotalTokens = usage?.TotalTokenCount,
             EstimatedCost = estimatedCost,
-            EstimatedCostCurrency = estimatedCost is null ? null : "USD",
+            EstimatedCostCurrency = estimatedCost is null ? null : DemoUsageCostCalculator.Currency,
             RequiresApproval = response?.RequiresApproval ?? false,
             RequiresClarification = response?.RequiresClarification ?? false,
             PlannedActionCount = executionPlan?.Steps.Count ?? response?.PlannedActions.Count ?? 0,
@@ -158,18 +163,6 @@ internal sealed class DemoChatRequestLoggingMiddleware(
             ErrorType = exception?.GetType().Name,
             ErrorMessage = exception?.Message
         };
-    }
-
-    private decimal? EstimateCost(long? inputTokens, long? outputTokens)
-    {
-        if (inputTokens is null && outputTokens is null)
-        {
-            return null;
-        }
-
-        var inputCost = (inputTokens ?? 0) / 1_000_000m * _options.InputTokenCostPerMillion;
-        var outputCost = (outputTokens ?? 0) / 1_000_000m * _options.OutputTokenCostPerMillion;
-        return Math.Round(inputCost + outputCost, 8, MidpointRounding.AwayFromZero);
     }
 
     private async Task<bool> IsDailyCostLimitExceededAsync(CancellationToken cancellationToken)

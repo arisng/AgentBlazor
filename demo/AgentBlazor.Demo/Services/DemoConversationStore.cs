@@ -28,14 +28,17 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IDbContextFactory<DemoConversationDbContext> _dbFactory;
+    private readonly DemoUsageCostCalculator _costCalculator;
     private readonly ConversationOptions _options;
     private readonly Timer? _cleanupTimer;
 
     public DemoConversationStore(
         IDbContextFactory<DemoConversationDbContext> dbFactory,
+        DemoUsageCostCalculator costCalculator,
         IOptions<ConversationOptions>? options = null)
     {
         _dbFactory = dbFactory;
+        _costCalculator = costCalculator;
         _options = options?.Value ?? new ConversationOptions();
 
         if (_options.EnableAutoCleanup)
@@ -121,7 +124,16 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
                 ? JsonSerializer.Serialize(turn.GeneratedUi, JsonOptions)
                 : null,
             TimestampUtc = turn.Timestamp,
-            TurnSequence = nextSequence
+            TurnSequence = nextSequence,
+            PromptTokens = turn.Usage?.InputTokens,
+            CompletionTokens = turn.Usage?.OutputTokens,
+            TotalTokens = turn.Usage?.TotalTokens,
+            CachedInputTokens = turn.Usage?.CachedInputTokens,
+            EstimatedCost = _costCalculator.EstimateCost(turn.Usage),
+            EstimatedCostCurrency = turn.Usage is null ? null : DemoUsageCostCalculator.Currency,
+            InputTokenCostPerMillion = turn.Usage is null ? null : _costCalculator.InputTokenCostPerMillion,
+            OutputTokenCostPerMillion = turn.Usage is null ? null : _costCalculator.OutputTokenCostPerMillion,
+            CachedInputTokenCostPerMillion = turn.Usage is null ? null : _costCalculator.CachedInputTokenCostPerMillion
         });
 
         // Trim oldest turns if over limit.
@@ -195,6 +207,18 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
         entity.GeneratedUiJson = turn.GeneratedUi is not null
             ? JsonSerializer.Serialize(turn.GeneratedUi, JsonOptions)
             : null;
+
+        // Usage is part of the turn's content: an enriched/edited turn re-prices here
+        // so a patched turn never keeps a stale cost.
+        entity.PromptTokens = turn.Usage?.InputTokens;
+        entity.CompletionTokens = turn.Usage?.OutputTokens;
+        entity.TotalTokens = turn.Usage?.TotalTokens;
+        entity.CachedInputTokens = turn.Usage?.CachedInputTokens;
+        entity.EstimatedCost = _costCalculator.EstimateCost(turn.Usage);
+        entity.EstimatedCostCurrency = turn.Usage is null ? null : DemoUsageCostCalculator.Currency;
+        entity.InputTokenCostPerMillion = turn.Usage is null ? null : _costCalculator.InputTokenCostPerMillion;
+        entity.OutputTokenCostPerMillion = turn.Usage is null ? null : _costCalculator.OutputTokenCostPerMillion;
+        entity.CachedInputTokenCostPerMillion = turn.Usage is null ? null : _costCalculator.CachedInputTokenCostPerMillion;
 
         session.LastActivityAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
@@ -354,14 +378,28 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
             UserMessage = entity.UserMessage,
             AgentResponse = entity.AgentResponse,
             PlannedActions = DeserializeOrEmpty<PlannedComponentAction>(entity.PlannedActionsJson),
-                        ExecutionResults = DeserializeOrEmpty<ComponentActionExecutionResult>(entity.ExecutionResultsJson),
+            ExecutionResults = DeserializeOrEmpty<ComponentActionExecutionResult>(entity.ExecutionResultsJson),
             ExecutionPlan = entity.ExecutionPlanJson is not null
                 ? JsonSerializer.Deserialize<AgentExecutionPlan>(entity.ExecutionPlanJson, JsonOptions)
                 : null,
             GeneratedUi = entity.GeneratedUiJson is not null
                 ? JsonSerializer.Deserialize<AgentUiDocument>(entity.GeneratedUiJson, JsonOptions)
-                : null
+                : null,
+            Usage = MapUsage(entity)
         };
+    }
+
+    private static ConversationTurnUsage? MapUsage(DemoConversationTurnEntity entity)
+    {
+        var usage = new ConversationTurnUsage
+        {
+            InputTokens = entity.PromptTokens,
+            OutputTokens = entity.CompletionTokens,
+            TotalTokens = entity.TotalTokens,
+            CachedInputTokens = entity.CachedInputTokens
+        };
+
+        return usage.HasAnyCounts ? usage : null;
     }
 
     private static string? SerializeIfAny<T>(IReadOnlyList<T> list)

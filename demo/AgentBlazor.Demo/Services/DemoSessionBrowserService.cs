@@ -12,11 +12,16 @@ public sealed class DemoSessionBrowserService
 
     private readonly IConversationStore _store;
     private readonly IAgentRegistry _agents;
+    private readonly IDemoConversationUsageQuery _usageQuery;
 
-    public DemoSessionBrowserService(IConversationStore store, IAgentRegistry agents)
+    public DemoSessionBrowserService(
+        IConversationStore store,
+        IAgentRegistry agents,
+        IDemoConversationUsageQuery usageQuery)
     {
         _store = store;
         _agents = agents;
+        _usageQuery = usageQuery;
     }
 
     public async Task<IReadOnlyList<SessionBrowserEntry>> GetRecentSessionsAsync(CancellationToken ct = default)
@@ -35,6 +40,7 @@ public sealed class DemoSessionBrowserService
             var lastTurn = history.Turns.Last();
             var (baseSessionId, agentName) = SplitSessionKey(sessionId);
             var route = ExtractRoute(baseSessionId) ?? ResolveRouteForAgent(agentName);
+            var usage = await _usageQuery.GetSessionTotalsAsync(sessionId, ct);
 
             results.Add(new SessionBrowserEntry
             {
@@ -49,6 +55,12 @@ public sealed class DemoSessionBrowserService
                 LastMessage = BuildPreview(lastTurn.UserMessage, lastTurn.AgentResponse),
                 LastActivity = history.LastActivityAt,
                 CreatedAt = history.CreatedAt,
+                PromptTokens = usage?.PromptTokens,
+                CompletionTokens = usage?.CompletionTokens,
+                CachedInputTokens = usage?.CachedInputTokens,
+                TotalTokens = usage?.TotalTokens,
+                EstimatedCost = usage?.EstimatedCost,
+                EstimatedCostCurrency = usage?.EstimatedCostCurrency
             });
         }
 
@@ -249,6 +261,35 @@ public class SessionBrowserEntry
     public DateTime LastActivity { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Total prompt tokens across the session's turns, when the EF Core store recorded
+    /// usage. Null when the store backend is not EF Core or the session predates the
+    /// usage columns.
+    /// </summary>
+    public long? PromptTokens { get; set; }
+
+    /// <summary>Total completion tokens across the session's turns.</summary>
+    public long? CompletionTokens { get; set; }
+
+    /// <summary>
+    /// Input tokens served from the provider's prompt cache across the session's turns.
+    /// A subset of <see cref="PromptTokens"/> (billed at a discounted rate), not an
+    /// additional count. Zero when no provider reported cache hits.
+    /// </summary>
+    public long? CachedInputTokens { get; set; }
+
+    /// <summary>Total tokens across the session's turns.</summary>
+    public long? TotalTokens { get; set; }
+
+    /// <summary>
+    /// Estimated cost of the session in <see cref="EstimatedCostCurrency"/>, priced with
+    /// the Demo's flat per-million rates at the time each turn was recorded.
+    /// </summary>
+    public decimal? EstimatedCost { get; set; }
+
+    /// <summary>Currency of <see cref="EstimatedCost"/> (always <c>USD</c> in the Demo).</summary>
+    public string? EstimatedCostCurrency { get; set; }
 }
 
 public sealed record AgentPickerOption(string Name, string? Description, string? Route);

@@ -70,6 +70,20 @@
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
                                     @session.TurnCount turns
                                 </MudChip>
+                                @if (session.TotalTokens is not null)
+                                {
+                                    <span class="session-browser__usage-chip" title="@BuildUsageTooltip(session)">
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                            @FormatTokenBreakdown(session)
+                                        </MudChip>
+                                    </span>
+                                }
+                                @if (session.EstimatedCost is not null)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                        @FormatCost(session.EstimatedCost.Value, session.EstimatedCostCurrency)
+                                    </MudChip>
+                                }
                             </div>
                             <span class="session-browser__item-preview" title="@session.LastMessage">@session.LastMessage</span>
                             <span class="session-browser__item-meta">
@@ -196,6 +210,36 @@
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_selected.Route</MudChip>
                             }
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_selected.TurnCount turns</MudChip>
+                            @if (_selected.TotalTokens is not null)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                    Prompt @FormatTokens(_selected.PromptTokens ?? 0)
+                                </MudChip>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                    Completion @FormatTokens(_selected.CompletionTokens ?? 0)
+                                </MudChip>
+                                @if (_selected.CachedInputTokens > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                        Cached @FormatTokens(_selected.CachedInputTokens.Value)
+                                    </MudChip>
+                                }
+                                @if (GetCacheHitPercent(_selected) is { } cacheHitPercent)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                        Cache hit @FormatCacheHitPercent(cacheHitPercent)
+                                    </MudChip>
+                                }
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                    Total @FormatTokens(_selected.TotalTokens.Value)
+                                </MudChip>
+                            }
+                            @if (_selected.EstimatedCost is not null)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
+                                    @FormatCost(_selected.EstimatedCost.Value, _selected.EstimatedCostCurrency)
+                                </MudChip>
+                            }
                         </div>
                         <MudText Typo="Typo.caption" Class="session-browser__detail-key">@_selected.SessionKey</MudText>
                         <MudText Typo="Typo.body2" Color="Color.Secondary">
@@ -346,6 +390,84 @@
 
     private static string ResolveSurfaceSessionId(SessionBrowserEntry entry)
         => string.IsNullOrWhiteSpace(entry.BaseSessionId) ? entry.SessionKey : entry.BaseSessionId;
+
+    private static string FormatTokens(long tokens)
+    {
+        if (tokens >= 1_000_000_000)
+        {
+            return $"{tokens / 1_000_000_000.0:0.##}B";
+        }
+
+        if (tokens >= 1_000_000)
+        {
+            return $"{tokens / 1_000_000.0:0.##}M";
+        }
+
+        if (tokens >= 1_000)
+        {
+            return $"{tokens / 1_000.0:0.#}K";
+        }
+
+        return tokens.ToString("N0");
+    }
+
+    /// <summary>
+    /// Percentage of prompt tokens served from the provider's prompt cache, or
+    /// <see langword="null"/> when there is no prompt usage to measure against.
+    /// </summary>
+    private static double? GetCacheHitPercent(SessionBrowserEntry entry)
+    {
+        if (entry.PromptTokens is null or <= 0 || entry.CachedInputTokens is null or <= 0)
+        {
+            return null;
+        }
+
+        return (double)entry.CachedInputTokens.Value / entry.PromptTokens.Value * 100;
+    }
+
+    private static string FormatCacheHitPercent(double percent)
+        => $"{percent:0.#}%";
+
+    /// <summary>
+    /// Compact input/output split for the session list chip, e.g. "1.2K in / 340 out".
+    /// The full breakdown (including cached and total) is in <see cref="BuildUsageTooltip"/>.
+    /// </summary>
+    private static string FormatTokenBreakdown(SessionBrowserEntry entry)
+        => $"{FormatTokens(entry.PromptTokens ?? 0)} in / {FormatTokens(entry.CompletionTokens ?? 0)} out";
+
+    /// <summary>
+    /// Full labelled breakdown shown on hover in the session list.
+    /// </summary>
+    private static string BuildUsageTooltip(SessionBrowserEntry entry)
+    {
+        var parts = new List<string>
+        {
+            $"Prompt (input) {FormatTokens(entry.PromptTokens ?? 0)}",
+            $"Completion (output) {FormatTokens(entry.CompletionTokens ?? 0)}"
+        };
+
+        if (entry.CachedInputTokens > 0)
+        {
+            // Cached tokens are a discounted subset of the prompt tokens, not extra usage.
+            parts.Add($"Cached input {FormatTokens(entry.CachedInputTokens.Value)} (of prompt)");
+            if (GetCacheHitPercent(entry) is { } cacheHitPercent)
+            {
+                parts.Add($"Cache hit {FormatCacheHitPercent(cacheHitPercent)}");
+            }
+        }
+
+        parts.Add($"Total {FormatTokens(entry.TotalTokens ?? 0)}");
+
+        if (entry.EstimatedCost is not null)
+        {
+            parts.Add(FormatCost(entry.EstimatedCost.Value, entry.EstimatedCostCurrency));
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatCost(decimal cost, string? currency)
+        => $"{cost:0.######} {currency ?? "USD"}";
 
     private async Task LoadAsync()
     {

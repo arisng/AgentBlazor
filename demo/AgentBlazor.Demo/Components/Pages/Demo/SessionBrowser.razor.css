@@ -60,6 +60,13 @@
     font-size: 0.85rem;
 }
 
+/* Wraps the token-breakdown chip so it can carry the hover tooltip without
+   dropping out of the chip row's flex layout. */
+.session-browser__usage-chip {
+    display: inline-flex;
+    align-items: center;
+}
+
 .session-browser__item-preview {
     display: block;
     margin-top: 0.2rem;
