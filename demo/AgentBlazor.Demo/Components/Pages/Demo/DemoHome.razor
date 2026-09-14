@@ -22,9 +22,7 @@
                 <li>Ask the three visible prompts in order.</li>
                 <li>Approve the draft and watch the page render structured output.</li>
             </ol>
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       Href="/demo/workflows/support-inbox">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/demo/workflows/support-inbox">
                 Start with quick demo
             </MudButton>
         </div>
@@ -69,9 +67,10 @@
                                 }
                             </div>
 
-                            <MudButton Variant="@(scenario.Scale == DemoScenarioScale.Quick ? Variant.Filled : Variant.Outlined)"
-                                       Color="@(scenario.Scale == DemoScenarioScale.Advanced ? Color.Secondary : Color.Primary)"
-                                       Href="@scenario.Route">
+                            <MudButton
+                                Variant="@(scenario.Scale == DemoScenarioScale.Quick ? Variant.Filled : Variant.Outlined)"
+                                Color="@(scenario.Scale == DemoScenarioScale.Advanced ? Color.Secondary : Color.Primary)"
+                                Href="@scenario.Route">
                                 @scenario.CtaLabel
                             </MudButton>
                         </article>
@@ -155,7 +154,8 @@
 
 @code {
     private record ScenarioGroup(string Label, IReadOnlyList<DemoScenario> Scenarios);
-    private record FeatureShowcase(string Category, string Title, string Description, string Route, string Cta, IReadOnlyList<string> Tags);
+    private record FeatureShowcase(string Category, string Title, string Description, string Route, string Cta,
+IReadOnlyList<string> Tags);
 
     private static readonly IReadOnlyList<ScenarioGroup> _scenarioGroups =
     [
@@ -189,10 +189,14 @@
             "Dev tools panel showing runs, events, prompts, and state for every agent turn.",
             "/demo/debug", "Open inspector",
             ["AgentInspectorPanel", "DevTools", "5-tab panel"]),
-                new("Customization", "Runtime Customization",
-                    "Edit an agent's persona and toggle its tool set live, then chat with the customized agent.",
-                    "/demo/customization", "Open showcase",
-                    ["IAgentRuntimeCustomizer", "Per-agent persona", "Tool filtering"]),
+        new("Customization", "Runtime Customization",
+            "Edit an agent's persona and toggle its tool set live, then chat with the customized agent.",
+            "/demo/customization", "Open showcase",
+            ["IAgentRuntimeCustomizer", "Per-agent persona", "Tool filtering"]),
+        new("Customization", "Agent Builder",
+            "Build and register agents at runtime against a database-backed IAgentRegistry — the dynamic counterpart to static AddAgent/AddWorkflow.",
+            "/demo/agent-builder", "Open builder",
+            ["IAgentRegistry", "Database-backed", "AddOrUpdate", "Persona"]),
             ];
 
     private static string GetScaleLabel(DemoScenarioScale scale)

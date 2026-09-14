@@ -1,0 +1,242 @@
+@page "/demo/agent-builder"
+@layout DemoLayout
+@using AgentBlazor.Agents
+@using AgentBlazor.Components
+@using AgentBlazor.Demo.Services
+@using MudBlazor
+
+<PageTitle>Agent Builder — AgentBlazor Demo</PageTitle>
+
+<div class="agent-builder">
+    <MudText Typo="Typo.h4" Class="mb-2">Agent Builder</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        Demonstrates the database-backed <Code>IAgentRegistry</Code> (replace path): agents are
+        persisted in SQLite and resolved at runtime from the store — the dynamic counterpart to
+        the static <Code>AddAgent</Code>/<Code>AddWorkflow</Code> startup declarations. Build a
+        new agent, edit its persona + tool set, and chat with it live.
+    </MudText>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="0" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Build a new agent</MudText>
+                <MudTextField T="string" Label="Agent name" Variant="Variant.Outlined" @bind-Value="_name" />
+                <MudTextField T="string" Label="Description" Variant="Variant.Outlined" @bind-Value="_description" />
+                <MudTextField T="string" Label="System instructions" Variant="Variant.Outlined"
+                              Lines="3" @bind-Value="_instructions" />
+                <MudTextField T="string" Label="Allowed components (comma-separated)"
+                              HelperText="e.g. AgentForm, AgentDataGrid, AgentDialog"
+                              Variant="Variant.Outlined" @bind-Value="_components" />
+                <MudTextField T="string" Label="Route prefixes (comma-separated)"
+                              HelperText="e.g. /demo/agent-builder"
+                              Variant="Variant.Outlined" @bind-Value="_routePrefixes" />
+
+                <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">Persona (system-prompt override)</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                    Appended at runtime via the <Code>IAgentRuntimeCustomizer</Code> seam.
+                </MudText>
+                <MudTextField T="string" Label="Persona" Variant="Variant.Outlined"
+                              Lines="3" @bind-Value="_persona" />
+
+                <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">Enabled tools</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                    Whitelist of logical tool ids. Empty = no filtering.
+                </MudText>
+                @foreach (var tool in _toolOptions)
+                {
+                    <MudCheckBox T="bool" Label="@tool.Label"
+                                 Value="@_enabledToolIds.Contains(tool.Id)"
+                                 ValueChanged="@(value => ToggleTool(tool.Id, value))" />
+                }
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                           Disabled="string.IsNullOrWhiteSpace(_name)" OnClick="SaveAsync">
+                    @(_isNew ? "Create agent" : "Update agent")
+                </MudButton>
+                @if (!_isNew)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Class="mt-4 ms-2"
+                               OnClick="ResetForm">
+                        Cancel
+                    </MudButton>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudPaper Elevation="0" Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Persisted agents (IAgentRegistry.GetAll)</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                    Source of truth is the SQLite store backing <Code>DatabaseBackedAgentRegistry</Code>.
+                </MudText>
+                @foreach (var agent in _agents)
+                {
+                    <MudList T="string" Dense="true">
+                        <MudListItem T="string">
+                            <MudText Typo="Typo.subtitle2">@agent.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@agent.Description</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                Components: @string.Join(", ", agent.AllowedComponents.OrderBy(c => c))
+                            </MudText>
+                            <MudButton Size="Size.Small" Color="Color.Primary" OnClick="@(() => Edit(agent))">Edit</MudButton>
+                            <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(agent))">Delete</MudButton>
+                            <MudButton Size="Size.Small" Color="Color.Secondary" OnClick="@(() => Chat(agent))">Chat</MudButton>
+                        </MudListItem>
+                    </MudList>
+                }
+            </MudPaper>
+
+            @if (_selectedAgent is not null)
+            {
+                <MudPaper Elevation="0" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-2">Chat with "@_selectedAgent"</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                        Resolved at runtime through the database-backed registry. Persona + tools come
+                        from the Agent Builder customization above.
+                    </MudText>
+                    <AgentChatSurface Title="@_selectedAgent"
+                                      Description="Built and persisted via the Agent Builder."
+                                      DefaultAgentName="@_selectedAgent"
+                                      SessionId="demo:agent-builder"
+                                      LockAgentToCurrentRoute="false"
+                                      ShowAgentSelector="false"
+                                      EnableGeneratedUi="true"
+                                      RequireHandoffApproval="false"
+                                      Placeholder="Ask your built agent…"
+                                      CssClass="agent-builder__surface" />
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+</div>
+
+<style>
+    .agent-builder__surface {
+        height: 28rem;
+    }
+</style>
+
+@code {
+    private sealed record ToolOption(string Id, string Label);
+
+    private static readonly IReadOnlyList<ToolOption> _toolOptions =
+    [
+        new("lookup-glossary", "Look up a glossary term"),
+        new("current-time", "Return the current UTC time")
+    ];
+
+    private readonly HashSet<string> _enabledToolIds = new(StringComparer.OrdinalIgnoreCase);
+
+    private List<AgentRegistration> _agents = [];
+    private string? _selectedAgent;
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _instructions = string.Empty;
+    private string _components = string.Empty;
+    private string _routePrefixes = string.Empty;
+    private string _persona = string.Empty;
+    private bool _isNew = true;
+
+    [Inject]
+    private DatabaseBackedAgentRegistry Registry { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        _agents = Registry.GetAll()
+            .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void ToggleTool(string toolId, bool enabled)
+    {
+        if (enabled)
+        {
+            _enabledToolIds.Add(toolId);
+        }
+        else
+        {
+            _enabledToolIds.Remove(toolId);
+        }
+    }
+
+    private void ResetForm()
+    {
+        _name = string.Empty;
+        _description = string.Empty;
+        _instructions = string.Empty;
+        _components = string.Empty;
+        _routePrefixes = string.Empty;
+        _persona = string.Empty;
+        _enabledToolIds.Clear();
+        _isNew = true;
+    }
+
+    private void Edit(AgentRegistration agent)
+    {
+        _isNew = false;
+        _name = agent.Name;
+        _description = agent.Description ?? string.Empty;
+        _instructions = agent.Instructions ?? string.Empty;
+        _components = string.Join(", ", agent.AllowedComponents);
+        _routePrefixes = string.Join(", ", Split(agent.Metadata.TryGetValue("route_prefixes", out var rp) ? rp : null));
+        _persona = agent.Metadata.TryGetValue(DatabaseBackedAgentRegistry.PersonaKey, out var p) ? p : string.Empty;
+        _enabledToolIds.Clear();
+        if (agent.Metadata.TryGetValue(DatabaseBackedAgentRegistry.EnabledToolsKey, out var toolsRaw))
+        {
+            _enabledToolIds.UnionWith(Split(toolsRaw));
+        }
+    }
+
+    private IReadOnlyList<string> Split(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private void Chat(AgentRegistration agent) => _selectedAgent = agent.Name;
+
+    private void SaveAsync()
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var routes = Split(_routePrefixes);
+        if (routes.Count > 0)
+        {
+            metadata["route_prefixes"] = string.Join(",", routes);
+        }
+
+        var registration = new AgentRegistration
+        {
+            Name = _name.Trim(),
+            Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+            Instructions = string.IsNullOrWhiteSpace(_instructions) ? null : _instructions.Trim(),
+            AllowedComponents = new HashSet<string>(Split(_components), StringComparer.OrdinalIgnoreCase),
+            AllowedDataSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            Metadata = metadata
+        };
+
+        Registry.AddOrUpdate(registration);
+        Registry.SetCustomization(
+            registration.Name,
+            string.IsNullOrWhiteSpace(_persona) ? null : _persona.Trim(),
+            _enabledToolIds.Count == 0 ? null : new HashSet<string>(_enabledToolIds, StringComparer.OrdinalIgnoreCase));
+
+        _selectedAgent ??= registration.Name;
+        Refresh();
+        ResetForm();
+    }
+
+    private void DeleteAsync(AgentRegistration agent)
+    {
+        Registry.RemoveAgent(agent.Name);
+        if (_selectedAgent == agent.Name)
+        {
+            _selectedAgent = null;
+        }
+
+        Refresh();
+    }
+}

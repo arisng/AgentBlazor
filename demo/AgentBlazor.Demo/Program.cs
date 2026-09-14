@@ -199,6 +199,28 @@ builder.Services.AddDbContextFactory<DemoWorkflowDbContext>(options =>
     options.UseSqlite(demoWorkflowOptions.ConnectionString));
 builder.Services.AddSingleton<DemoWorkflowDatabaseSeeder>();
 
+// -----------------------------------------------------------------------------
+// Agent Builder — database-backed IAgentRegistry (replace path).
+// A custom IAgentRegistry is registered BEFORE AddAgentBlazor so it wins over the
+// built-in InMemoryAgentRegistry snapshot, making this SQLite store the single
+// source of truth for all agents. See the "Dynamic Agent Registration" section of
+// the ab-agent-registration skill.
+// -----------------------------------------------------------------------------
+var agentDbConnectionString = $"Data Source={Path.Combine(demoDataDir, "agent-definitions.db")}";
+builder.Services.AddDbContextFactory<DemoAgentDbContext>(options =>
+    options.UseSqlite(agentDbConnectionString));
+// Register the concrete registry first (so it can be resolved by the page + customizer),
+// then as IAgentRegistry BEFORE AddAgentBlazor so it replaces the in-memory default.
+builder.Services.AddSingleton<DatabaseBackedAgentRegistry>();
+builder.Services.AddSingleton<AgentBlazor.Agents.IAgentRegistry>(sp =>
+    sp.GetRequiredService<DatabaseBackedAgentRegistry>());
+// The seeder reads the same shared-instructions file the static agents used to consume,
+// so DB-seeded agents carry identical guidance.
+builder.Services.AddSingleton(sp => new DemoAgentDatabaseSeeder(
+    sp.GetRequiredService<IDbContextFactory<DemoAgentDbContext>>(),
+    sp.GetRequiredService<DatabaseBackedAgentRegistry>(),
+    sharedAgentInstructions));
+
 builder.Services.AddAgentBlazor(options =>
 {
     if (!string.IsNullOrWhiteSpace(openAiApiKey))
@@ -254,9 +276,9 @@ builder.Services.AddAgentBlazor(options =>
         [],
         (args, sp, ct) => Task.FromResult(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")));
 
-    options.ConfigureBuilder(agentBuilder =>
+    options.ConfigureBuilder(abBuilder =>
     {
-        agentBuilder.EnablePromptTracing();
+        abBuilder.EnablePromptTracing();
 
         // Conversation persistence: the Demo demonstrates the incremental persistence model 
         // (append once, targeted UpdateTurnAsync patches for enriched/edited turns, never full-history rewrites) 
@@ -266,7 +288,7 @@ builder.Services.AddAgentBlazor(options =>
         //   - InMemory         — ephemeral
         if (string.Equals(demoConversationOptions.Store, "JsonFile", StringComparison.OrdinalIgnoreCase))
         {
-            agentBuilder.UseJsonFileConversationStore(
+            abBuilder.UseJsonFileConversationStore(
                 demoConversationOptions.FilePath,
                 configure: conversationOptions =>
                 {
@@ -276,12 +298,20 @@ builder.Services.AddAgentBlazor(options =>
         }
         else if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
         {
-            agentBuilder.UseConversationStore(sp => new DemoConversationStore(
+            abBuilder.UseConversationStore(sp => new DemoConversationStore(
                 sp.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>(),
                 sp.GetService<IOptions<ConversationOptions>>()));
         }
 
-        agentBuilder.AddDataSchema(new AgentDataSchemaSet
+        // ---------------------------------------------------------------------
+        // Agents are defined in the database (see DemoAgentDatabaseSeeder) and
+        // resolved at runtime through DatabaseBackedAgentRegistry — the "replace"
+        // dynamic-registration path. This builder block only registers things the
+        // DB store does NOT own: capability classes (for [AgentAction] discovery),
+        // data schemas, the runtime customizer, prompt tracing, and conversation
+        // stores. There are deliberately no AddAgent/AddWorkflow calls here.
+        // ---------------------------------------------------------------------
+        abBuilder.AddDataSchema(new AgentDataSchemaSet
         {
             Name = "support-data",
             Description = "Read-safe support ticket fields used by the support inbox workflow. This is planning context only; ticket reads and drafts still go through typed workflow actions.",
@@ -307,134 +337,24 @@ builder.Services.AddAgentBlazor(options =>
             ]
         });
 
-        agentBuilder.AddAgent("Workflow Hub Agent", agent =>
-        {
-            agent.WithDescription("Focused on routing users toward the right semantic workflow showcase and explaining the workflow-first product story.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-        });
+        // Capability classes — the [AgentAction] methods must be discoverable by the
+        // ReflectionAgentCapabilityRegistry even though the agent definitions themselves
+        // live in the database. AddWorkflow<T>(name, ...) would ALSO create an agent
+        // registration (dead, since the registry is DB-backed); AddCapability<T>() is
+        // the exact subset needed here.
+        abBuilder.AddCapability<SupplierComplianceCapabilities>();
+        abBuilder.AddCapability<SupportInboxCapabilities>();
+        abBuilder.AddCapability<DemoFileWorkflowCapabilities>();
+        abBuilder.AddCapability<DojoRecipeReleaseCapabilities>();
+        abBuilder.AddCapability<IncidentEscalationCapabilities>();
+        abBuilder.AddCapability<ResponseOrchestrationCapabilities>();
+        abBuilder.AddCapability<ReleaseDossierCapabilities>();
+        abBuilder.AddCapability<RuntimeProbeCapabilities>();
+        abBuilder.AddCapability<CustomizationDemoCapabilities>();
 
-        agentBuilder.AddAgent("Supplier Analyst Agent", agent =>
-        {
-            agent.WithDescription("Focused on the component reference surface for data-centric controls and selection patterns.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentDataGrid", "AgentForm", "AgentDialog", "AgentTabs", "AgentNavMenu", "AgentSelect", "AgentAutocomplete");
-            agent.WithRoutePrefixes("/demo/components", "/demo/components/datagrid", "/demo/components/select", "/demo/components/autocomplete", "/demo/components/date-picker", "/demo/components/date-range-picker", "/demo/components/tree-view");
-        });
-
-        agentBuilder.AddAgent("Workflow Orchestrator Agent", agent =>
-        {
-            agent.WithDescription("Focused on the component reference surface for form, dialog, command, and file workflow primitives.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentStepper", "AgentForm", "AgentDialog", "AgentTabs", "AgentNavMenu", "AgentTreeView", "AgentCommandBar", "AgentFileUpload");
-            agent.WithRoutePrefixes("/demo/components", "/demo/components/form", "/demo/components/dialog", "/demo/components/tabs", "/demo/components/stepper", "/demo/components/command-bar", "/demo/components/file-upload");
-        });
-
-        agentBuilder.AddWorkflow<SupplierComplianceCapabilities>("Supplier Compliance Agent", agent =>
-        {
-            agent.WithDescription("Focused on supplier risk review, explanation, recovery-playbook guidance, and remediation preparation.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentDataGrid", "AgentDialog");
-            agent.WithRoutePrefixes("/demo/workflows/supplier-compliance");
-        });
-
-        agentBuilder.AddWorkflow<SupportInboxCapabilities>("Support Inbox Agent", agent =>
-        {
-            agent.WithDescription("Focused on support tickets that need a reply, reply drafting, escalation, and queue guidance.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentDataGrid", "AgentDialog");
-            agent.WithToolsFromAssembly(typeof(DemoAssemblyTools).Assembly);
-            agent.WithDataSchemas("support-data");
-            agent.WithRoutePrefixes("/demo/workflows/support-inbox");
-        });
-
-        agentBuilder.AddWorkflow<DemoFileWorkflowCapabilities>("File Workflow Agent", agent =>
-        {
-            agent.WithDescription("Focused on file audit bundles, remote handoff, and token verification workflows.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentFileUpload", "AgentCommandBar");
-            agent.WithRoutePrefixes("/demo/workflows/file-audit-bundle");
-        });
-
-        agentBuilder.AddWorkflow<DojoRecipeReleaseCapabilities>("Recipe Release Agent", agent =>
-        {
-            agent.WithDescription("Focused on recipe readiness, release blockers, recovery-playbook guidance, and publish-ready draft preparation.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentForm", "AgentDataGrid", "AgentDialog");
-            agent.WithRoutePrefixes("/demo/workflows/recipe-release");
-        });
-
-        agentBuilder.AddWorkflow<IncidentEscalationCapabilities>("Incident Escalation Agent", agent =>
-        {
-            agent.WithDescription("Focused on incident triage, evidence review, escalation brief preparation, and recovery from blocked review-board handoffs.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentTreeView", "AgentTabs", "AgentStepper", "AgentCommandBar", "AgentDialog");
-            agent.WithRoutePrefixes("/demo/workflows/incident-escalation");
-        });
-
-        agentBuilder.AddWorkflow<ResponseOrchestrationCapabilities>("Response Orchestration Agent", agent =>
-        {
-            agent.WithDescription("Focused on cross-system orchestration across supplier risk, audit evidence, and incident escalation, including guided subsystem-stage advancement before operational handoff.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentDialog");
-            agent.WithRoutePrefixes("/demo/workflows/response-orchestration");
-        });
-
-        agentBuilder.AddWorkflow<ReleaseDossierCapabilities>("Release Dossier Agent", agent =>
-        {
-            agent.WithDescription("Focused on recipe release readiness and audit evidence orchestration before release dossier handoff.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithAllowedComponents("AgentDialog");
-            agent.WithRoutePrefixes("/demo/workflows/release-dossier");
-        });
-
-        agentBuilder.AddWorkflow<RuntimeProbeCapabilities>("Runtime Probe Agent", agent =>
-        {
-            agent.WithDescription("Focused on validating runtime cancellation behavior in the live demo host.");
-            agent.WithRoutePrefixes("/demo/workflows/runtime-probe");
-        });
-
-        // Runtime customization showcase: a dedicated agent whose persona (system instructions)
-        // and tool set are edited live on /demo/customization via the IAgentRuntimeCustomizer seam.
-        agentBuilder.AddRuntimeCustomizer<DemoAgentCustomizer>();
-        agentBuilder.AddWorkflow<CustomizationDemoCapabilities>("Customization Demo Agent", agent =>
-        {
-            agent.WithDescription("Focused on demonstrating per-agent runtime customization: edit the persona and toggle the tool set on the customization showcase, then chat with the customized agent.");
-            if (!string.IsNullOrWhiteSpace(sharedAgentInstructions))
-            {
-                agent.WithInstructions(sharedAgentInstructions);
-            }
-            agent.WithRoutePrefixes("/demo/customization");
-        });
+        // Runtime customization showcase: persona + tool set edited live on
+        // /demo/customization via the IAgentRuntimeCustomizer seam.
+        abBuilder.AddRuntimeCustomizer<DemoAgentCustomizer>();
     });
 });
 
@@ -444,6 +364,9 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var seeder = scope.ServiceProvider.GetRequiredService<DemoWorkflowDatabaseSeeder>();
     await seeder.InitializeAsync(CancellationToken.None);
+
+    var agentSeeder = scope.ServiceProvider.GetRequiredService<DemoAgentDatabaseSeeder>();
+    await agentSeeder.InitializeAsync(CancellationToken.None);
 
     if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
     {
