@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "agentblazor-skills",
-  "version": "0.2.24",
-  "description": "AgentBlazor consumer skill pack — 17 ab-* skills for agent registration, capability authoring, conversation stores, multi-tenancy, chat surfaces, MudBlazor components, middleware, prompt engineering, CLI tooling, and more.",
+  "version": "0.2.25",
+  "description": "AgentBlazor consumer skill pack — 19 ab-* skills for agent registration, capability authoring, conversation stores, entity design, multi-tenancy, chat surfaces, MudBlazor components, middleware, prompt engineering, CLI tooling, and more.",
   "author": {
     "name": "AgentBlazor Contributors"
   },
