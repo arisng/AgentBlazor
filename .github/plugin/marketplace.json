@@ -1,0 +1,18 @@
+{
+  "name": "agentblazor",
+  "owner": {
+    "name": "AgentBlazor Contributors"
+  },
+  "metadata": {
+    "description": "AgentBlazor plugin marketplace — AI agent skills for ASP.NET Core Blazor",
+    "version": "0.2.24"
+  },
+  "plugins": [
+    {
+      "name": "agentblazor-skills",
+      "description": "17 consumer-facing ab-* skills for agent registration, capability authoring, conversation stores, multi-tenancy, chat surfaces, MudBlazor components, middleware, prompt engineering, CLI tooling, and more",
+      "version": "0.2.24",
+      "source": "."
+    }
+  ]
+}
