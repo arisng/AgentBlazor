@@ -2,7 +2,7 @@
 name: ab-mud-components
 description: "Master all AgentBlazor components built on MudBlazor — shell providers, chat surfaces, agent-controllable MudBlazor wrappers (AgentDataGrid, AgentForm, AgentDialog, AgentSelect, AgentAutocomplete, AgentDatePicker, AgentDateRangePicker, AgentTreeView, AgentStepper, AgentTabs, AgentCommandBar, AgentNavMenu, AgentFileUpload), generative UI blocks (AgentGenerativeSurface, AgentGeneratedCard/Form/Chart/Table), base classes (AgentControllableComponentBase, AgentFormPageBase), attributes ([AgentAction], [AgentReadable], [AgentParam], [AgentComponent]), action rendering (AgentActionRender, AgentToolRender), AgentProDashboard, and AgentInspectorPanel. Use when building UIs with AgentBlazor's MudBlazor-backed components, wiring agent actions to MudBlazor UI elements, creating custom controllable components, or debugging component-agent interaction. This covers the MudBlazor provider only — see ab-other-components for other Blazor component libraries."
 metadata:
-    version: 0.1.0
+    version: 0.1.1
 ---
 
 # `ab-mud-components` — MudBlazor Components Mastery

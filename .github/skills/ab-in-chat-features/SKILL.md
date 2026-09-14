@@ -2,7 +2,7 @@
 name: ab-in-chat-features
 description: "Wire and tune AgentBlazor's in-chat interaction features from a consumer app referencing the public AgentBlazor NuGet package — anything the agent renders in the chat that asks the user or responds interactively: approval dialogs (RequiresApproval), clarification (NeedsClarification), handoff approval (RequireHandoffApproval, HandoffApprovalPolicy), generated-UI cards (action.confirmation), suggestion chips, proactive insights, next actions, warnings, reasoning, execution details, slash commands, agent selector, stop button, timeout warning, error boundary, and dev tools (ShowDevTools). Use when enabling/debugging any feature where the agent pauses to ask the user or renders interactive elements in chat, or choosing chat component parameters. Consumer-side only; never edit package internals. Triggers: approval dialog, clarification, handoff approval, generated UI, suggestion chips, proactive insight, slash commands, agent selector, stop button, timeout, error boundary, dev tools, inspector, in-chat feature."
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # `ab-in-chat-features` — In-Chat Interaction Features
@@ -43,7 +43,7 @@ Any behavior where the agent, mid-conversation, pauses the turn or renders inter
 | Agent selector | Dropdown in the composer | `ShowAgentSelector` (default true), `LockedAgentName`, `DefaultAgentName` |
 | Streaming markdown | Assistant text renders live as markdown | Automatic |
 | Stop button | **Stop** button in composer area during active turns | Automatic — visible when agent is Thinking… or streaming |
-| Timeout warning | "Turn timed out" banner when a turn exceeds the timeout | `TurnTimeoutSeconds` on the chat component |
+| Slow-turn indicator | "Taking longer than expected..." shown while Thinking after ~10 s | Automatic — a fixed, **non-configurable** soft indicator (`TimeoutWarningMs = 10000`); it does **not** terminate the turn and has **no consumer parameter to tune/suppress** |
 | Error boundary | Inline error card with error message + **Retry** button | Automatic when an unhandled exception occurs during a turn |
 | Dev tools / Inspector | **Agent Inspector** panel showing middleware, tools, turn events, raw LLM payloads | `ShowDevTools="true"`, `AutoShowDevTools="true"` (not available on `AgentChatPanel`; use `AgentChatSurface` or `AgentChatWidget`). Full inspector guide: [`ab-inspector`](../ab-inspector/SKILL.md) |
 
@@ -52,7 +52,7 @@ Any behavior where the agent, mid-conversation, pauses the turn or renders inter
 1. The agent's turn produces a response that carries feature state: `RequiresApproval` + `PendingApprovals`, `RequiresClarification` + `ClarificationQuestion`, `GeneratedUi`, `ExecutionPlan`.
 2. The chat surface renders the matching timeline card and flips its status banner: **Thinking…** / **Waiting for approval** (⚠) / **Clarification needed** (?).
 3. When you act on a card (Approve/Deny/Submit/answer), the surface resumes the interrupted turn — approved actions and clarification answers are carried forward, so the agent continues where it stopped.
-4. During active turns, a **Stop** button appears; clicking it cancels the turn. On timeout, a warning banner renders. On unhandled exceptions, an **error boundary** card with a **Retry** button appears inline.
+4. During active turns, a **Stop** button appears; clicking it cancels the turn. After ~10 s of thinking a **soft** "Taking longer than expected..." notice flips the status label (non-configurable, does not cancel). On unhandled exceptions, an **error boundary** card with a **Retry** button appears inline.
 
 ## Choosing a reference
 
@@ -70,7 +70,7 @@ Any behavior where the agent, mid-conversation, pauses the turn or renders inter
 2. **Approval is opt-in per action.** No `RequiresApproval = true`, no approval card — the action just runs. Everything mutating that you expose should set it.
 3. **Clarification is automatic when a required parameter is missing.** You only write `NeedsClarification` yourself when the missing input needs a natural-language question.
 4. **Generated UI is off by default.** Nothing renders inline until `EnableGeneratedUi="true"`.
-5. **Everything is consumer-configurable.** Any behavior you want to change is a parameter on your component or a `CapabilityResult`/attribute in your capability class — never a package edit.
+5. **Everything is consumer-configurable — except the slow-turn indicator.** Any behavior you want to change is a parameter on your component or a `CapabilityResult`/attribute in your capability class — never a package edit. The one exception: the "Taking longer than expected..." notice after ~10 s of thinking is a fixed library constant with no consumer knob.
 6. **If a card doesn't appear, check the trigger first** (attribute flag / parameter / service), then the banner state (`WaitingForApproval` vs `WaitingForClarification` vs `Idle`).
 
 ## Package surface (what the installed package gives you)
@@ -84,6 +84,6 @@ Any behavior where the agent, mid-conversation, pauses the turn or renders inter
 | `PendingApproval` (`ComponentId`, `ActionId`, `Description`, `Parameters`, `PolicyDecision`) | per-action approval record | understanding approval cards |
 | `AgentPolicyDecision` / `AgentRiskClass` / `AgentApprovalMode` | policy model (`Allowed`, `RiskClass`, `ApprovalMode`) | understanding why approval is (not) required |
 | `IAdaptiveSuggestionService` / `IProactiveInsightService` | suggestion + insight services (`StaticSuggestionService` by default (empty); `LlmAdaptiveSuggestionService` on Pro) | suggestion chips, proactive insights |
-| Chat component parameters (`RequireHandoffApproval`, `HandoffApprovalPolicy`, `HandoffPolicy`, `MaxHandoffs*`, `EnableGeneratedUi`, `ShowExecutionDetails`, `ShowAgentSelector`, `LockedAgentName`, `TurnTimeoutSeconds`, `ShowDevTools`, `AutoShowDevTools`, …) | public component parameters | tuning all in-chat features |
+| Chat component parameters (`RequireHandoffApproval`, `HandoffApprovalPolicy`, `HandoffPolicy`, `MaxHandoffs*`, `EnableGeneratedUi`, `ShowExecutionDetails`, `ShowAgentSelector`, `LockedAgentName`, `ShowDevTools`, `AutoShowDevTools`, …) | public component parameters | tuning all in-chat features. **Note:** there is **no `TurnTimeoutSeconds`** — the slow-turn indicator is a fixed ~10 s soft notice with no consumer parameter |
 
 > Internal names in the references (e.g. `AgentTurnStreamEventKind.ApprovalRequired`) describe **shipped-package behavior** only — they explain how the UI reacts but are not consumer-editable. Any mention of `.razor`/`.cs` internals is explanatory; the AgentBlazor source repo is never required.

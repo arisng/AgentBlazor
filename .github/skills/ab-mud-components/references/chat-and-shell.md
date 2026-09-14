@@ -68,10 +68,10 @@ The core chat component — timeline, input, agent state indicators. Embed in pa
 | `EnableAgentHandoff` | bool | true | Allow agent-to-agent handoff |
 | `SessionId` | string? | null | Explicit session key |
 | `Placeholder` | string | "Type a message…" | Input placeholder text |
-| `EnableGeneratedUi` | bool | true | Enable agent-generated UI blocks inline |
+| `EnableGeneratedUi` | bool | false | Enable agent-generated UI blocks inline |
 | `ShowExecutionDetails` | bool | false | Show planning steps and activity log |
-| `ShowDevTools` | bool | false | Show dev tools toggle |
-| `AutoShowDevTools` | bool | false | Auto-open dev tools on error |
+| `ShowDevTools` | bool? | null (falls back to `AgentBlazorOptions.EnableDevTools`) | Show dev tools toggle |
+| `AutoShowDevTools` | bool? | null (falls back to `AgentBlazorOptions.AutoShowDevTools`) | Auto-open dev tools on error |
 | `FormName` | string? | null | Associates the chat with an `<EditForm>` for SSR |
 | `Theme` | ChatTheme? | null | Theme configuration |
 | `CssClass` | string? | null | Additional CSS class |
@@ -139,9 +139,9 @@ Docked side-panel chat. Wraps `AgentChatSurface`.
 | `Width` | string | "350px" | Panel width |
 | `Height` | string | "100%" | Panel height |
 | `Title` | string? | "Agent Assistant" | Panel header |
-| *(Plus all AgentChatSurface params)* | | | |
 
-All `AgentChatSurface` parameters are forwarded through identically.
+
+**Notes on forwarded params:** `AgentChatPanel` forwards the shared `AgentChatSurface` parameters **except** `ShowDevTools` and `AutoShowDevTools` — those two are **not** exposed on the Panel, so the inspector is unavailable from it (use `AgentChatSurface` or `AgentChatWidget` for the inspector).
 
 ---
 

@@ -72,6 +72,8 @@ The composer shows a dropdown to switch the active agent mid-conversation:
 
 The selector is hidden automatically when `LockedAgentName` is set, when a single agent is registered, or when the route locks the agent.
 
+> **Host-page picker alternative (proven Demo pattern):** when no single route can satisfy every agent's `route_prefixes` (e.g. a session browser on `/demo/sessions` hosting agents registered for `/demo/customization`, `/demo/workflows/*`), do not use the in-composer selector or `LockedAgentName`. Instead render a host-page picker (the Demo uses `MudSelect` over `IAgentRegistry.GetAll()`) and pass the choice as `DefaultAgentName` with `LockAgentToCurrentRoute="false"`, no `LockedAgentName`, `EnableAgentHandoff="false"`. `DefaultAgentName` alone requests no route lock, so `RuntimeTurnPreflight.AllowsLockedRoute()` passes without comparing prefixes; adding either lock flag on the foreign route rejects the turn. Mint new sessions as `demo:{guid}:{route}` (GUID = uniqueness, route = display affinity parsed back for chips/links) and promote the draft on first `SessionUpdated`.
+
 ## Streaming markdown
 
 Assistant text streams in as markdown (`TextMessageStart/Content/End` events) and renders live. No consumer toggle — it's the default chat experience.
@@ -82,7 +84,7 @@ When the agent is busy (Thinking… / streaming), a **Stop** button appears in t
 
 ## Timeout warning
 
-If a turn exceeds the configured timeout, a **"Turn timed out"** warning banner appears in the timeline. The turn is terminated and the surface returns to idle. Configure via the chat component's timeout parameters (e.g. `TurnTimeoutSeconds`).
+There is no hard turn timeout rendered by the surface. Instead, after ~10 seconds of thinking the status banner flips from **Thinking...** to **"Taking longer than expected..."** — a **soft, fixed indicator** (library constant `TimeoutWarningMs = 10000`). It does **not** terminate the turn, is **not** configurable via any chat parameter (there is no `TurnTimeoutSeconds`), and simply stays until the agent produces its first output. If you see it often, your turns are taking >10 s to first token — chase model choice, prompt size, or provider round-trip latency rather than a parameter.
 
 ## Error boundary
 
@@ -112,6 +114,6 @@ Note: `AgentChatPanel` omits `ShowDevTools` and `AutoShowDevTools` parameters �
 | Slash menu empty | `EnableAgentHandoff` false **and** no `[AgentAction]` components registered |
 | Selector shows an agent you can't switch from | `LockedAgentName` or `LockAgentToCurrentRoute` is pinning it |
 | Stop button missing | Only visible during active turns (Thinking… / streaming); disappears when idle |
-| Turn times out silently | Check `TurnTimeoutSeconds` on the chat component; also verify no long-running capability without cancellation |
+| "Taking longer than expected…" every turn | Turns take >10 s to first token — a fixed soft indicator, not an error and not configurable. Reduce prompt size / pick a faster model / check provider round-trip |
 | Error boundary not showing | Unhandled exceptions in capability methods are caught; check that your code throws rather than swallowing |
 | Inspector panel not available | `AgentChatPanel` doesn't expose `ShowDevTools` — switch to `AgentChatSurface` or `AgentChatWidget` |
