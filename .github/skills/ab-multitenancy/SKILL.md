@@ -304,6 +304,7 @@ The tenant must survive the whole turn pipeline. Relying only on `SessionId` emb
 
 ## Related skills
 
+- **`ab-agent-registration`** — register agents **per tenant** at runtime with a custom `IAgentRegistry` via the skill's [Dynamic Agent Registration](../ab-agent-registration/SKILL.md#dynamic-agent-registration) section (builds on the AsyncLocal tenant context + proxy pattern above)
 - **`ab-provider-config`** — consumer-side `ChatOptions` configuration. Note: `ConfigureChatOptions` (v0.2.23+) applies only to the singleton `IChatClient` registered by `UseOpenAI()`/`UseAzureOpenAI()`/`UseOllama()`. The multi-tenant proxy pattern replaces that singleton, so the hook is **bypassed** — pin per-tenant `ChatOptions` inside your `TenantAwareChatClient` factory instead (see the skill's [Multi-Tenant Per-Tenant Pinning](../ab-provider-config/SKILL.md#multi-tenant-per-tenant-pinning)).
 - **`ab-middleware-authoring`** — `IAgentTurnMiddleware` for per-tenant cost control and audit
 - **`ab-conversation-store`** — per-tenant `IConversationStore` implementations

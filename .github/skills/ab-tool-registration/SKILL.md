@@ -123,7 +123,7 @@ The runtime checks: if `AgentRegistration.AllowedActions` is non-empty, only too
 
 ## Per-Turn Tool Filtering (Runtime Customization Seam)
 
-For **runtime** (per-agent, per-conversation) tool filtering — beyond the startup-time `WithAllowedActions` — use the `IAgentRuntimeCustomizer` seam:
+For **runtime** (per-agent, per-conversation) tool filtering — beyond the startup-time `WithAllowedActions` — use the `IAgentRuntimeCustomizer` seam. When agent definitions come from a **database-backed registry** (Agent Builder), resolve the enabled-tool set from the persisted store keyed by `registration.Name` — see the `ab-context-assembly` [Agent Builder × customizer integration](../ab-context-assembly/SKILL.md).
 
 ```csharp
 options.ConfigureBuilder(builder =>

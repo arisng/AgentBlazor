@@ -49,6 +49,7 @@ Conversation history is managed automatically by the package — persisted via `
 | Add runtime data to every turn | Context dictionary injection via `AgentRuntimeContextKeys` | [`references/context-dictionary.md`](references/context-dictionary.md) |
 | Customize instructions per request | Middleware enrichment or context dict workaround | [`references/dynamic-instructions.md`](references/dynamic-instructions.md) |
 | **Customize the system prompt + tool list per agent** | **`IAgentRuntimeCustomizer` seam (`AddRuntimeCustomizer`)** | [`references/dynamic-instructions.md`](references/dynamic-instructions.md) |
+| **Agent Builder: persist persona + tool set per agent** | **`IAgentRuntimeCustomizer` seeded from the DB-backed registry (see the Agent Builder showcase)** | [`ab-dynamic-integration`](#agent-builder--customizer-integration) |
 | Debug what the LLM actually received | Enable prompt tracing | [`references/prompt-tracing.md`](references/prompt-tracing.md) |
 | Take full control of prompt construction | Replace `IAgentRuntimeAdapter` | [`references/dynamic-instructions.md`](references/dynamic-instructions.md) |
 
@@ -58,6 +59,22 @@ Conversation history is managed automatically by the package — persisted via `
 - [Dynamic instructions](references/dynamic-instructions.md) — approaches to customizing instructions at runtime, ranked by power and complexity; the `IAgentRuntimeCustomizer` seam is the supported path for per-agent system-prompt + tool customization
 - [Prompt tracing](references/prompt-tracing.md) — enabling tracing, configuring retention, viewing traces in the inspector, and troubleshooting
 - [Context dictionary](references/context-dictionary.md) — full reference of `AgentRuntimeContextKeys`, the known user-message format, and patterns for custom injection
+
+## Agent Builder × customizer integration
+
+When a consumer app lets users **build agents at runtime** (a database-backed `IAgentRegistry`), compose that with the `IAgentRuntimeCustomizer` seam so a just-built agent immediately honors its persona + tool set:
+
+1. **Persist persona + enabled tools alongside the agent definition.** In your store (DB-backed registry), keep per-agent persona + enabled-tool columns (or metadata keys your registry re-hydrates). The `AgentRegistration.Metadata` dictionary is a convenient carrier.
+2. **Have a single registered `IAgentRuntimeCustomizer` resolve from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`).
+3. **Construct `AgentRuntimeCustomization` from the persisted values:**
+   ```csharp
+   return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
+       Instructions: persona,                       // appended after registered instructions
+       EnabledToolIds: enabledToolIds));            // null = no filtering
+   ```
+4. **A built agent's edits take effect on the next turn** — no restart required (the customizer runs per turn in the adapter's instruction/tool projection).
+
+See **`ab-agent-registration`** for the DB-backed registry part (replace path, `AddOrUpdate`, seeding workflow agents' `AllowedCapabilityActions`).
 
 ## Related skills
 
