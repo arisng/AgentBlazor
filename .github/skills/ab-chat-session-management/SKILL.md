@@ -76,6 +76,13 @@ Rules for staying consumer-agnostic when applying this skill:
 - **Symptom of the wrong setting / drift:** stored conversation keys contain `::agent::<name>` suffixes when the consumer expected raw session keys, and (on DB-backed stores) the write path may hit unique-index PK violations (second append fails → assistant turn lost, user turn duplicated).
 - **Fix rule:** single-agent surfaces MUST keep isolation OFF (or rely on the single-agent path, which never suffixes). Multi-agent isolation is achieved by distinct client-authored session IDs combined with the `::agent::` suffix, not by the suffix alone.
 
+### Route prefixes vs `DefaultAgentName` (why cross-route chat is allowed)
+
+- `WithRoutePrefixes(...)` is stored as `Metadata["route_prefixes"]` and is **only enforced when a lock is requested** — i.e. `LockedAgentName` is set or `LockAgentToCurrentRoute=true` on the surface, which sends `AgentLock=true` + `CurrentRoute` in the turn context.
+- `DefaultAgentName` alone does **not** request a lock. `RuntimeTurnPreflight.AllowsLockedRoute()` returns `true` immediately when `IsAgentLockRequested(context)` is `false`, so the explicit agent name resolves even when the current page route does not match its prefixes.
+- Pattern proven by the Demo SessionBrowser (`/demo/sessions` hosting agents registered for `/demo/customization`, `/demo/workflows/*`): both resume and new-chat surfaces use `DefaultAgentName` + `LockAgentToCurrentRoute="false"` with no `LockedAgentName`, so a `Customization Demo Agent` turn succeeds from `/demo/sessions`. Setting either lock flag would reject the same turn with `Requested agent '...' is not configured for route '/demo/sessions'`.
+- Route text embedded in a session ID (e.g. `demo:{guid}:/demo/customization`) is **display affinity only** — the store treats the whole base string opaquely. Uniqueness comes from the GUID; the route suffix only lets list UIs recover a route chip / workflow link via parsing. Dropping it still chats correctly but loses that display grouping.
+
 ## Backend: Querying Sessions
 
 ### List all active sessions
