@@ -67,49 +67,52 @@ $report = [ordered]@{
     dataSchemas    = $null
     services       = @()
     configGates    = @()
-        runtimeCustomization = @()
+    runtimeCustomization = @()
+    dynamicRegistry     = @()
     }
 
-# --- Agents & workflows registered in Program.cs -----------------------------
+# --- Agents & workflows: now sourced from the DB seeder ------------------------
+# Agent definitions moved OUT of Program.cs into DemoAgentDatabaseSeeder.BuildSeeds()
+# (the DB-backed IAgentRegistry is authoritative). Program.cs only calls AddCapability
+# for [AgentAction] discovery. So agents/workflows/agentRegistrations are parsed from
+# BuildSeeds(): Workflow<TCapability>("Name", ...) are workflow agents, Agent(...) are
+# standalone. Evidence is cross-checked by the dynamicRegistry probe below.
 $programCs = Join-Path $DemoRoot 'Program.cs'
 $programText = Get-Content $programCs -Raw
+$seederPath = Join-Path $DemoRoot 'Services\DemoAgentDatabaseSeeder.cs'
+$seederText = if (Test-Path $seederPath) { Get-Content $seederPath -Raw } else { '' }
 
-# Each registration is a lambda: AddAgent("Name", agent => { ... }); or
-# AddWorkflow<TCap>("Name", agent => { ... });. The registration body never
-# contains "});" other than as its own terminator, so lazy-match to "});" is safe.
-$regPattern = '(?ms)agentBuilder\.(?:AddAgent|AddWorkflow<(\w+)>)\("(?<name>[^"]+)"\s*,\s*agent\s*=>\s*\{(?<body>.+?)\}\)\s*;'
 $agentRegistrations = @()
-foreach ($m in [regex]::Matches($programText, $regPattern)) {
-    $body = $m.Groups['body'].Value
-    $allowedComponents = @()
-    # WithAllowedComponents("A", "B", ...) is ONE call with many string args; capture
-    # the full parenthesized list (multiline-safe) and pull out every quoted string.
-    foreach ($cm in [regex]::Matches($body, '(?s)WithAllowedComponents\(\s*(.*?)\)')) {
-        foreach ($sm in [regex]::Matches($cm.Groups[1].Value, '"([^"]+)"')) {
-            $allowedComponents += $sm.Groups[1].Value
+if (-not [string]::IsNullOrWhiteSpace($seederText)) {
+    # A seed entry is Workflow<TCap>("Name", ...) [workflow] or Agent("Name", ...) [standalone].
+    # The `cap` group is non-empty only for workflow seeds, distinguishing the two kinds.
+    $seedEntryPattern = '(?:Workflow<(?<cap>[^>]+)>|Agent)\(\s*"(?<name>[^"]+)"(?<rest>[\s\S]*?)\)\s*,'
+    foreach ($m in [regex]::Matches($seederText, $seedEntryPattern)) {
+        $rest = $m.Groups['rest'].Value
+        $components = @([regex]::Matches($rest, 'components:\s*\[([^\]]*)\]') | ForEach-Object {
+            [regex]::Matches($_.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
+        })
+        $dataSchemas = @([regex]::Matches($rest, 'dataSchemas:\s*\[([^\]]*)\]') | ForEach-Object {
+            [regex]::Matches($_.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
+        })
+        $routePrefixes = @([regex]::Matches($rest, 'routePrefixes:\s*\[([^\]]*)\]') | ForEach-Object {
+            [regex]::Matches($_.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
+        })
+        $isWorkflow = $m.Groups['cap'].Success
+        $agentRegistrations += [ordered]@{
+            name               = $m.Groups['name'].Value
+            kind               = if ($isWorkflow) { 'workflow' } else { 'agent' }
+            capabilitiesType   = if ($isWorkflow) { $m.Groups['cap'].Value } else { $null }
+            allowedComponents  = $components
+            dataSchemas        = $dataSchemas
+            hasSharedInstructions = ($rest -match 'instructions:\s*sharedInstructionsOrDefault')
+            routePrefixes      = $routePrefixes
         }
-    }
-    $dataSchemas = @()
-    foreach ($dm in [regex]::Matches($body, '(?s)WithDataSchemas\(\s*(.*?)\)')) {
-        foreach ($sm in [regex]::Matches($dm.Groups[1].Value, '"([^"]+)"')) {
-            $dataSchemas += $sm.Groups[1].Value
+        if ($isWorkflow) {
+            $report.workflows += [ordered]@{ capabilitiesClass = $m.Groups['cap'].Value; agentName = $m.Groups['name'].Value }
+        } else {
+            $report.agents += $m.Groups['name'].Value
         }
-    }
-    $isWorkflow = $m.Groups[1].Success
-    $reg = [ordered]@{
-        name               = $m.Groups['name'].Value
-        kind               = if ($isWorkflow) { 'workflow' } else { 'agent' }
-        capabilitiesType   = if ($isWorkflow) { $m.Groups[1].Value } else { $null }
-        allowedComponents  = $allowedComponents
-        dataSchemas        = $dataSchemas
-        hasSharedInstructions = ($body -match 'WithInstructions\(sharedAgentInstructions\)')
-        routePrefixes      = @([regex]::Matches($body, 'WithRoutePrefixes\(([^)]*)\)') | ForEach-Object { ($_.Groups[1].Value -replace '"(.*?)"', '$1') })
-    }
-    $agentRegistrations += $reg
-    if ($isWorkflow) {
-        $report.workflows += [ordered]@{ capabilitiesClass = $m.Groups[1].Value; agentName = $m.Groups['name'].Value }
-    } else {
-        $report.agents += $m.Groups['name'].Value
     }
 }
 $report.agentRegistrations = @($agentRegistrations)
@@ -240,6 +243,39 @@ foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs'
     }
 }
 $report.runtimeCustomization = $runtimeCustomization
+
+# --- Dynamic agent registry (database-backed IAgentRegistry, replace path) -----
+# The Agent Builder showcases a custom IAgentRegistry registered BEFORE AddAgentBlazor.
+# The static AddAgent/AddWorkflow regex above still finds the ConfigureBuilder
+# registrations (kept for capabilities/schemas/tools/customizer); this probe confirms
+# the custom registry + its store are wired and that the builder page exists.
+$dynamicRegistry = [ordered]@{
+    registryRegistered  = [regex]::IsMatch($programText, 'AddSingleton<(?:AgentBlazor\.Agents\.)?IAgentRegistry>')
+    registryType        = @()
+    storeContext        = @()
+    seeder              = $false
+    builderPageRoute    = $null
+}
+foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | Sort-Object -Property Name)) {
+    $text = Get-Content $file.FullName -Raw
+    if ($text -match 'class (\w+)\s*:\s*IAgentRegistry') {
+        $dynamicRegistry.registryType += $file.BaseName
+    }
+    if ($text -match 'DemoAgentDbContext') {
+        $dynamicRegistry.storeContext += $file.BaseName
+    }
+    if ($file.BaseName -eq 'DemoAgentDatabaseSeeder') {
+        $dynamicRegistry.seeder = $true
+    }
+}
+$builderPage = Join-Path $DemoRoot 'Components\Pages\Demo\AgentBuilder.razor'
+if (Test-Path $builderPage) {
+    $page = Get-Content $builderPage -Raw
+    if ($page -match '@page\s+"([^"]+)"') {
+        $dynamicRegistry.builderPageRoute = $Matches[1]
+    }
+}
+$report.dynamicRegistry = $dynamicRegistry
 
 # --- Services (workflow services + infra) ----------------------------------------
 Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | ForEach-Object {
