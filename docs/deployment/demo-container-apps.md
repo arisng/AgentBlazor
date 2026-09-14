@@ -166,7 +166,7 @@ curl -H "X-Demo-Log-Token: $DEMO_LOG_ACCESS_TOKEN" \
   "https://demo.agentblazor.com/internal/demo-logs/traffic/download"
 ```
 
-The token cost estimate currently uses the configured `DemoLogging__InputTokenCostPerMillion` and `DemoLogging__OutputTokenCostPerMillion` values. The defaults match `gpt-4o-mini` text pricing at `$0.15` per 1M input tokens and `$0.60` per 1M output tokens.
+The token cost estimate currently uses the configured `DemoTokenPricing__InputTokenCostPerMillion`, `DemoTokenPricing__OutputTokenCostPerMillion`, and `DemoTokenPricing__CachedInputTokenCostPerMillion` values. The defaults match `gpt-4o-mini` text pricing at `$0.15` per 1M input tokens, `$0.60` per 1M output tokens, and `$0.0075` per 1M cached input tokens.
 
 For a low-cost public demo, prefer structured file/console logs first and keep Log Analytics/Application Insights ingestion off or minimal unless there is a specific incident to debug.
 

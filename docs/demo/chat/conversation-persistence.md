@@ -43,10 +43,46 @@ and required a scope-bridging workaround. The new model eliminates the rewrite:
 - EF Core stack: `Data/DemoConversationSessionEntity.cs`, `Data/DemoConversationTurnEntity.cs`,
   `Data/DemoConversationDbContext.cs` (SQLite, unique `(SessionId,TurnId)` index),
   `Services/DemoConversationStore.cs` (full incremental `IConversationStore` contract),
-  `Services/DemoConversationDatabaseInitializer.cs` (startup `EnsureCreatedAsync`)
+  `Services/DemoConversationDatabaseInitializer.cs` (startup `EnsureCreatedAsync` +
+  idempotent additive column upgrade)
+- Token usage & cost: `src/AgentBlazor.Core/Runtime/Conversation/ConversationTurnUsage.cs`
+  (library turn usage), `Services/DemoUsageCostCalculator.cs` (shared pricing),
+  `Services/DemoConversationUsageQuery.cs` (per-session rollups for the session browser)
 - Library: `src/AgentBlazor.Core/Runtime/Interfaces/IConversationStore.cs` and
   `src/AgentBlazor.Core/Runtime/Conversation/` (`InMemoryConversationStore`,
   `JsonFileConversationStore`)
+
+## Token usage & estimated cost
+
+Every turn that reaches the model records its token usage and estimated cost in the
+conversation database (EF Core store only):
+
+- **Tokens** — `ConversationTurn.Usage` (`ConversationTurnUsage`) carries the provider's
+  raw counts (`InputTokens`, `OutputTokens`, `TotalTokens`, `CachedInputTokens`). The
+  runtime populates it from `AgentTurnResponse.Usage` at both turn-creation sites
+  (`RuntimePersistenceRecords.CreateConversationTurn` and `AgentChatSurface`), so every
+  store backend can persist it — the Demo's EF Core store does.
+- **Cost** — pricing is Demo-side policy, not part of the library turn. The shared
+  `DemoUsageCostCalculator` (flat per-million rates from
+  `DemoTokenPricing:InputTokenCostPerMillion` / `OutputTokenCostPerMillion` /
+  `CachedInputTokenCostPerMillion`) prices every turn; cached input tokens are billed at
+  the discounted cached rate. The JSONL request log and the database both use it, so the
+  two surfaces can never disagree about what a turn cost.
+- **Columns** — `demo_conversation_turns` gains `PromptTokens`, `CompletionTokens`,
+  `TotalTokens`, `CachedInputTokens`, `EstimatedCost` (REAL so SQLite can SUM it),
+  `EstimatedCostCurrency`, and a rate snapshot (`InputTokenCostPerMillion` /
+  `OutputTokenCostPerMillion` / `CachedInputTokenCostPerMillion`) so historical rows stay
+  auditable after a rate change.
+- **Schema upgrade** — the Demo has no EF migrations; `DemoConversationDatabaseInitializer`
+  adds the missing columns idempotently on startup (the same additive pattern as
+  `DemoWorkflowDatabaseSeeder`), so pre-existing `.db` files keep working.
+- **Surfacing** — `/demo/sessions` shows a per-session token breakdown (prompt /
+  completion / cached / total chips in the detail header; a compact `in / out` split with
+  a full hover breakdown in the list), plus the estimated cost — fed by
+  `DemoConversationUsageQuery` (a Null query when the store is not EF Core).
+
+Turns that never reach the model (short-circuited, no-agent, approval continuation) have
+no usage and no cost — an unpriced turn is not the same as a free one.
 
 ## Configuration
 
