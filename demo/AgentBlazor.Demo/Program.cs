@@ -38,18 +38,27 @@ builder.Services.Configure<DemoSecurityOptions>(builder.Configuration.GetSection
 builder.Services.Configure<DemoLoggingOptions>(builder.Configuration.GetSection(DemoLoggingOptions.SectionName));
 builder.Services.Configure<DemoRemoteStorageOptions>(builder.Configuration.GetSection(DemoRemoteStorageOptions.SectionName));
 builder.Services.Configure<DemoConversationOptions>(builder.Configuration.GetSection(DemoConversationOptions.SectionName));
+builder.Services.Configure<DemoWorkflowOptions>(builder.Configuration.GetSection(DemoWorkflowOptions.SectionName));
+// ---------------------------------------------------------------
+// SQLite database convention — all Demo SQLite files live in
+//   demo/AgentBlazor.Demo/data/
+// The directory is created on startup if missing and is gitignored.
+// ---------------------------------------------------------------
+var demoDataDir = Path.Combine(builder.Environment.ContentRootPath, "data");
+Directory.CreateDirectory(demoDataDir);
+
 var demoConversationOptions = builder.Configuration
     .GetSection(DemoConversationOptions.SectionName)
     .Get<DemoConversationOptions>()
     ?? new DemoConversationOptions();
 if (string.IsNullOrWhiteSpace(demoConversationOptions.FilePath))
 {
-    demoConversationOptions.FilePath = Path.Combine(Path.GetTempPath(), "agentblazor-demo-conversations.json");
+    demoConversationOptions.FilePath = Path.Combine(demoDataDir, "agentblazor-demo-conversations.json");
 }
 if (string.IsNullOrWhiteSpace(demoConversationOptions.ConnectionString))
 {
     demoConversationOptions.ConnectionString =
-        $"Data Source={Path.Combine(Path.GetTempPath(), "agentblazor-demo-conversations.db")}";
+        $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo-conversations.db")}";
 }
 
 // EF Core conversation store (DemoConversation:Store=EFCore) — a custom
@@ -99,8 +108,14 @@ var ollamaApiKey = FirstConfigured(
     Environment.GetEnvironmentVariable("OLLAMA_API_KEY"),
     Environment.GetEnvironmentVariable("Ollama__ApiKey"),
     builder.Configuration["Ollama:ApiKey"]);
-var workflowConnectionString = builder.Configuration.GetConnectionString("DemoWorkflow")
-    ?? "Data Source=agentblazor-demo.db";
+var demoWorkflowOptions = builder.Configuration
+    .GetSection(DemoWorkflowOptions.SectionName)
+    .Get<DemoWorkflowOptions>()
+    ?? new DemoWorkflowOptions();
+if (string.IsNullOrWhiteSpace(demoWorkflowOptions.ConnectionString))
+{
+    demoWorkflowOptions.ConnectionString = $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo-workflow.db")}";
+}
 var sharedAgentInstructionsPath = Path.Combine(builder.Environment.ContentRootPath, "agent-instructions.txt");
 var sharedAgentInstructions = File.Exists(sharedAgentInstructionsPath)
     ? File.ReadAllText(sharedAgentInstructionsPath)
@@ -181,7 +196,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddDbContextFactory<DemoWorkflowDbContext>(options =>
-    options.UseSqlite(workflowConnectionString));
+    options.UseSqlite(demoWorkflowOptions.ConnectionString));
 builder.Services.AddSingleton<DemoWorkflowDatabaseSeeder>();
 
 builder.Services.AddAgentBlazor(options =>

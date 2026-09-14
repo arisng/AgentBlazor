@@ -484,7 +484,9 @@ $RECYCLE.BIN/
 *.swp
 /demo/AgentBlazor.Demo/appsettings.Development.json
 
-# Demo runtime database artifacts
+# Demo runtime database artifacts (all DBs live in data/)
+/demo/AgentBlazor.Demo/data/
+# Safety-net: ignore stray DB files at the project root
 /demo/AgentBlazor.Demo/*.db
 /demo/AgentBlazor.Demo/*.db-shm
 /demo/AgentBlazor.Demo/*.db-wal

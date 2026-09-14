@@ -29,17 +29,17 @@ internal sealed class DemoConversationOptions
 
     /// <summary>
     /// Absolute or content-root-relative JSON file path used when <see cref="Store"/>
-    /// is <c>JsonFile</c>. Defaults to a temp file so the Demo never writes into the
-    /// repo tree or a read-only deployment volume.
+    /// is <c>JsonFile</c>. When empty, resolved at startup to
+    /// <c>{ContentRootPath}/data/agentblazor-demo-conversations.json</c>.
     /// </summary>
-    public string FilePath { get; set; } = Path.Combine(Path.GetTempPath(), "agentblazor-demo-conversations.json");
+    public string FilePath { get; set; } = string.Empty;
 
     /// <summary>
     /// SQLite connection string used when <see cref="Store"/> is <c>EFCore</c>.
-    /// Defaults to a temp database file so the Demo never writes into the repo tree.
+    /// When empty, resolved at startup to
+    /// <c>{ContentRootPath}/data/agentblazor-demo-conversations.db</c>.
     /// </summary>
-    public string ConnectionString { get; set; } =
-        $"Data Source={Path.Combine(Path.GetTempPath(), "agentblazor-demo-conversations.db")}";
+    public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
     /// Maximum turns kept per conversation session. Older turns are trimmed.
