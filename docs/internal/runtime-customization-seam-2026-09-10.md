@@ -187,7 +187,7 @@ Deliverable: **`docs/internal/research/260909-runtime-adapter-feasibility.md`** 
 - `docs/internal/roadmap.md` — canonical roadmap (cross-linked; no work-order change)
 - `docs/internal/plan.md` — living plan (Active Workstreams)
 - `docs/internal/STATUS.md` — development status (Active Roadmaps)
-- `.github/skills/ab-context-assembly/references/dynamic-instructions.md` — Approach 3 correction
+- `skills/ab-context-assembly/references/dynamic-instructions.md` — Approach 3 correction
 - `src/AgentBlazor.Core/Runtime/Adapters/ChatClientRuntimeAdapter.cs` — the adapter to extend
 - `src/AgentBlazor.Core/Services/AgentBlazorBuilder.cs` — builder (`UseRuntimeAdapter` :188-203)
 - `src/AgentBlazor.Core/Runtime/Agents/AgentTurnRequest.cs` — sealed request record

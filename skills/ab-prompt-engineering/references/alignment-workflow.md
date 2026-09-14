@@ -43,7 +43,7 @@ Build a machine-readable register with the bundled survey script, then enrich it
 
 ```powershell
 # From the consumer app root
-powershell -File .github/skills/ab-prompt-engineering/scripts/survey-agent-surface.ps1 `
+powershell -File skills/ab-prompt-engineering/scripts/survey-agent-surface.ps1 `
     -SourceDir ./Components -OutFile ./agent-surface.json -Format Json
 ```
 

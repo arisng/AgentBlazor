@@ -64,4 +64,4 @@ builder.Services.AddAgentBlazor(options =>
 
 - See `src/AgentBlazor.Core/Runtime/Interfaces/IConversationStore.cs` for interface
 - See `src/AgentBlazor.Core/Runtime/Conversation/` for implementations
-- See `.github/skills/ab-conversation-store/` for detailed guidance
+- See `skills/ab-conversation-store/` for detailed guidance

@@ -141,4 +141,4 @@ Blast-radius suites specifically re-run: `ProviderWireCaptureTests`, `ReasoningE
 - `tests/AgentBlazor.IntegrationTests/RuntimeCustomizerWireTests.cs` (new)
 - `tests/AgentBlazor.IntegrationTests/RuntimeCustomizerPrototypeTests.cs` (new)
 - `docs/internal/runtime-customization-seam-2026-09-10.md` (workstream plan + status tracker)
-- `.github/skills/ab-context-assembly/references/dynamic-instructions.md` (Approach 3 corrected)
+- `skills/ab-context-assembly/references/dynamic-instructions.md` (Approach 3 corrected)

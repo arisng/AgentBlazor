@@ -68,5 +68,5 @@ public async Task<CapabilityResult> StartRunAsync(
 
 - See `src/AgentBlazor.Core/Attributes/` for attribute definitions
 - See `demo/AgentBlazor.Demo/Services/` for usage examples
-- See `.github/skills/ab-capability-authoring/` for detailed guidance on `[AgentParam]` and `ContextKey`
-- See `.github/skills/ab-context-assembly/references/context-dictionary.md` for the runtime context keys available for `ContextKey` binding
+- See `skills/ab-capability-authoring/` for detailed guidance on `[AgentParam]` and `ContextKey`
+- See `skills/ab-context-assembly/references/context-dictionary.md` for the runtime context keys available for `ContextKey` binding

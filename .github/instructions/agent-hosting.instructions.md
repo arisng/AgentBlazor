@@ -65,4 +65,4 @@ app.MapAgentBlazorEndpoints();
 
 - See `src/AgentBlazor.Hosting/AgentBlazorRegistrationOptions.cs` for options
 - See `src/AgentBlazor.Hosting/AgentBlazorUnifiedServiceCollectionExtensions.cs` for service registration
-- See `.github/skills/ab-provider-config/` for provider configuration details
+- See `skills/ab-provider-config/` for provider configuration details

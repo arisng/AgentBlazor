@@ -63,4 +63,4 @@ AgentBlazor provides base classes and attributes for creating Blazor components 
 
 - See `src/AgentBlazor.Components/Wrappers/AgentControllableComponentBase.cs` for base class
 - See `src/AgentBlazor.Components/Base/AgentFormPageBase.cs` for form base class
-- See `.github/skills/ab-mud-components/` for MudBlazor wrapper patterns
+- See `skills/ab-mud-components/` for MudBlazor wrapper patterns

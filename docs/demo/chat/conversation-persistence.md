@@ -166,7 +166,7 @@ original members:
 
 Custom stores (EF Core, Redis, BFF proxies) must implement them. The canonical EF +
 SQL Server reference is in the
-[ab-conversation-store skill](../../../.github/skills/ab-conversation-store/references/ef-core-sqlserver.md).
+[ab-conversation-store skill](../../../skills/ab-conversation-store/references/ef-core-sqlserver.md).
 `ConversationTurn.TurnId` is the stable identity these operations match on — persist
 it alongside user/agent content.
 

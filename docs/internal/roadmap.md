@@ -168,7 +168,7 @@ Incorporated as hardening decisions (traceability per critique item). Full findi
 1. **Close the dead-config gap:** wire `MaxHistoryInPrompt` + a token budget into adapter message assembly. Correction: history IS on the wire via MAF `AgentSession` today — the gap is **unbounded/un-budgeted**, not absent.[^ctx][^recipe]
 2. **Prefix-preserving budgeted window:** keep stamped system/provider messages + longest recent suffix within token budget (replicate MAF's internal `CompactionMessageIndex.ComputeTokenCount` with `Microsoft.ML.Tokenizers` 2.0.0; the tokenizer-aware factory is `internal`). Prefer MAF-native `ChatHistoryProvider`/`CompactionProvider` (experimental `MAAI001` suppressions) if a Phase-4 spike shows it suffices.[^maf][^recipe]
 3. **Cross-process deterministic tool serialization:** prove byte-identical `tools` JSON across process restarts (hash-seeded iteration warning — C11) and make it a gate deliverable, not an assumption.[^ctx]
-4. Update `.github/skills/ab-context-assembly/` references (pipeline-map, context-dictionary) with the window + prefix rule. Flip `CTX-006`.
+4. Update `skills/ab-context-assembly/` references (pipeline-map, context-dictionary) with the window + prefix rule. Flip `CTX-006`.
 
 **Empirical checkpoint (gate 4):**
 - Unit tests: window keeps system + N recent turns, drops oldest within budget; boundary at `MaxHistoryInPrompt` and token edges

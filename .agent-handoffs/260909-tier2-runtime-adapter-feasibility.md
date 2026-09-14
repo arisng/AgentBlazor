@@ -94,8 +94,8 @@ The adapter calls the LLM via `IChatClient`. If the adapter constructs `ChatOpti
 
 ## Related Files
 
-- `dprocess-dotnet-starter-kit/.github/skills/ab-context-assembly/references/dynamic-instructions.md` — Approach 3 documentation
+- `skills/ab-context-assembly/references/dynamic-instructions.md` — Approach 3 documentation
 - `dprocess-dotnet-starter-kit/.github/skills/ab-tool-registration/SKILL.md` — Per-agent tool filtering via `WithAllowedActions`
-- `dprocess-dotnet-starter-kit/.github/skills/ab-middleware-authoring/SKILL.md` — Middleware capabilities and limitations
+- `skills/ab-middleware-authoring/SKILL.md` — Middleware capabilities and limitations
 - `dprocess-dotnet-starter-kit/.docs/adr/0017-agent-tier-model.md` — Tier model (Tier 1 / Tier 2)
 - `dprocess-dotnet-starter-kit/src/Modules/AgentChat/CONTEXT.md` — AgentChat domain contract

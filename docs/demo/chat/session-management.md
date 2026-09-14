@@ -70,7 +70,7 @@ Session management is the foundation for multi-page, multi-user agent experience
 - **Session browser** — no UI to browse/resume past sessions (library feature only)
 - **SQL Server store** — the Demo's EF store targets SQLite for portability; the
   production EF + SQL Server pattern is in the
-  [ab-conversation-store EF reference](../../../.github/skills/ab-conversation-store/references/ef-core-sqlserver.md)
+  [ab-conversation-store EF reference](../../../skills/ab-conversation-store/references/ef-core-sqlserver.md)
 
 ## Related features
 

@@ -228,7 +228,7 @@ Aligned with the repo's existing docs skeleton (front matter: Created/Owner/Stat
 [^cve2]: https://github.com/github/copilot-cli/security/advisories/GHSA-9ccr-r5hg-74gf (CVE-2026-45033, CLI < 1.0.43, CWE-696).
 [^ctx1]: AgentBlazor docs/internal/roadmap.md (canonical; KV-cache context assembly design, phase structure, release correlation, verification playbook).
 [^ctx2]: AgentBlazor src/AgentBlazor.Core/Runtime/Adapters/ChatClientRuntimeAdapter.cs (CreateAgentAsync 1020-1058, ResolveInstructions 2038-2121, BuildUserMessage 3028-3068, CreateCapabilityTool 1186-1202, WrapFunction/_ = requiresApproval 1265-1278, ExtractUsage 2199-2210, approval 545-743).
-[^ctx3]: AgentBlazor .github/skills/ab-multitenancy/SKILL.md + references/fresh-scope-context-bridging.md (AsyncLocal does not cross CreateScope; TenantAwareChatClient proxy; per-tenant stores).
+[^ctx3]: AgentBlazor skills/ab-multitenancy/SKILL.md + references/fresh-scope-context-bridging.md (AsyncLocal does not cross CreateScope; TenantAwareChatClient proxy; per-tenant stores).
 [^gap1]: ApprovalRequiredAIFunction defining file/line NOT indexed by GitHub code search; exists (adapter + Learn + csproj refs) — location unverified.
 [^gap2]: AssistantUsageData exact declaration not line-cited (large generated file); field names/types inferred from adapter casts.
 [^gap3]: "Compaction invalidates cache prefix" is inference from summaryContent/compactionTokensUsed + KV-cache behavior — needs empirical validation.
