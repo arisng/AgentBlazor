@@ -12,26 +12,11 @@ namespace AgentBlazor.IntegrationTests;
 
 /// <summary>
 /// End-to-end coverage for the Demo's per-turn token-usage persistence: the EF Core
-/// conversation store writes usage + estimated cost onto the turn row, the schema
-/// initializer upgrades pre-existing databases, and the usage query rolls totals up
-/// per session.
+/// conversation store writes usage + estimated cost onto the turn row,
+/// and the usage query rolls totals up per session.
 /// </summary>
 public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
 {
-    /// <summary>Additive columns introduced after the initial conversation schema.</summary>
-    private static readonly string[] UsageColumns =
-    [
-        "PromptTokens",
-        "CompletionTokens",
-        "TotalTokens",
-        "CachedInputTokens",
-        "EstimatedCost",
-        "EstimatedCostCurrency",
-        "InputTokenCostPerMillion",
-        "OutputTokenCostPerMillion",
-        "CachedInputTokenCostPerMillion"
-    ];
-
     private readonly SqliteConnection _connection;
     private readonly ServiceProvider _provider;
     private readonly List<DemoConversationStore> _stores = [];
@@ -44,7 +29,7 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
         _connection.Open();
 
         var services = new ServiceCollection();
-        services.AddDbContextFactory<DemoConversationDbContext>(
+        services.AddDbContextFactory<DemoDbContext>(
             options => options.UseSqlite(_connection));
         _provider = services.BuildServiceProvider();
     }
@@ -159,49 +144,6 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task InitializeAsync_AddsUsageColumnsToPreExistingDatabase()
-    {
-        await InitializeSchemaAsync();
-
-        // Simulate a database created before the usage columns existed.
-        await using (var db = await CreateDbContextAsync())
-        {
-            foreach (var dropColumnSql in UsageColumns.Select(static column =>
-                         $"ALTER TABLE demo_conversation_turns DROP COLUMN {column};"))
-            {
-                await db.Database.ExecuteSqlRawAsync(dropColumnSql);
-            }
-        }
-
-        var beforeUpgrade = await GetTurnColumnNamesAsync();
-        foreach (var column in UsageColumns)
-        {
-            Assert.DoesNotContain(column, beforeUpgrade);
-        }
-
-        // Re-running the initializer must restore every column.
-        await InitializeSchemaAsync();
-
-        var afterUpgrade = await GetTurnColumnNamesAsync();
-        foreach (var column in UsageColumns)
-        {
-            Assert.Contains(column, afterUpgrade);
-        }
-
-        // And the upgraded database must accept a usage-bearing turn.
-        var store = CreateStore();
-        await store.AppendTurnAsync("session-1", CreateTurn("hello", "hi", new ConversationTurnUsage
-        {
-            InputTokens = 11,
-            OutputTokens = 4
-        }));
-
-        var history = await store.GetHistoryAsync("session-1");
-        Assert.NotNull(history);
-        Assert.Equal(11L, Assert.Single(history.Turns).Usage!.InputTokens);
-    }
-
-    [Fact]
     public async Task GetSessionTotalsAsync_AggregatesTokensAndCostAcrossTurns()
     {
         await InitializeSchemaAsync();
@@ -288,15 +230,15 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
         Assert.Null(await new NullDemoConversationUsageQuery().GetSessionTotalsAsync("session-1"));
     }
 
-    private IDbContextFactory<DemoConversationDbContext> DbFactory =>
-        _provider.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>();
+    private IDbContextFactory<DemoDbContext> DbFactory =>
+        _provider.GetRequiredService<IDbContextFactory<DemoDbContext>>();
 
-    private Task<DemoConversationDbContext> CreateDbContextAsync() => DbFactory.CreateDbContextAsync();
+    private Task<DemoDbContext> CreateDbContextAsync() => DbFactory.CreateDbContextAsync();
 
     private async Task InitializeSchemaAsync()
     {
-        var initializer = new DemoConversationDatabaseInitializer(DbFactory);
-        await initializer.InitializeAsync(CancellationToken.None);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.Database.EnsureCreatedAsync();
     }
 
     private DemoConversationStore CreateStore(
@@ -324,15 +266,6 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
     {
         await using var db = await CreateDbContextAsync();
         return await db.Turns.AsNoTracking().SingleAsync();
-    }
-
-    private async Task<List<string>> GetTurnColumnNamesAsync()
-    {
-        await using var db = await CreateDbContextAsync();
-        return await db.Database
-            .SqlQueryRaw<string>(
-                "SELECT name AS \"Value\" FROM pragma_table_info('demo_conversation_turns')")
-            .ToListAsync();
     }
 
     private static ConversationTurn CreateTurn(
