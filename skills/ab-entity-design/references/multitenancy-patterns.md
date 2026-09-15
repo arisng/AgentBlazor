@@ -2,6 +2,8 @@
 
 Comprehensive design rationale for multitenancy in AgentBlazor's conversation store. Covers entity key design, query filtering strategies, Finbuckle integration boundaries, index strategy, denormalization, and lifecycle operations.
 
+> **⚠️ Architecture (v0.4.0):** The library entities are **abstract base classes** with `int Id` (session/turn) or `Guid Id` (agent definition). The code examples below show how consumer apps extend these bases — the actual library base classes are in `AgentBlazor.Core.Persistence`.
+
 ---
 
 ## 1. Composite Key vs Surrogate Key + TenantId Column
@@ -13,18 +15,18 @@ Choosing how to encode tenant ownership into entity primary keys has cascading e
 Every entity's primary key is a composite of the tenant identifier and a tenant-scoped row identifier.
 
 ```csharp
-// Session PK is (TenantId, Id)
-public sealed class ConversationSessionEntity
+// Consumer app — derived session entity with composite PK
+public sealed class MySessionEntity : ConversationSessionEntity
 {
     public required string TenantId { get; set; }  // PK part 1
-    public Guid Id { get; set; }                    // PK part 2
+    // Base `int Id` becomes PK part 2 (mapped via TPC)
 }
 
-// Turn FK must replicate both columns
-public sealed class ConversationTurnEntity
+// Consumer app — derived turn entity with composite FK
+public sealed class MyTurnEntity : ConversationTurnEntity
 {
     public required string TenantId { get; set; }   // FK part 1
-    public Guid SessionId { get; set; }              // FK part 2
+    // Base `int SessionId` is FK part 2
 }
 ```
 
@@ -38,21 +40,21 @@ public sealed class ConversationTurnEntity
 | **Tenant reassignment** | — | **Impossible** without deleting and re-inserting the row. The PK contains the tenant, so changing it requires a new row. If a session or user is moved between tenants, composite keys break. |
 | **Surrogate identity** | — | The `Id` component is scoped per tenant, meaning session "Id 42" exists independently in tenant A and tenant B. Confusing for logging and debugging. |
 
-### Option B: Surrogate GUID `Id` + `TenantId` Column
+### Option B: Surrogate Identity (int/GUID) + `TenantId` Column
 
-Each entity has a globally unique surrogate GUID as its primary key, with `TenantId` as a regular column with an index.
+Each entity has a surrogate identity from the abstract base as its primary key, with `TenantId` as a regular column with an index.
 
 ```csharp
-public sealed class ConversationSessionEntity
+public sealed class MySessionEntity : ConversationSessionEntity
 {
-    public Guid Id { get; set; }                    // Surrogate PK (globally unique)
+    // Base `int Id` is surrogate PK
     public required string TenantId { get; set; }   // Regular column, indexed
 }
 
-public sealed class ConversationTurnEntity
+public sealed class MyTurnEntity : ConversationTurnEntity
 {
-    public Guid Id { get; set; }                    // Surrogate PK
-    public Guid SessionId { get; set; }             // Simple FK — one column
+    // Base `int Id` is surrogate PK
+    public int SessionId { get; set; }              // Simple FK — one column
     public required string TenantId { get; set; }   // Regular column, indexed
 }
 ```

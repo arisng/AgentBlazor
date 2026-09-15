@@ -1,6 +1,8 @@
 # Migration Strategy — AgentBlazor Conversation Store
 
-Backward-compatible EF Core migration patterns for adding `BaseSessionId` and `AgentName` columns to `ConversationSessionEntity`. Covers column specs, nullable-first rollout, backfill patterns, and index strategy.
+Backward-compatible EF Core migration patterns for adding `BaseSessionId` and `AgentName` columns to a consumer app's derived session entity (inheriting from `ConversationSessionEntity`). Covers column specs, nullable-first rollout, backfill patterns, and index strategy.
+
+> **⚠️ Architecture (v0.4.0):** `BaseSessionId` and `AgentName` are **consumer-side extensions** — they are NOT part of the library base entity. Consumer apps add these properties in their derived session entity subclass and manage migrations in their own DbContext. The library base `ConversationSessionEntity` provides only `int Id`, `string SessionId`, `string? UserId`, timestamps, and the `Turns` navigation.
 
 > **Consumer extension:** Apps using multitenancy add a `TenantId` column via their entity subclass and manage per-tenant database migrations. See [multitenancy-patterns.md](../ab-multitenancy/references/entity-design-guidance.md) and the [Rolling Migration for Multi-Tenant Databases](#rolling-migration-for-multi-tenant-databases-consumer-extension) section below.
 

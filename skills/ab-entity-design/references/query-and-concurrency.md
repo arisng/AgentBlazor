@@ -139,12 +139,12 @@ finally
 
 ### Option B: Database Row Version (Multi-Instance Safety Net)
 
-Add an optimistic concurrency token to `ConversationSessionEntity`:
+Add an optimistic concurrency token to your derived session entity:
 
 ```csharp
-public sealed class ConversationSessionEntity
+public sealed class MySessionEntity : ConversationSessionEntity
 {
-    // ... existing properties ...
+    // ... inherited properties from base ...
 
     /// <summary>
     /// Row version for optimistic concurrency control.

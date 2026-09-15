@@ -145,14 +145,14 @@ multiple areas and you need each skill's boundaries.
 
 ## ab-entity-design
 
-- **Scope**: EF Core domain entities — `ConversationSessionEntity`,
-  `ConversationTurnEntity`, `TenantInfo`; composite vs surrogate keys; FK
-  cascades and indexes; multitenancy columns (`TenantId`);
-  `IsolateConversationsByAgent` implications; audit columns, soft delete,
+- **Scope**: EF Core domain entities — abstract base classes
+  `ConversationSessionEntity`, `ConversationTurnEntity`, `AgentDefinitionEntity`;
+  consumer inheritance pattern (TPC mapping); composite vs surrogate keys; FK
+  cascades and indexes; `IsolateConversationsByAgent` implications; audit columns, soft delete,
   concurrency tokens; JSON columns vs owned entity types; migrations.
 - **Signals**: entity design, domain entities, EF Core entities, entity
-  relationships, FK cascade, composite key, global query filter, `TenantId`
-  column, `BaseSessionId`, `AgentName`, owned entity types, split queries,
+  relationships, FK cascade, composite key, global query filter, consumer
+  extensions (`BaseSessionId`, `AgentName`, `TenantId`), owned entity types, split queries,
   concurrency token, audit columns, soft delete.
 - **Boundaries**: entity design only; store wiring is
   `ab-conversation-store`, tenant resolution is `ab-multitenancy`.

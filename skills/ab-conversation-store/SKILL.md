@@ -2,7 +2,7 @@
 name: ab-conversation-store
 description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; implementing incremental persistence operations (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync) keyed by ConversationTurn.TurnId; wiring UseJsonFileConversationStore; or enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore. Consumer-side only; never edit package internals. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, TurnId, conversation persistence, incremental persistence, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, UseProLicense, agent action persistence, action history SQL."
 metadata:
-    version: 0.3.1
+    version: 0.3.2
 ---
 
 # Conversation Store — AgentBlazor
@@ -63,6 +63,56 @@ already-persisted turn in place via `UpdateTurnAsync`.
 | **InMemory** | None — lost on restart | Single process, <10K sessions | Development, demos, single-user apps |
 | **JsonFile** | Single JSON file on disk | Single process, <1K sessions | Lightweight persistence, no database infra |
 | **Custom (EF Core + SQL Server)** | Durable SQL database | Multi-process, horizontal scale, any number of sessions | Production, multi-tenant, high availability. See [ab-entity-design](../ab-entity-design/SKILL.md) for canonical entity definitions before implementing a custom store. |
+
+## Extending base entities for custom stores
+
+The library ships abstract base entities in `AgentBlazor.Core.Persistence` that
+consumer apps inherit from and extend for their own needs:
+
+- `ConversationSessionEntity` — session metadata (`SessionId`, `UserId`, timestamps,
+  `Turns` navigation)
+- `ConversationTurnEntity` — turn payload with 7 token cost columns (`PromptTokens`,
+  `CompletionTokens`, `TotalTokens`, `CachedInputTokens`, `EstimatedCost`, rate
+  snapshots), action plan/result JSON, and `TurnSequence` ordering
+- `AgentDefinitionEntity` — agent registration (name, instructions, persona, JSON
+  collections for components/actions/tools)
+
+```csharp
+using AgentBlazor.Core.Persistence;
+
+// Consumer app extends the base with multitenancy:
+public sealed class AppSessionEntity : ConversationSessionEntity
+{
+    public string? TenantId { get; set; }
+    public bool IsDeleted { get; set; }
+}
+
+public sealed class AppTurnEntity : ConversationTurnEntity
+{
+    public string? TenantId { get; set; }
+}
+```
+
+**Do not shadow navigation collections with `new`** — that creates a separate backing
+field which breaks EF Core `Include` under TPC mapping. Use the base `Turns` collection
+directly.
+
+**Session identity and agent isolation.** The `SessionId` column stores the full
+composed key. When `IsolateConversationsByAgent` is ON, the runtime appends a
+`::agent::AgentName` suffix via `AgentConversationScope.BuildSessionKey()` — the store
+works with this composed string directly. Consumer apps that need to query or group by the
+circuit-level base session can add `BaseSessionId`/`AgentName` columns to their entity
+subclass and populate them by parsing the composed key (see
+[ab-entity-design](../ab-entity-design/SKILL.md) for the full pattern). These are
+**not** part of the base entity — they are consumer extensions for UI-layer querying.
+
+**TPC mapping** — use `UseTpcMappingStrategy()` on each abstract root. Consumer apps own
+their `DbContext` and EF Core migrations; the library is database-agnostic. SQLite+TPC
+requires client-side integer identity generation (see Demo project for a reference
+implementation using `UseAutoincrement()` + a custom `ValueGeneratorFactory`).
+
+For canonical entity definitions, indexes, and multitenancy patterns, see
+[ab-entity-design](../ab-entity-design/SKILL.md).
 
 ## Register a store
 
@@ -149,9 +199,28 @@ Full walkthrough — entity, DbContext, store, registration, migrations, multi-t
 
 - [InMemory store](references/in-memory.md) — implementation details, defaults, cleanup
 - [JsonFile store](references/json-file.md) — file format, load/save, atomic writes
-- [EF Core + SQL Server custom store](references/ef-core-sqlserver.md) — full implementation with entities, DbContext, migrations
+- [EF Core + SQL Server custom store](references/ef-core-sqlserver.md) — full implementation extending base entities, DbContext, TPC mapping, migrations
 - [SQL action history](references/sql-action-history.md) — enable + persist agent actions (`IActionHistoryStore`) to SQL Server/Postgres, any tier
 - [Fresh-scope context bridging](references/fresh-scope-context-bridging.md) — seeding fresh AsyncLocal/circuit context into singleton stores/proxies (the BFF proxy rewrite path)
+- [Entity design](../ab-entity-design/SKILL.md) — canonical base entity definitions, TPC mapping, multitenancy patterns
+
+## Demo project (reference implementation)
+
+The Demo project at `demo/AgentBlazor.Demo/` demonstrates the complete EF Core + TPC
+pattern using the library's abstract base entities:
+
+- **Unified `DemoDbContext`** (`demo/AgentBlazor.Demo/Data/DemoDbContext.cs`) — maps all
+  3 entity hierarchies (sessions, turns, agent definitions) via TPC with SQLite-specific
+  identity workarounds. Reads connection string from `DemoDatabase:ConnectionString` in
+  `appsettings.json`.
+- **Entity subclasses** — `DemoConversationSessionEntity`, `DemoConversationTurnEntity`,
+  `DemoAgentDefinitionEntity` extend the library base entities. The Demo adds a `TenantId`
+  column to the agent definition entity for multitenancy demonstration.
+- **Code-first migrations** — `MigrateAsync()` at startup in `Program.cs` applies pending
+  migrations. No hand-rolled `EnsureCreatedAsync` or additive column hacks.
+- **Deleted classes** — `DemoConversationDatabaseInitializer` (additive column pattern),
+  `DemoAgentDatabaseSeeder`, and split `DemoConversationDbContext`/`DemoAgentDbContext`
+  no longer exist. Agent seed logic is now inline in `Program.cs`.
 
 ## Server-side UserId rule
 
@@ -181,11 +250,14 @@ Since v0.2.25 the library turn carries raw provider usage:
   rate (`DemoTokenPricing:CachedInputTokenCostPerMillion`, gpt-4o-mini = $0.0075/1M) and
   clamp `cached ≤ input`. Snapshot the rates onto each persisted row so historical cost
   stays auditable after a rate change.
-- **Schema evolution** — the Demo now uses code-first EF migrations (`DemoDbContext` with
-  TPC mapping). `MigrateAsync()` at startup applies pending migrations. For consumer apps
-  targeting SQL Server or PostgreSQL, use standard EF migrations (see
+- **Schema evolution** — the Demo uses code-first EF migrations (`DemoDbContext` with
+  TPC mapping). `MigrateAsync()` at startup applies pending migrations. When the library
+  adds new columns to the abstract base entities, consumer apps add a corresponding
+  migration to their own `DbContext` — there is no additive-column hack. For consumer
+  apps targeting SQL Server or PostgreSQL, use standard EF migrations (see
   `references/ef-core-sqlserver.md`). SQLite consumers with TPC should use client-side
-  value generators for integer identity columns.
+  value generators for integer identity columns (see
+  `references/ef-core-sqlserver.md#sqlite-tpc-identity`).
 
 ## Usage-record model (ConversationId-keyed)
 

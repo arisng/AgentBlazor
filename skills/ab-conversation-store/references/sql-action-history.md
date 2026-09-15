@@ -333,7 +333,7 @@ dotnet ef migrations script --context ActionHistoryDbContext --output scripts/ac
 
 ## See also
 
-- [ef-core-sqlserver.md](ef-core-sqlserver.md) — turn transcripts (`IConversationStore`) on EF Core + SQL Server
-- [ab-entity-design](../../ab-entity-design/SKILL.md) — canonical session/turn entities, multitenancy
+- [ef-core-sqlserver.md](ef-core-sqlserver.md) — turn transcripts (`IConversationStore`) on EF Core with TPC base entities
+- [ab-entity-design](../../ab-entity-design/SKILL.md) — canonical base entity definitions, TPC mapping, multitenancy
 - [ab-middleware-authoring](../../ab-middleware-authoring/SKILL.md) — custom middleware for audit/tenant enrichment around turns
 - [in-memory.md](in-memory.md), [json-file.md](json-file.md) — ephemeral/file-backed alternatives

@@ -1,6 +1,8 @@
 # Entity Relationships — AgentBlazor
 
 > Part of the [ab-entity-design](../SKILL.md) skill. Canonical reference for all entity relationships, FK/cascade/index summary, and the design rationale behind each decision.
+>
+> **⚠️ Architecture note (v0.4.0):** The library entities (`ConversationSessionEntity`, `ConversationTurnEntity`, `AgentDefinitionEntity`) are **abstract base classes** in `AgentBlazor.Core.Persistence`. Consumer apps inherit from them and map derived types using TPC. The diagram below shows the **library base properties** — consumer extensions (BaseSessionId, AgentName, TenantId, soft-delete, etc.) are added in derived entity subclasses.
 
 ## Contents
 
@@ -17,43 +19,47 @@
 
 ## Full ER Diagram
 
-> ⚠️ **Key relationship to understand**: One `BaseSessionId` (a browser tab / Blazor circuit) maps to **one or more** `SessionId` rows (agent-scoped conversations). When `IsolateConversationsByAgent` is ON with multiple agents, a single circuit spawns multiple `ConversationSessionEntity` rows — all sharing the same `BaseSessionId` but with different `AgentName` values and different `SessionId` keys.
+> ⚠️ **Key relationship to understand**: When `IsolateConversationsByAgent` is ON with multiple agents, a single circuit spawns multiple `ConversationSessionEntity` rows — all sharing the same circuit identifier (parsed from `SessionId`) but with different agent suffixes embedded in the `SessionId` string.
 >
 > ```
-> BaseSessionId = "d1e9a3f2..." (one circuit)
->   ├── ConversationSessionEntity { SessionId = "...::agent::SupportAgent", AgentName = "SupportAgent" }
->   └── ConversationSessionEntity { SessionId = "...::agent::InboxAgent",   AgentName = "InboxAgent"   }
+> Circuit (parsed from SessionId): "d1e9a3f2..."
+>   ├── ConversationSessionEntity { SessionId = "d1e9a3f2...::agent::SupportAgent" }
+>   └── ConversationSessionEntity { SessionId = "d1e9a3f2...::agent::InboxAgent"   }
 > ```
 >
-> This is the **most important structural decision** in the AgentBlazor entity model. When adding your own domain entities, decide whether they belong at the circuit level (`BaseSessionId`) or the agent-conversation level (`SessionId`). See [SKILL.md](../SKILL.md#%EF%B8%8F-two-critical-concepts-basesessionid-vs-sessionid) for guidance.
+> There are no separate `BaseSessionId` or `AgentName` columns in the base entity. Consumer apps that need indexed lookups by circuit or agent add these as extension columns in their derived entity subclass. See [session-identity-entities.md](session-identity-entities.md) for details.
 
 Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension concern — see [multitenancy-patterns.md](multitenancy-patterns.md).
 
+> **Architecture (v0.4.0):** Library entities are abstract base classes. The diagram shows base properties — consumer extensions (BaseSessionId, AgentName, TenantId, token cost columns, etc.) are added in derived entity subclasses.
+
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  ConversationDbContext (AgentBlazor — application data)                      ║
+║  Consumer DbContext (abstract base: ConversationSessionEntity)                ║
 ║  ┌──────────────────────────────────────────────────────────┐                  ║
-║  │  ConversationSessionEntity                               │                  ║
+║  │  ConversationSessionEntity  (abstract)                    │                  ║
 ║  ├──────────────────────────────────────────────────────────┤                  ║
-║  │  PK  Id                  Guid                            │                  ║
+║  │  PK  Id                  int   (auto-increment)          │                  ║
 ║  │  UQ  SessionId           string  (required)              │                  ║
-║  │  IX  BaseSessionId       string? (nullable)              │                  ║
-║  │  IX  AgentName           string? (nullable)              │                  ║
 ║  │  IX  UserId              string? (nullable)              │                  ║
 ║  │      CreatedAtUtc        DateTime                                           ║
 ║  │      LastActivityAtUtc   DateTime                                           ║
 ║  │                                                                             ║
 ║  │  NAV  Turns → List<ConversationTurnEntity>                                  ║
+║  │                                                                             ║
+║  │  Consumer extensions (added in derived classes):                            ║
+║  │    BaseSessionId (string?)  AgentName (string?)  TenantId (string?)        ║
 ║  └──────────────────────────┬───────────────────────────────────────────────┘  ║
 ║                             │                                                  ║
 ║                             │ 1:N (FK: SessionId → ConversationSessionEntity.Id)║
 ║                             │ Cascade delete                                   ║
 ║                             │                                                  ║
 ║  ┌──────────────────────────▼───────────────────────────────────────────────┐  ║
-║  │  ConversationTurnEntity                                                   │  ║
+║  │  ConversationTurnEntity  (abstract)                                       │  ║
 ║  ├──────────────────────────────────────────────────────────────────────────┤  ║
-║  │  PK  Id                    Guid                                           │  ║
-║  │  FK  SessionId             Guid       (→ ConversationSessionEntity.Id)    │  ║
+║  │  PK  Id                    int     (auto-increment)                      │  ║
+║  │  FK  SessionId             int      (→ ConversationSessionEntity.Id)     │  ║
+║  │      TurnId                string   (required, unique per session)       │  ║
 ║  │      UserMessage           string     (required)                          │  ║
 ║  │      AgentResponse         string     (required)                          │  ║
 ║  │      PlannedActionsJson    string?    (nvarchar(max))                     │  ║
@@ -61,6 +67,11 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 ║  │      ExecutionPlanJson     string?    (nvarchar(max))                     │  ║
 ║  │      GeneratedUiJson       string?    (nvarchar(max))                     │  ║
 ║  │      TimestampUtc          DateTime                                       │  ║
+║  │      TurnSequence          int                                            │  ║
+║  │      PromptTokens          long?                                          │  ║
+║  │      CompletionTokens      long?                                          │  ║
+║  │      EstimatedCost         decimal?                                       │  ║
+║  │      ... (token cost columns built into base)                             │  ║
 ║  │                                                                           │  ║
 ║  │  NAV  Session → ConversationSessionEntity                                 │  ║
 ║  └──────────────────────────────────────────────────────────────────────────┘  ║
@@ -68,10 +79,10 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  Consumer DbContext (agent definition store — backs IAgentRegistry)           ║
+║  Consumer DbContext (abstract base: AgentDefinitionEntity)                    ║
 ║                                                                              ║
 ║  ┌──────────────────────────────────────────────────────────┐                ║
-║  │  AgentDefinitionEntity                                   │                ║
+║  │  AgentDefinitionEntity  (abstract)                        │                ║
 ║  ├──────────────────────────────────────────────────────────┤                ║
 ║  │  PK  Id                  Guid                            │                ║
 ║  │  UQ  Name                string      (case-insensitive)  │                ║
@@ -111,22 +122,30 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 
 | # | Relationship | Parent | Child | FK Column | Cascade | Navigation | Index |
 |---|---|---|---|---|---|---|---|
-| 1 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (Guid) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
-| 2 | **BaseSessionId → Sessions** (logical grouping) | N/A (same table) | `ConversationSessionEntity` | `BaseSessionId` (string?) | None — self-referencing grouping | None | `IX_ConversationSessions_BaseSessionId` non-clustered |
-| 3 | **AgentDefinitionEntity** (standalone) | N/A (no parent) | `AgentDefinitionEntity` | N/A | N/A — standalone entity | None | `IX_AgentDefinitions_Name` unique |
+| 1 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (int) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
+| 2 | **AgentDefinitionEntity** (standalone) | N/A (no parent) | `AgentDefinitionEntity` | N/A | N/A — standalone entity | None | `IX_AgentDefinitions_Name` unique |
 
-### Index Details
+### Library-Provided Indexes
 
 | Index | Columns | Type | Purpose |
 |---|---|---|---|
 | `IX_ConversationSessions_SessionId` | `SessionId` | Unique, non-clustered | Primary lookup: `GetHistoryAsync`, `AppendTurnAsync` |
-| `IX_ConversationSessions_BaseSessionId` | `BaseSessionId` | Non-clustered | Circuit-scoped session grouping when agent isolation is ON |
-| `IX_ConversationSessions_AgentName` | `AgentName` | Non-clustered | Agent-scoped session queries |
 | `IX_ConversationSessions_LastActivityAtUtc` | `LastActivityAtUtc` | Non-clustered | Expired-session cleanup |
 | `IX_ConversationTurns_SessionId` | `SessionId` | Non-clustered | FK lookups — efficient turn retrieval by session |
 | `IX_AgentDefinitions_Name` | `Name` | Unique, non-clustered | Case-insensitive agent lookup (primary path for `TryGet`) |
 
-All string index columns use case-insensitive collation (`Latin1_General_CP1_CI_AS` on SQL Server). Non-clustered because the clustered PK is on `Id` (GUID — avoids fragmentation from sequential inserts).
+### Consumer Extension Indexes (optional)
+
+Consumer apps that add normalized `BaseSessionId` / `AgentName` columns to their derived session entity subclass can create these indexes:
+
+| Index | Columns | Type | Purpose |
+|---|---|---|---|
+| `IX_ConversationSessions_BaseSessionId` | `BaseSessionId` | Non-clustered | Circuit-scoped session grouping when agent isolation is ON |
+| `IX_ConversationSessions_AgentName` | `AgentName` | Non-clustered | Agent-scoped session queries |
+
+> **Note:** The library base entity does **not** have `BaseSessionId` or `AgentName` columns. These are consumer-side extensions. See [session-identity-entities.md](session-identity-entities.md) Section 4 for the normalized columns pattern.
+
+All string index columns use case-insensitive collation (`Latin1_General_CP1_CI_AS` on SQL Server). Non-clustered because the clustered PK is on `Id` (auto-increment).
 
 ---
 
@@ -136,29 +155,29 @@ All string index columns use case-insensitive collation (`Latin1_General_CP1_CI_
 
 > **Consumer extension:** The core entity model is tenant-agnostic — no `TenantId` column on any core entity. Consumer apps that need tenant scoping should add `TenantId` to their entity subclasses and apply global query filters. See [multitenancy-patterns.md](multitenancy-patterns.md) for tenant-scoped sessions, global query filters, and Finbuckle integration.
 
-### BaseSessionId + AgentName: Separate Columns from SessionId
+### BaseSessionId + AgentName: Optional Consumer Extension Columns
 
-**Decision:** `BaseSessionId` and `AgentName` are stored as **independent columns**, not embedded inside the `SessionId` string.
+> **⚠️ Not in the library base entity.** The sections below describe an **optional consumer extension** pattern. The library base `ConversationSessionEntity` has only the composed `SessionId` column. Consumer apps that need efficient indexed lookups by circuit or agent add `BaseSessionId` and `AgentName` as additional columns in their derived entity subclass.
 
-**Why:**
+**Why normalize (consumer extension)?**
 
 1. **Exact-match queries.** When `IsolateConversationsByAgent` is ON, querying all sessions for a given circuit requires:
 
    ```sql
-   -- With separate columns: simple, indexed, sargable
-   SELECT * FROM ConversationSessions WHERE BaseSessionId = @circuitId;
+   -- Without normalized columns: string prefix match
+   SELECT * FROM MySessions WHERE SessionId LIKE @circuitId + '%';
 
-   -- If embedded in SessionId: slow, unindexed, non-sargable
-   SELECT * FROM ConversationSessions WHERE SessionId LIKE @circuitId + '%';
+   -- With normalized columns (consumer extension): simple, indexed, sargable
+   SELECT * FROM MySessions WHERE BaseSessionId = @circuitId;
    ```
 
-   String containment queries (`LIKE '%pattern%'`, `SUBSTRING`, `CHARINDEX`) cannot use the unique index on `SessionId`.
+   String prefix queries work but cannot use exact-match indexes efficiently.
 
-2. **Compound indexes.** The compound index `IX_ConversationSessions_BaseSessionId` enables efficient circuit-scoped lookups. If `BaseSessionId` were embedded inside `SessionId`, the DB optimizer could not use any index for the combination of circuit identifier.
+2. **Compound indexes.** The compound index `IX_MySessions_BaseSessionId` enables efficient circuit-scoped lookups. Without normalized columns, the DB optimizer must scan the `SessionId` index.
 
-3. **DB constraints.** `SessionId` has a **unique** constraint. If `BaseSessionId` were part of `SessionId`, the DB would guarantee uniqueness across the full key — which we already want. But separate columns allow a **non-unique** index on `BaseSessionId` (many sessions can share one circuit) while keeping `SessionId` unique.
+3. **DB constraints.** A unique constraint on `(BaseSessionId, AgentName)` with `NULLS NOT DISTINCT` enforces that only one session row exists per circuit/agent tuple — providing duplicate detection at the database level.
 
-4. **Backward compatibility.** The `BaseSessionId` column is nullable (existing rows pre-normalization have `NULL`). A separate nullable column is the standard migration pattern for adding derived data to an existing table.
+4. **Backward compatibility.** The columns are nullable (existing rows pre-normalization have `NULL`). A separate nullable column is the standard migration pattern for adding derived data to an existing table.
 
 ```csharp
 // BuildSessionKey produces the full SessionId from its components
@@ -231,23 +250,17 @@ CREATE UNIQUE INDEX IX_AgentDefinitions_Name
 
 ### What It Is
 
-When `IsolateConversationsByAgent` is **ON** and multiple agents are registered, a single Blazor circuit (browser tab) spawns **multiple** `ConversationSessionEntity` rows — one per agent. The circuit identifier is stored in `BaseSessionId`, and each row has a distinct `AgentName` and `SessionId`.
+When `IsolateConversationsByAgent` is **ON** and multiple agents are registered, a single Blazor circuit (browser tab) spawns **multiple** `ConversationSessionEntity` rows — one per agent. Each row has a distinct `SessionId` containing the circuit identifier and agent name as a composed string (e.g., `"d1e9a3f2...::agent::SupportAgent"`). There are no separate `BaseSessionId` or `AgentName` columns in the base entity.
 
 ```
-                     One Circuit (BaseSessionId = "abc123")
+                     One Circuit (parsed BaseSessionId = "abc123")
                                   │
                   ┌───────────────┼───────────────┐
                   │               │               │
          ┌────────▼────────┐ ┌───▼────────────┐ ┌───▼────────────┐
          │ Session A        │ │ Session B      │ │ Session C      │
-         │ (BaseSessionId): │ │ (BaseSessionId):│ │ (BaseSessionId):│
-         │   abc123         │ │   abc123       │ │   abc123       │
-         │ (AgentName):     │ │ (AgentName):   │ │ (AgentName):   │
-         │   NULL           │ │   SupportAgent │ │   InboxAgent   │
          │ (SessionId):     │ │ (SessionId):   │ │ (SessionId):   │
-         │   d1e9a3f2b8c04 │ │   d1e9a3f2b8c04│ │   d1e9a3f2b8c04│
-         │   a5e9d7f6c1b2a │ │   a5e9d7f6c1b2a│ │   a5e9d7f6c1b2a│
-         │   3d4e5f        │ │   3d4e5f       │ │   3d4e5f       │
+         │   abc123         │ │   abc123       │ │   abc123       │
          │                  │ │   ::agent::    │ │   ::agent::    │
          │                  │ │   SupportAgent │ │   InboxAgent   │
          │   ↓ 1:N          │ │   ↓ 1:N        │ │   ↓ 1:N        │
@@ -255,31 +268,31 @@ When `IsolateConversationsByAgent` is **ON** and multiple agents are registered,
          └──────────────────┘ └────────────────┘ └────────────────┘
 ```
 
-### When the NULL-BaseSessionId Row Exists
+### When the Unscoped Session Row Exists
 
 When `IsolateConversationsByAgent` is ON and multiple agents are registered, there are two `BuildSessionKey` call patterns:
 
-| Call site | `agentName` argument | Resulting SessionId |
+| Call site | `agentName` argument | Resulting `SessionId` |
 |---|---|---|
 | Agent-specific lookup (`GetHistoryAsync` with isolation) | `"SupportAgent"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"` |
 | Non-agent lookup (session list, cleanup, migration) | `null` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` |
 
-The `BaseSessionId` = `NULL` row with `SessionId` = `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` and `AgentName` = `NULL` represents the **unscoped** (pre-isolation or passthrough) session. It may contain turns from before isolation was enabled, or turns where the agent name is unknown.
+The session with `SessionId` = `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` (no `::agent::` suffix) represents the **unscoped** (pre-isolation or passthrough) session. It may contain turns from before isolation was enabled, or turns where the agent name is unknown.
 
 ### Entity State After a Multi-Agent Session
 
-Assume a circuit with `BaseSessionId` = `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` and two agents: `SupportAgent` and `InboxAgent`. After each agent has processed 2 turns:
+Assume a circuit and two agents: `SupportAgent` and `InboxAgent`. After each agent has processed 2 turns:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│  ConversationDbContext — ConversationSessions table                                       │
-├────┬─────────────────────────────────────────────┬────────────────┬──────────────┤
-│ Id │ SessionId                                   │ BaseSessionId  │ AgentName    │
-├────┼─────────────────────────────────────────────┼────────────────┼──────────────┤
-│ S1 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"           │ d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f  │ NULL         │
-│ S2 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"  │ d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f  │ SupportAgent │
-│ S3 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::InboxAgent"    │ d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f  │ InboxAgent   │
-└────┴─────────────────────────────────────────────┴────────────────┴──────────────┘
+│  Consumer DbContext — MyConversationSessions table                                        │
+├────┬─────────────────────────────────────────────────────┬────────────────┬───────────┤
+│ Id │ SessionId                                           │ UserId         │ ...       │
+├────┼─────────────────────────────────────────────────────┼────────────────┼───────────┤
+│ S1 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"                  │ user-42        │           │
+│ S2 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent" │ user-42    │           │
+│ S3 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::InboxAgent"   │ user-42    │           │
+└────┴─────────────────────────────────────────────────────┴────────────────┴───────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │  ConversationDbContext — ConversationTurns table                                  │
@@ -302,15 +315,18 @@ var key = AgentConversationScope.BuildSessionKey(
 // → "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"
 var history = await store.GetHistoryAsync(key, ct);
 
-// 2. Get all sessions for a circuit (grouped by BaseSessionId)
+// 2. Get all sessions for a circuit (string prefix matching)
+var baseKey = "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f";
 var sessions = await db.Sessions
-    .Where(s => s.BaseSessionId == "abc123")
+    .Where(s => s.SessionId.StartsWith(baseKey))
     .OrderByDescending(s => s.LastActivityAtUtc)
     .ToListAsync(ct);
+// Consumer extension with normalized columns:
+// .Where(s => s.BaseSessionId == baseKey)
 
 // 3. Get all turns across all agents in a circuit
 var turns = await db.Turns
-    .Where(t => db.Sessions.Any(s => s.Id == t.SessionId && s.BaseSessionId == "abc123"))
+    .Where(t => db.Sessions.Any(s => s.Id == t.SessionId && s.SessionId.StartsWith(baseKey)))
     .OrderBy(t => t.TimestampUtc)
     .ToListAsync(ct);
 ```
@@ -321,11 +337,11 @@ When `IsolateConversationsByAgent` is `false`, or only one agent is registered, 
 
 ```
 Circuit "abc123"
-    └── Session: SessionId = "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f", BaseSessionId = "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f", AgentName = NULL
+    └── Session: SessionId = "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"
             └── [Turns...]
 ```
 
-`BuildSessionKey` returns the unchanged `sessionId` — no `::agent::` suffix is appended. The `AgentName` column remains `NULL`. The relationship is effectively 1:1 per circuit.
+`BuildSessionKey` returns the unchanged `sessionId` — no `::agent::` suffix is appended. The relationship is effectively 1:1 per circuit.
 
 ---
 

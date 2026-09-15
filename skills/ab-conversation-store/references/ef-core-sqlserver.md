@@ -7,10 +7,11 @@ Full implementation of `IConversationStore` using Entity Framework Core with SQL
 1. [Required packages](#required-packages)
 2. [Entity models](#entity-models)
 3. [DbContext](#dbcontext)
-4. [Store implementation](#store-implementation)
-5. [Registration](#registration)
-6. [Migrations](#migrations)
-7. [Advanced: multi-tenant isolation](#advanced-multi-tenant-isolation)
+4. [Index strategy](#index-strategy)
+5. [Store implementation](#store-implementation)
+6. [Registration](#registration)
+7. [Migrations](#migrations)
+8. [Advanced: multi-tenant isolation](#advanced-multi-tenant-isolation)
 
 ---
 
@@ -21,24 +22,62 @@ Full implementation of `IConversationStore` using Entity Framework Core with SQL
 <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
 ```
 
-Or for any other EF Core provider (PostgreSQL, SQLite, etc.) — the implementation is provider-agnostic.
-
 ---
 
 ## Entity models
 
-> **Canonical entity definitions**: See [ab-entity-design](../../ab-entity-design/SKILL.md) for the authoritative `ConversationSessionEntity` and `ConversationTurnEntity` with all columns, types, nullability, indexes, and design rationale. Key columns include:
-> - `BaseSessionId` (nvarchar(64), nullable) — circuit-level session identifier for grouping agent-scoped sessions
-> - `AgentName` (nvarchar(256), nullable) — populated when `IsolateConversationsByAgent` is ON with multiple agents
-> - `TenantId` (nvarchar(256), required) — denormalized tenant identifier for multitenancy queries
+Since v0.2.25, the library ships abstract base entities in `AgentBlazor.Core.Persistence`.
+Consumer apps inherit from these and add their own properties (multitenancy, soft-delete,
+audit columns). See [ab-entity-design](../../ab-entity-design/SKILL.md) for the canonical
+base entity definitions.
 
-The EF Core store implementation (`EfCoreConversationStore` below) references entity properties through the canonical model.
+```csharp
+using AgentBlazor.Core.Persistence;
+
+/// <summary>
+/// Consumer-specific session entity — adds TenantId for multi-tenant isolation.
+/// All core properties (SessionId, UserId, timestamps, Turns navigation) are inherited.
+/// </summary>
+public sealed class ConversationSessionEntity : AgentBlazor.Core.Persistence.ConversationSessionEntity
+{
+    /// <summary>Denormalized tenant identifier for multitenancy queries.</summary>
+    public string TenantId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Consumer-specific turn entity — adds TenantId for multitenancy isolation.
+/// All core properties (token cost columns, action JSON, timestamps) are inherited.
+/// </summary>
+public sealed class ConversationTurnEntity : AgentBlazor.Core.Persistence.ConversationTurnEntity
+{
+    /// <summary>Denormalized tenant identifier for multitenancy queries.</summary>
+    public string? TenantId { get; set; }
+}
+```
+
+> **Do not shadow navigation collections with `new`** — that creates a separate backing
+> field which breaks EF Core `Include` under TPC mapping.
+
+> **Session identity and agent isolation.** The `SessionId` string is the store's primary
+> lookup key. When `IsolateConversationsByAgent` is ON, the runtime composes the key with
+> a `::agent::AgentName` suffix via `AgentConversationScope.BuildSessionKey()` — the
+> store works with this composed string directly. Consumer apps that need to query or group
+> by the circuit-level base session can add `BaseSessionId`/`AgentName` columns to their
+> entity subclass and populate them by parsing the composed key (see
+> [ab-entity-design](../../ab-entity-design/SKILL.md) for the full pattern). These are
+> **not** part of the base entity — they are consumer extensions for UI-layer querying.
 
 ---
 
 ## DbContext
 
+The consumer's `DbContext` uses `UseTpcMappingStrategy()` on each abstract root. EF Core
+discovers the FK and navigation by convention — no explicit relationship config needed.
+
 ```csharp
+using AgentBlazor.Core.Persistence;
+using Microsoft.EntityFrameworkCore;
+
 public class ConversationDbContext : DbContext
 {
     public ConversationDbContext(DbContextOptions<ConversationDbContext> options)
@@ -49,6 +88,11 @@ public class ConversationDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // TPC (table-per-concrete-type) on abstract roots — per official docs.
+        // Convention handles: int PK AUTOINCREMENT, FK discovery, and navigation pairing.
+        modelBuilder.Entity<AgentBlazor.Core.Persistence.ConversationSessionEntity>().UseTpcMappingStrategy();
+        modelBuilder.Entity<AgentBlazor.Core.Persistence.ConversationTurnEntity>().UseTpcMappingStrategy();
+
         modelBuilder.Entity<ConversationSessionEntity>(entity =>
         {
             entity.ToTable("ConversationSessions");
@@ -57,13 +101,15 @@ public class ConversationDbContext : DbContext
             entity.HasIndex(e => e.SessionId).IsUnique();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.LastActivityAtUtc);  // for cleanup queries
-            entity.HasIndex(e => e.BaseSessionId);           // circuit-scoped session grouping
-            entity.HasIndex(e => e.AgentName);                // agent-scoped session queries
             entity.HasIndex(e => e.TenantId);                 // tenant-scoped queries
             entity.HasIndex(e => new { e.TenantId, e.UserId }); // user session browsing per tenant
 
             entity.Property(e => e.SessionId).HasMaxLength(256).IsRequired();
             entity.Property(e => e.UserId).HasMaxLength(256);
+
+            // Consumer apps that parse the composed SessionId for UI-layer grouping
+            // (e.g. BaseSessionId, AgentName) add their own indexes here — these
+            // columns are NOT part of the library base entity.
         });
 
         modelBuilder.Entity<ConversationTurnEntity>(entity =>
@@ -72,17 +118,14 @@ public class ConversationDbContext : DbContext
 
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.SessionId);
-                    entity.HasIndex(e => new { e.SessionId, e.TurnId }).IsUnique();  // turn identity for incremental ops
+            entity.HasIndex(e => new { e.SessionId, e.TurnId }).IsUnique();  // turn identity for incremental ops
 
-                    entity.Property(e => e.TurnId).HasMaxLength(64).IsRequired();
-                    entity.Property(e => e.UserMessage).IsRequired();
-                    entity.Property(e => e.AgentResponse).IsRequired();
+            entity.Property(e => e.TurnId).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.UserMessage).IsRequired();
+            entity.Property(e => e.AgentResponse).IsRequired();
 
-                    entity.HasOne(e => e.Session)
-                          .WithMany(s => s.Turns)
-                          .HasForeignKey(e => e.SessionId)
-                          .OnDelete(DeleteBehavior.Cascade);
-                });
+            // FK (SessionId → Session nav) and cascade — discovered by convention.
+        });
     }
 }
 ```
@@ -119,18 +162,21 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
     private readonly IDbContextFactory<ConversationDbContext> _dbContextFactory;
     private readonly ConversationOptions _options;
     private readonly ILogger<EfCoreConversationStore>? _logger;
+    private readonly Func<string?>? _tenantResolver;   // from IAgentExecutionScopeAccessor / ITenantContext
     private Timer? _cleanupTimer;
     private bool _disposed;
 
     public EfCoreConversationStore(
         IDbContextFactory<ConversationDbContext> dbContextFactory,
         IOptions<ConversationOptions>? options = null,
-        ILogger<EfCoreConversationStore>? logger = null)
+        ILogger<EfCoreConversationStore>? logger = null,
+        Func<string?>? tenantResolver = null)
     {
         ArgumentNullException.ThrowIfNull(dbContextFactory);
         _dbContextFactory = dbContextFactory;
         _options = options?.Value ?? new ConversationOptions();
         _logger = logger;
+        _tenantResolver = tenantResolver;
 
         if (_options.EnableAutoCleanup)
         {
@@ -162,7 +208,10 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
         var session = await db.Sessions
             .AsNoTracking()
             .Include(s => s.Turns)
-            .FirstOrDefaultAsync(s => s.SessionId == sessionId, cancellationToken);
+            .FirstOrDefaultAsync(
+                s => s.SessionId == sessionId
+                     && (_tenantResolver is null || s.TenantId == _tenantResolver()),
+                cancellationToken);
 
         if (session is null)
             return null;
@@ -201,13 +250,16 @@ internal sealed class EfCoreConversationStore : IConversationStore, IDisposable
             {
                 SessionId = sessionId,
                 CreatedAtUtc = DateTime.UtcNow,
-                LastActivityAtUtc = DateTime.UtcNow
+                LastActivityAtUtc = DateTime.UtcNow,
+                TenantId = _tenantId ?? string.Empty  // resolve from ambient scope
             };
             db.Sessions.Add(session);
         }
 
         session.LastActivityAtUtc = DateTime.UtcNow;
 
+        // Create the consumer's concrete entity type — the store should use the same
+        // entity type registered in the DbContext's DbSet.
         session.Turns.Add(new ConversationTurnEntity
         {
             SessionId = session.Id,
@@ -524,6 +576,10 @@ builder.Services.Configure<ConversationOptions>(options =>
 });
 ```
 
+> **Why `IDbContextFactory<T>`?** `IConversationStore` is resolved as a Singleton from the
+> root provider. A Singleton must never capture a scoped `DbContext` — the factory creates
+> a fresh, safely-scoped context per operation.
+
 ### appsettings.json
 
 ```json
@@ -563,11 +619,16 @@ dotnet ef migrations script \
 
 ## Multi-tenant isolation
 
-Add a `TenantId` column to entities and filter all queries. The canonical `ConversationSessionEntity` and `ConversationTurnEntity` in [ab-entity-design](../../ab-entity-design/SKILL.md) already include `TenantId` with proper indexes.
+Add a `TenantId` column to your entity subclasses and filter all queries. The consumer's
+concrete entity types should include `TenantId` (see entity models above). The canonical
+base entities and their multitenancy patterns are documented in
+[ab-entity-design](../../ab-entity-design/SKILL.md).
 
 ```csharp
 // Every store method filters by tenant:
-.Where(s => s.SessionId == sessionId && s.TenantId == _tenantId)
+.Where(s => s.SessionId == sessionId && s.TenantId == _tenantResolver())
 ```
 
-For the complete multitenancy entity patterns — composite keys, global query filters, compound indexes, and tenant deletion cascade — see [ab-entity-design/references/multitenancy-patterns.md](../../ab-entity-design/references/multitenancy-patterns.md).
+For the complete multitenancy entity patterns — composite keys, global query filters,
+compound indexes, and tenant deletion cascade — see
+[ab-entity-design/references/multitenancy-patterns.md](../../ab-entity-design/references/multitenancy-patterns.md).

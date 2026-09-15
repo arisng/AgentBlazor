@@ -2,14 +2,21 @@
 
 ## Contents
 
+- [Design Principle](#design-principle)
 - [Strategy Choice](#strategy-choice)
-- [Entities](#entities)
+- [Consumer-Derived Entities](#consumer-derived-entities)
 - [DbContext](#dbcontext)
 - [Store Implementation](#store-implementation)
 - [Registration](#registration)
 - [Session Key Embedding](#session-key-embedding)
 
-Custom `IConversationStore` implementation that isolates agent conversation history per tenant using EF Core + SQL Server.
+Custom `IConversationStore` implementation that isolates agent conversation history per tenant using EF Core.
+
+## Design Principle
+
+**The library base entities (`ConversationSessionEntity`, `ConversationTurnEntity`) do NOT include `TenantId`.** Multitenancy is a consumer app concern — you inherit from the abstract base classes and add `TenantId`, then wire global query filters or manual filtering in your store.
+
+> See [SKILL.md § Core Design Principle](../SKILL.md#core-design-principle-multitenancy-is-a-consumer-app-extension) for the full rationale and the library base entity properties.
 
 ## Strategy Choice
 
@@ -18,58 +25,88 @@ The `IConversationStore` interface has no `tenantId` parameter. Two approaches:
 | Approach | Mechanism | Scope |
 |---|---|---|
 | **A: TenantId in session key** | Embed `{tenantId}:` prefix in `SessionId` | All methods are naturally isolated by key prefix |
-| **B: TenantId column + AsyncLocal filter** | Add `TenantId` column to entities, filter every query via `TenantContextAccessor` | Full isolation, queryable per tenant |
+| **B: TenantId column + AsyncLocal filter** | Add `TenantId` column to consumer-derived entities, filter every query via `TenantContextAccessor` | Full isolation, queryable per tenant |
 
-**Recommendation:** Approach B (TenantId column) is sufficient for correct tenant isolation. Approach A (tenant prefix in SessionId) is optional defense-in-depth — it provides an additional safety net if a query forgets the TenantId filter, but is redundant with proper TenantId column filtering. Both can be combined if desired.
+**Recommendation:** Approach B (TenantId column on derived entities) is sufficient for correct tenant isolation. Approach A (tenant prefix in SessionId) is optional defense-in-depth — it provides an additional safety net if a query forgets the TenantId filter, but is redundant with proper TenantId column filtering. Both can be combined if desired.
 
-## Entities
+## Consumer-Derived Entities
 
-> **Canonical entity definitions**: See [ab-entity-design](../../ab-entity-design/SKILL.md) for the authoritative `ConversationSessionEntity` and `ConversationTurnEntity` with all columns, indexes, and design rationale. The tenant-aware entities include:
-> - `TenantId` (nvarchar(256), required) — denormalized tenant identifier on both Session and Turn
-> - `BaseSessionId` (nvarchar(64), nullable) — circuit-level session identifier for grouping agent-scoped sessions
-> - `AgentName` (nvarchar(256), nullable) — populated when `IsolateConversationsByAgent` is ON with multiple agents
->
-> For the complete `BuildSessionKey()` → entity column mapping (including the single-agent edge case), see [ab-entity-design/references/session-identity-entities.md](../../ab-entity-design/references/session-identity-entities.md).
+The consumer app inherits from the library base entities and adds `TenantId`. Optional extension columns (`BaseSessionId`, `AgentName`) are also consumer additions — the library does NOT define them.
 
-The store implementation below uses these columns — tenant filtering is done via `TenantContextAccessor`.
+```csharp
+using AgentBlazor.Core.Persistence;
+
+// Consumer app entity — inherits all base columns from ConversationSessionEntity:
+//   int Id, string SessionId, string? UserId, DateTime CreatedAtUtc,
+//   DateTime LastActivityAtUtc, List<ConversationTurnEntity> Turns
+public sealed class TenantSessionEntity : ConversationSessionEntity
+{
+    /// <summary>Denormalized tenant identifier — filter on every query.</summary>
+    public required string TenantId { get; set; }
+
+    /// <summary>Optional: circuit-level session identifier for grouping agent-scoped sessions.</summary>
+    public string? BaseSessionId { get; set; }
+}
+
+// Consumer app entity — inherits all base columns from ConversationTurnEntity:
+//   int Id, int SessionId (FK), string TurnId, string UserMessage, string AgentResponse,
+//   string? PlannedActionsJson, string? ExecutionResultsJson, string? ExecutionPlanJson,
+//   string? GeneratedUiJson, DateTime TimestampUtc, int TurnSequence,
+//   long? PromptTokens, long? CompletionTokens, long? TotalTokens, long? CachedInputTokens,
+//   decimal? EstimatedCost, string? EstimatedCostCurrency,
+//   decimal? InputTokenCostPerMillion, decimal? OutputTokenCostPerMillion,
+//   decimal? CachedInputTokenCostPerMillion, ConversationSessionEntity? Session
+public sealed class TenantTurnEntity : ConversationTurnEntity
+{
+    /// <summary>Denormalized tenant identifier — filter on every query.</summary>
+    public required string TenantId { get; set; }
+}
+```
+
+> **Note:** `AgentName` is NOT a column on the base entity. The runtime composes session keys with `::agent::AgentName` suffix via `AgentConversationScope.BuildSessionKey()`. Adding `AgentName` as a column is a consumer optimization for indexed queries — see the agent design skill for details.
+
+The store implementation below uses these derived entity types — tenant filtering is done via `TenantContextAccessor`.
 
 ## DbContext
 
+The consumer's DbContext uses **derived entity types** (not the library base types) and configures `TenantId` indexing:
+
 ```csharp
+using AgentBlazor.Core.Persistence;
+
 public sealed class ConversationDbContext : DbContext
 {
     public ConversationDbContext(DbContextOptions<ConversationDbContext> options)
         : base(options) { }
 
-    public DbSet<ConversationSessionEntity> Sessions => Set<ConversationSessionEntity>();
-    public DbSet<ConversationTurnEntity> Turns => Set<ConversationTurnEntity>();
+    // Use consumer-derived types, NOT the abstract base classes
+    public DbSet<TenantSessionEntity> Sessions => Set<TenantSessionEntity>();
+    public DbSet<TenantTurnEntity> Turns => Set<TenantTurnEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
-        builder.Entity<ConversationSessionEntity>(entity =>
+        builder.Entity<TenantSessionEntity>(entity =>
         {
             entity.ToTable("ConversationSessions");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.SessionId).IsUnique();
-            entity.HasIndex(e => e.TenantId);
-            entity.HasIndex(e => e.BaseSessionId);                    // circuit-scoped grouping
-            entity.HasIndex(e => e.AgentName);                        // agent-scoped queries
+            entity.HasKey(e => e.Id);                                  // int Id (from base)
+            entity.HasIndex(e => e.SessionId).IsUnique();              // string SessionId (from base)
+            entity.HasIndex(e => e.TenantId);                          // consumer extension
+            entity.HasIndex(e => e.BaseSessionId);                     // consumer extension (optional)
             entity.HasIndex(e => new { e.TenantId, e.UserId });       // user sessions per tenant
             entity.HasIndex(e => new { e.TenantId, e.BaseSessionId });// tenant + circuit queries
-            entity.HasIndex(e => e.LastActivityAtUtc);
+            entity.HasIndex(e => e.LastActivityAtUtc);                 // from base
             entity.Property(e => e.SessionId).HasMaxLength(512).IsRequired();
             entity.Property(e => e.TenantId).HasMaxLength(256).IsRequired();
             entity.Property(e => e.BaseSessionId).HasMaxLength(64);
-            entity.Property(e => e.AgentName).HasMaxLength(256);
             entity.Property(e => e.UserId).HasMaxLength(256);
         });
 
-        builder.Entity<ConversationTurnEntity>(entity =>
+        builder.Entity<TenantTurnEntity>(entity =>
         {
             entity.ToTable("ConversationTurns");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.SessionId);
-            entity.HasIndex(e => e.TenantId);
+            entity.HasKey(e => e.Id);                                  // int Id (from base)
+            entity.HasIndex(e => e.SessionId);                         // int FK (from base)
+            entity.HasIndex(e => e.TenantId);                          // consumer extension
             entity.Property(e => e.TenantId).HasMaxLength(256).IsRequired();
             entity.HasOne(e => e.Session)
                   .WithMany(s => s.Turns)
@@ -82,8 +119,9 @@ public sealed class ConversationDbContext : DbContext
 
 ## Store Implementation
 
+The store uses the consumer's derived entity types (`TenantSessionEntity`, `TenantTurnEntity`) and filters all queries by `TenantId` from the `TenantContextAccessor`:
+
 ```csharp
-// Entity columns (TenantId, BaseSessionId, AgentName) — canonical definitions in ab-entity-design
 public sealed class TenantConversationStore : IConversationStore, IDisposable
 {
     private readonly TenantContextAccessor _tenantAccessor;
@@ -145,7 +183,7 @@ public sealed class TenantConversationStore : IConversationStore, IDisposable
 
         if (session is null)
         {
-            session = new ConversationSessionEntity
+            session = new TenantSessionEntity
             {
                 SessionId = sessionId,
                 TenantId = tenantId,
@@ -155,7 +193,7 @@ public sealed class TenantConversationStore : IConversationStore, IDisposable
         }
 
         session.LastActivityAtUtc = DateTime.UtcNow;
-        session.Turns.Add(new ConversationTurnEntity
+        session.Turns.Add(new TenantTurnEntity
         {
                     TurnId = turn.TurnId,
                     TenantId = tenantId,
@@ -326,4 +364,4 @@ Then `AgentConversationScope` produces keys like:
 
 This means even if tenant filtering is missed in a query, the session key itself is tenant-scoped.
 
-> **Note**: Embedding the tenant prefix in `SessionId` is optional defense-in-depth, not required for correct isolation. The `TenantId` column on `ConversationSessionEntity` + `TenantContextAccessor` (Finbuckle) provides authoritative tenant isolation. SessionId prefixing provides an additional safety net — even if a query forgets the `TenantId` filter, other tenants' sessions won't match. The trade-off is that SessionId format becomes coupled to tenant identity.
+> **Note**: Embedding the tenant prefix in `SessionId` is optional defense-in-depth, not required for correct isolation. The `TenantId` column on the consumer's `TenantSessionEntity` (derived from `ConversationSessionEntity`) + `TenantContextAccessor` provides authoritative tenant isolation. SessionId prefixing provides an additional safety net — even if a query forgets the `TenantId` filter, other tenants' sessions won't match. The trade-off is that SessionId format becomes coupled to tenant identity.

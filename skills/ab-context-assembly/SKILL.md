@@ -2,7 +2,7 @@
 name: ab-context-assembly
 description: "Understand and customize how AgentBlazor assembles the full LLM context — system prompt construction, dynamic runtime context injection, and user message composition — from a consumer app referencing the public AgentBlazor NuGet package. Use when customizing agent instructions (WithInstructions), injecting runtime data via context dictionaries (AgentRuntimeContextKeys), enriching turns with middleware (IAgentTurnMiddleware, AgentTurnContext), enabling prompt tracing (EnablePromptTracing), replacing the runtime adapter (UseRuntimeAdapter, IAgentRuntimeAdapter), or understanding prompt composition. Consumer-side only; never edit package internals. Triggers: system prompt, instructions, WithInstructions, AgentRuntimeContextKeys, context dictionary, prompt tracing, EnablePromptTracing, PromptTracingOptions, dynamic context, runtime context, agent context, prompt pipeline, IAgentRuntimeAdapter, UseRuntimeAdapter, IAgentTurnMiddleware, AgentTurnContext, context injection."
 metadata: 
-  version: 0.2.1
+  version: 0.2.25
 ---
 
 # `ab-context-assembly` — Context Assembly & Prompt Pipeline
@@ -64,18 +64,42 @@ Conversation history is managed automatically by the package — persisted via `
 
 When a consumer app lets users **build agents at runtime** (a database-backed `IAgentRegistry`), compose that with the `IAgentRuntimeCustomizer` seam so a just-built agent immediately honors its persona + tool set:
 
-1. **Persist persona + enabled tools alongside the agent definition.** Use [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — it has dedicated top-level columns `Persona` (string?) and `EnabledToolsJson` (string? — JSON array of tool ids). Avoids burying these in the `MetadataJson` dictionary, keeping them type-safe and cheap to load on every turn. In the DB-backed registry's `MapToRegistration`, read `Persona`/`EnabledToolsJson` and stash them somewhere the customizer can resolve (e.g. a `ConcurrentDictionary<string, AgentDefinitionEntity>` keyed by `Name`, or store them directly on a custom `AgentRegistration` extension).
+**Entity design pattern.** [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) is an **abstract** base class in `AgentBlazor.Core.Persistence`. It holds:
+
+| Property | Type | Purpose |
+|---|---|---|
+| `Name` | `string` | Unique lookup key (matches `AgentRegistration.Name`) |
+| `Instructions` | `string?` | System instructions |
+| `AllowedComponentsJson` | `string` | JSON array of component IDs |
+| `AllowedActionsJson` | `string` | JSON array of action IDs |
+| `AllowedDataSchemasJson` | `string` | JSON array of data schema names |
+| `EnabledToolsJson` | `string?` | JSON array of enabled tool IDs (null = all tools) |
+| `Persona` | `string?` | System-instruction override for the runtime customizer |
+| `MetadataJson` | `string` | JSON object of extensible metadata |
+
+Consumer apps **inherit** from this base to add their own columns (e.g. `TenantId`, soft-delete, audit fields). The library never directly queries consumer entity subtypes — it works through the base type and the `IAgentRegistry` / `IAgentRuntimeCustomizer` seams.
+
+1. **Persist persona + enabled tools alongside the agent definition.** On your concrete entity subclass (e.g. `DemoAgentDefinitionEntity`), the base columns `Persona` and `EnabledToolsJson` are inherited — no extra mapping needed. In the DB-backed registry's `ApplyRegistration`, read `Persona`/`EnabledToolsJson` and stash them somewhere the customizer can resolve (e.g. a `ConcurrentDictionary<string, AgentDefinitionEntity>` keyed by `Name`, or store them directly on a custom `AgentRegistration` extension).
 2. **Have a single registered `IAgentRuntimeCustomizer` resolve from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`).
-3. **Construct `AgentRuntimeCustomization` from the persisted values:**
+3. **Construct `AgentRuntimeCustomization` from the persisted values.** The registry's `TryGetCustomization` method reads from the entity's `Persona` / `EnabledToolsJson` columns (or from metadata keys for backward compatibility) and returns an `AgentRuntimeCustomization`:
    ```csharp
-   var definition = await db.AgentDefinitions.FindAsync(registration.Name);
-   return Task.FromResult<AgentRuntimeCustomization?>(definition?.Persona is null && definition?.EnabledToolsJson is null
-       ? null
-       : new AgentRuntimeCustomization(
-           Instructions: definition!.Persona,                          // appended after registered instructions
-           EnabledToolIds: definition.EnabledToolsJson is null
-               ? null
-               : AgentDefinitionEntity.DeserializeSet(definition.EnabledToolsJson)));
+   // In the DB-backed registry — resolves the customizer payload for an agent
+   public AgentRuntimeCustomization? TryGetCustomization(string agentName)
+   {
+       if (!TryGet(agentName, out var registration))
+           return null;
+
+       var persona = registration.Metadata.TryGetValue(PersonaKey, out var p) ? p : null;
+       IReadOnlySet<string>? enabledTools = null;
+       if (registration.Metadata.TryGetValue(EnabledToolsKey, out var toolsRaw))
+           enabledTools = new HashSet<string>(
+               toolsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries),
+               StringComparer.OrdinalIgnoreCase);
+
+       return persona is null && enabledTools is null
+           ? null
+           : new AgentRuntimeCustomization(persona, enabledTools);
+   }
    ```
 4. **A built agent's edits take effect on the next turn** — no restart required (the customizer runs per turn in the adapter's instruction/tool projection).
 

@@ -1,41 +1,48 @@
 # Session Identity Entities
 
-Entity model implications of the `BuildSessionKey()` session identity pipeline. This document covers the schema perspective — how `IsolateConversationsByAgent` shapes `ConversationSessionEntity` columns and query patterns. The user-visible walkthrough (AgentChatSurface configuration, `AgentConversationScope`, `RegisterAgentName`, runtime behavior) lives in `ab-chat-session-management`, not here.
+Entity model implications of the `BuildSessionKey()` session identity pipeline. This document covers how `IsolateConversationsByAgent` shapes the `SessionId` column value and query patterns. The user-visible walkthrough (AgentChatSurface configuration, `AgentConversationScope`, `RegisterAgentName`, runtime behavior) lives in `ab-chat-session-management`, not here.
+
+> **⚠️ Architecture (v0.4.0):** The library base entity `ConversationSessionEntity` has a **single `SessionId` column** that stores the full composed key (e.g., `"d1e9a3f2...::agent::SupportAgent"`). There are **no separate `BaseSessionId` or `AgentName` columns** in the base entity. The `::agent::` suffix is embedded directly in the `SessionId` string. Consumer apps can optionally add normalized columns (`BaseSessionId`, `AgentName`) to their derived entity subclasses if they want indexed lookups — see [Section 4](#4-normalized-vs-encoded-sessionid) and [migration-strategy.md](migration-strategy.md).
 
 ---
 
-## ⚠️ Critical Distinction: `BaseSessionId` vs `SessionId`
+## ⚠️ Two Key Concepts: `SessionId` and `BaseSessionId`
 
-> **These are the two most important columns in the AgentBlazor domain model. Misunderstanding them leads to incorrect entity extensions.**
+> **These are the two most important concepts in the AgentBlazor domain model. Misunderstanding them leads to incorrect query patterns.**
 
-| Column | Definition | Example | Populated when |
+The library stores a **single `SessionId` column** containing the full composed key. `BaseSessionId` and `AgentName` are **not stored in the database** — they are parsed from `SessionId` at runtime by `SplitSessionKey()`.
+
+| Concept | Storage | Definition | Example |
 |---|---|---|---|
-| **`BaseSessionId`** (nvarchar(64), nullable) | The **circuit-level** session identifier — represents one Blazor Server SignalR circuit (one browser tab). Set to `EffectiveSessionId` from `AgentChatSurface`. | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` (auto GUID) or `"ticket-42"` (consumer-provided) | Always — set on first `AppendTurnAsync` for that circuit |
-| **`SessionId`** (nvarchar(512), unique, NOT NULL) | The **full-scoped** conversation key — produced by `AgentConversationScope.BuildSessionKey(BaseSessionId, agentName, isolation)`. Includes `::agent::` suffix when agent isolation is active. | `"d1e9a3f2...::agent::SupportAgent"` (isolation ON) or `"d1e9a3f2..."` (isolation OFF) | Always — derived from `BaseSessionId` + agent context |
+| **`SessionId`** (string, unique, NOT NULL) | **Database column** | The full-scoped conversation key — produced by `AgentConversationScope.BuildSessionKey()`. Includes `::agent::` suffix when agent isolation is active. | `"d1e9a3f2...::agent::SupportAgent"` |
+| **`BaseSessionId`** (string, parsed) | **Runtime only** | The circuit-level identifier — everything before `::agent::`. Parsed by `DemoSessionBrowserService.SplitSessionKey()`. | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` |
+| **`AgentName`** (string, parsed) | **Runtime only** | The agent suffix — everything after `::agent::`. `null` when isolation is OFF or single-agent. | `"SupportAgent"` |
 
 ### The relationship
 
 ```
-One BaseSessionId ──────────────▶ Many SessionId rows
-(circuit-level)                    (agent-scoped conversations)
+One BaseSessionId ──────────────▶ Many SessionId values
+(circuit-level, parsed)           (agent-scoped, stored)
 
-"d1e9a3f2..."
+"d1e9a3f2..." (parsed)
   ├── SessionId = "d1e9a3f2...::agent::SupportAgent"  (3 turns)
   └── SessionId = "d1e9a3f2...::agent::InboxAgent"    (1 turn)
 ```
 
-- **Isolation OFF or single agent**: 1 `BaseSessionId` → 1 `SessionId` row (no agent suffix). `AgentName` = null.
-- **Isolation ON + multi-agent**: 1 `BaseSessionId` → N `SessionId` rows (one per agent). `AgentName` = populated.
+- **Isolation OFF or single agent**: `SessionId` = raw circuit GUID. `SplitSessionKey()` returns `(SessionId, null)`.
+- **Isolation ON + multi-agent**: `SessionId` = `"{circuit}::agent::{agent}"`. `SplitSessionKey()` returns `(circuit, agent)`.
 
 ### When extending the domain model
 
-Attach entities to the right column:
+Attach entities to the right level:
 
-| Domain concept | Attach FK to | Because |
+| Domain concept | Attach to | Because |
 |---|---|---|
-| Browser tab preferences, circuit metadata, user session | `BaseSessionId` (`ConversationSessionEntity.BaseSessionId`) | One per browser tab, shared across all agents |
-| Per-agent conversation billing, audit log, agent-specific settings | `SessionId` (`ConversationSessionEntity.SessionId`) | One per agent conversation |
+| Browser tab preferences, circuit metadata, user session | `SessionId` (filtered by `BaseSessionId` via `SplitSessionKey()`) | One per browser tab, shared across all agents |
+| Per-agent conversation billing, audit log, agent-specific settings | `SessionId` (full composed key) | One per agent conversation |
 | Individual messages, turn-level analytics | `ConversationTurnEntity.Id` | One per message exchange |
+
+> **Consumer extension:** If your app needs efficient indexed lookups by circuit or agent (without string prefix queries), add `BaseSessionId` and `AgentName` as first-class columns in your derived session entity subclass. See [Section 4](#4-normalized-vs-encoded-sessionid) and [migration-strategy.md](migration-strategy.md).
 
 ## 1. Data flow: Blazor circuit → entity columns
 
@@ -50,6 +57,8 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 
 ### Three paths into the database
 
+All three paths produce a single `SessionId` value stored in the database. There are no separate `BaseSessionId` or `AgentName` columns.
+
 **Path A — Auto-generated (default, no `SessionId` param):**
 
 ```razor
@@ -60,13 +69,12 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 2. `AgentChatSurface.CircuitSessionId` = registry's SessionId
 3. `EffectiveSessionId` = `CircuitSessionId` (no explicit param)
 4. `EffectiveConversationSessionId` = `BuildSessionKey(EffectiveSessionId, selectedAgent, isolation)`
-5. Turns persisted with `EffectiveConversationSessionId` as the key
-6. Store populates: `BaseSessionId` = `EffectiveSessionId`, `SessionId` = `EffectiveConversationSessionId`
+5. Turns persisted with `EffectiveConversationSessionId` as the `SessionId` value
 
-| Isolation | Circuit GUID | Selected Agent | `SessionId` column | `BaseSessionId` column |
-|---|---|---|---|---|
-| OFF | `"d1e9a3f2..."` | `"SupportAgent"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` |
-| ON | `"d1e9a3f2..."` | `"SupportAgent"` | `"d1e9a3f2...::agent::SupportAgent"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` |
+| Isolation | Circuit GUID | Selected Agent | `SessionId` stored | Parsed `BaseSessionId` | Parsed `AgentName` |
+|---|---|---|---|---|---|
+| OFF | `"d1e9a3f2..."` | `"SupportAgent"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` | `"d1e9a3f2..."` | `null` |
+| ON | `"d1e9a3f2..."` | `"SupportAgent"` | `"d1e9a3f2...::agent::SupportAgent"` | `"d1e9a3f2..."` | `"SupportAgent"` |
 
 **Path B — Consumer-provided (explicit `SessionId` param):**
 
@@ -76,7 +84,7 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 
 1. `EffectiveSessionId` = `"support-ticket-1042"` (overrides circuit GUID — circuit GUID is NOT stored)
 2. Everything else flows the same as Path A
-3. `BaseSessionId` = `"support-ticket-1042"`, `SessionId` includes agent suffix if isolation ON
+3. `SessionId` stored = `"support-ticket-1042"` or `"support-ticket-1042::agent::SupportAgent"` (with isolation ON)
 
 **Path C — Tenant-prefixed (Consumer Extension):**
 
@@ -87,17 +95,16 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 ```
 
 1. `EffectiveSessionId` = `"acme:d1e9a3f2..."` (consumer convention — tenant prefix prepended)
-2. `BaseSessionId` = `"acme:d1e9a3f2..."` (tenant prefix baked into BaseSessionId as a side effect)
+2. `SessionId` stored = `"acme:d1e9a3f2..."` or `"acme:d1e9a3f2...::agent::SupportAgent"` (with isolation ON)
 3. Consumer-managed tenant context provides tenant filtering in queries (see `ab-multitenancy`)
-4. **The tenant prefix in SessionId provides defense-in-depth** — it is not required for correct tenant isolation when using the consumer extension's query filters.
 
-> **Key design insight**: `BaseSessionId` is whatever `EffectiveSessionId` resolves to. AgentBlazor **never** adds a tenant prefix — the `BuildSessionKey` output has the format `"{EffectiveSessionId}"` or `"{EffectiveSessionId}::agent::{AgentName}"`. Tenant scoping is a consumer extension concern; see [multitenancy-patterns.md](multitenancy-patterns.md).
+> **Key design insight**: `SessionId` is whatever `EffectiveSessionId` resolves to, potentially with an `::agent::` suffix appended by `BuildSessionKey()`. There are no separate `BaseSessionId` or `AgentName` columns in the base entity — the full composed key is stored as a single string. Consumer apps that need normalized columns add them as extensions; see [Section 4](#4-normalized-vs-encoded-sessionid).
 
-## 2. BuildSessionKey() → Entity Column Mapping
+## 2. BuildSessionKey() → SessionId Value Mapping
 
-`AgentConversationScope.BuildSessionKey()` produces a scoped session identifier whose encoding depends on `IsolateConversationsByAgent` and the number of registered agent names. The table below shows the complete mapping from isolation state and raw inputs to the three entity columns.
+`AgentConversationScope.BuildSessionKey()` produces a scoped session identifier whose encoding depends on `IsolateConversationsByAgent` and the number of registered agent names. The table below shows the complete mapping from isolation state and raw inputs to the stored `SessionId` value and its parsed components.
 
-| Path | Isolation | SessionId param | AgentName | `SessionId` column value | `BaseSessionId` column | `AgentName` column |
+| Path | Isolation | SessionId param | AgentName | `SessionId` stored | Parsed `BaseSessionId` | Parsed `AgentName` |
 |---|---|---|---|---|---|---|
 | A (auto) | OFF | `null` → circuit GUID | `"SupportAgent"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` | `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` | `null` |
 | B (explicit) | OFF | `"user:42"` | `"SupportAgent"` | `"user:42"` | `"user:42"` | `null` |
@@ -109,15 +116,15 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 
 Key observations:
 
-- **Path A (auto-generated)** — Rows 1, 3–7: No explicit `SessionId` parameter. `BaseSessionId` is the 32-char hex circuit GUID from `InMemoryAgentComponentRegistry`. `SessionId` may include `::agent::` suffix when isolation is ON with multiple agents.
+- **Path A (auto-generated)** — Rows 1, 3–7: No explicit `SessionId` parameter. The raw circuit GUID from `InMemoryAgentComponentRegistry` is used. `SessionId` may include `::agent::` suffix when isolation is ON with multiple agents.
 
-- **Path B (explicit)** — Row 2: Consumer-provided `SessionId = "user:42"`. `BaseSessionId` is `"user:42"` — the circuit GUID is NOT stored anywhere. The consumer value flows through to both columns.
+- **Path B (explicit)** — Row 2: Consumer-provided `SessionId = "user:42"`. The circuit GUID is NOT stored anywhere. The consumer value flows through directly.
 
-- **Isolation OFF** (rows 1–3): `AgentName` is always `null`. The `SessionId` matches `EffectiveSessionId` (no agent suffix). `BuildSessionKey` returns the input unchanged when `isolateByAgent` is false or `agentName` is null.
+- **Isolation OFF** (rows 1–3): `SessionId` matches the raw session key (no agent suffix). `SplitSessionKey()` returns `(SessionId, null)`.
 
-- **Isolation ON, multi-agent** (rows 4–6): `AgentName` is populated with the agent name. `SessionId` encodes the agent as `"{effectiveSessionId}::agent::{agentName}"`. Multiple agent sessions share the same `BaseSessionId`.
+- **Isolation ON, multi-agent** (rows 4–6): `SessionId` encodes the agent as `"{effectiveSessionId}::agent::{agentName}"`. `SplitSessionKey()` parses the components.
 
-- **Isolation ON, single agent** (row 7): The critical edge case. When `_agentNames.Count == 1`, `ShouldIsolateConversationSession` is `false` even though `IsolateConversationsByAgent` is `true`. `BuildSessionKey` returns plain `EffectiveSessionId` — NO `::agent::` suffix. Both `BaseSessionId` and `AgentName` behave identically to the OFF case. This prevents unnecessary session splitting when only one agent exists.
+- **Isolation ON, single agent** (row 7): The critical edge case. When `_agentNames.Count == 1`, `ShouldIsolateConversationSession` is `false` even though `IsolateConversationsByAgent` is `true`. `BuildSessionKey` returns plain `EffectiveSessionId` — NO `::agent::` suffix. This prevents unnecessary session splitting when only one agent exists.
 
 ## 3. Dual-Trigger Condition
 
@@ -158,33 +165,23 @@ The surface needs the count guard because it hosts multiple agents. The bar does
 
 ### Entity impact
 
-The dual-trigger means the entity model must handle all three `AgentName` scenarios within the same column:
+The dual-trigger means the `SessionId` value must handle all three scenarios:
 
-- `null` — isolation is OFF, OR isolation is ON but only one agent exists.
-- `"SupportAgent"` — isolation is ON, multiple agents, this session belongs to SupportAgent.
-- `"InboxAgent"` — isolation is ON, multiple agents, this session belongs to InboxAgent.
+- **No `::agent::` suffix** — isolation is OFF, OR isolation is ON but only one agent exists.
+- **`"...::agent::SupportAgent"`** — isolation is ON, multiple agents, this session belongs to SupportAgent.
+- **`"...::agent::InboxAgent"`** — isolation is ON, multiple agents, this session belongs to InboxAgent.
 
-The store implementation must not assume `AgentName != null` means isolation is truly active. A query that joins across all sessions for a circuit must handle rows where `AgentName` is `null` alongside rows where it is populated — they coexist in the same table for the same `BaseSessionId`.
+The store must not assume the presence of `::agent::` means isolation is truly active. A query that finds all sessions for a circuit must use string prefix matching (`SessionId.StartsWith(baseSessionId)`) or, if the consumer has added normalized columns, use those indexes directly.
 
 ## 4. Normalized vs Encoded SessionId
 
-### Current approach: String prefix encoding
+### Current approach: Single-column string encoding
 
-The `SessionId` column encodes circuit identifier and agent isolation in a single colon-delimited string:
+The `SessionId` column stores the full composed key in a single string:
 
 ```
 "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"                              // isolation OFF
 "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"         // isolation ON, multi-agent
-```
-
-Queries rely on string operations:
-
-```csharp
-// Find all sessions for a given circuit (any agent or none)
-db.Sessions.Where(s => s.SessionId.StartsWith($"{baseSessionId}"));
-
-// Find all sessions with any agent isolation suffix
-db.Sessions.Where(s => s.SessionId.Contains("::agent::"));
 ```
 
 **Advantages:**
@@ -195,26 +192,24 @@ db.Sessions.Where(s => s.SessionId.Contains("::agent::"));
 **Risks:**
 - `LIKE` / `StartsWith` queries cannot use exact-match indexes efficiently.
 - Format changes (new separator, additional segments) break all query code.
-- No database-level uniqueness constraint on `(BaseSessionId, AgentName)` — duplicate detection requires application code.
+- No database-level uniqueness constraint on `(baseSessionId, agentName)` — duplicate detection requires application code.
 - Ad-hoc queries for reporting or debugging must replicate string parsing logic.
 
-### Recommended for production EF Core: Normalized columns
+### Consumer extension: Normalized columns
 
-Add `BaseSessionId` and `AgentName` as first-class columns alongside the encoded `SessionId`:
+Consumer apps that need efficient indexed lookups by circuit or agent can add `BaseSessionId` and `AgentName` as first-class columns in their derived session entity subclass:
 
 ```csharp
-public sealed class ConversationSessionEntity
+// Consumer app entity — inherits from library base
+public sealed class MySessionEntity : ConversationSessionEntity
 {
-    // Denormalized convenience — computed from BaseSessionId + AgentName at write time
-    public required string SessionId { get; set; }
-
     // Normalized — circuit-level identifier without agent suffix
     public string? BaseSessionId { get; set; }
 
     // Normalized — agent name when isolation is active and multiple agents exist
     public string? AgentName { get; set; }
 
-    // ...
+    // ... additional consumer extensions (TenantId, etc.)
 }
 ```
 
@@ -235,15 +230,15 @@ public sealed class ConversationSessionEntity
 Columns are nullable for backward compatibility:
 
 ```sql
-ALTER TABLE ConversationSessions ADD BaseSessionId nvarchar(64) NULL;
-ALTER TABLE ConversationSessions ADD AgentName nvarchar(256) NULL;
+ALTER TABLE MyConversationSessions ADD BaseSessionId nvarchar(64) NULL;
+ALTER TABLE MyConversationSessions ADD AgentName nvarchar(256) NULL;
 
-CREATE INDEX IX_ConversationSessions_BaseSessionId
-    ON ConversationSessions (BaseSessionId)
+CREATE INDEX IX_MyConversationSessions_BaseSessionId
+    ON MyConversationSessions (BaseSessionId)
     WHERE BaseSessionId IS NOT NULL;
 
-CREATE INDEX IX_ConversationSessions_AgentName
-    ON ConversationSessions (AgentName)
+CREATE INDEX IX_MyConversationSessions_AgentName
+    ON MyConversationSessions (AgentName)
     WHERE AgentName IS NOT NULL;
 ```
 
@@ -251,14 +246,14 @@ Existing rows have `NULL` in both columns. New writes populate both. Queries can
 
 ## 5. Query Patterns
 
-The table below shows the EF Core query for each `IConversationStore` method under both isolation states. The queries assume normalized columns (`BaseSessionId`, `AgentName`) are available.
+The table below shows the EF Core query for each `IConversationStore` method under both isolation states. The default approach uses string operations on the single `SessionId` column. Consumer apps with normalized columns can use indexed lookups instead.
 
 | Method | Isolation ON query | Isolation OFF query |
 |---|---|---|
 | `GetHistoryAsync(sessionId)` | `WHERE SessionId = @fullKey` | `WHERE SessionId = @baseKey` |
 | `GetActiveSessionsAsync(cutoff)` | `WHERE LastActivityAtUtc >= @cutoff` | Same — agnostic to isolation |
 | `GetSessionsForUserAsync(userId, cutoff)` | `WHERE UserId = @u AND LastActivityAtUtc >= @cutoff` | Same — user-scoped |
-| Get all sessions for circuit `baseSessionId` | `WHERE BaseSessionId = @base` (exact match, returns 1–N rows — one per agent) | `WHERE SessionId = @base` (single row — isolation OFF means no agent suffix) |
+| Get all sessions for circuit `baseSessionId` | `WHERE SessionId LIKE @base + '%'` (string prefix) or `WHERE BaseSessionId = @base` (if normalized columns exist) | `WHERE SessionId = @base` (single row — isolation OFF means no agent suffix) |
 | `AppendTurnAsync(sessionId, turn)` | `FirstOrDefaultAsync(s => s.SessionId == @fullKey)` then append turn | Same — uses the full session key from `BuildSessionKey()` |
 | `DeleteSessionAsync(sessionId)` | `WHERE SessionId = @fullKey` | Same — deletes the exact session row |
 | `DeleteExpiredSessionsAsync(maxAge)` | `WHERE LastActivityAtUtc < @expiry` | Same — bulk cleanup, no isolation dependency |
@@ -267,15 +262,24 @@ The table below shows the EF Core query for each `IConversationStore` method und
 
 When isolation is ON and the caller wants all sessions for a given browser tab/circuit:
 
-**Isolation ON:**
+**String prefix approach (default):**
+```csharp
+var circuitSessions = await db.Sessions
+    .AsNoTracking()
+    .Where(s => s.SessionId.StartsWith(baseSessionId))
+    .OrderByDescending(s => s.LastActivityAtUtc)
+    .ToListAsync(ct);
+// Uses string prefix matching — may be slow on large tables without normalized columns
+```
+
+**Normalized columns (consumer extension):**
 ```csharp
 var circuitSessions = await db.Sessions
     .AsNoTracking()
     .Where(s => s.BaseSessionId == baseSessionId)
     .OrderByDescending(s => s.LastActivityAtUtc)
     .ToListAsync(ct);
-// Returns multiple rows: one per agent + the non-isolated row (if any exist)
-// AgentName distinguishes them
+// Uses exact-match index — efficient even on large tables
 ```
 
 **Isolation OFF:**
@@ -291,48 +295,49 @@ var singleSession = await db.Sessions
 | Query | Index used | Scan type |
 |---|---|---|
 | `WHERE SessionId = @k` | `IX_ConversationSessions_SessionId` | Unique seek |
+| `WHERE SessionId LIKE @k + '%'` | `IX_ConversationSessions_SessionId` | Prefix seek (efficient for short prefixes, degrades with long keys) |
 | `WHERE LastActivityAtUtc >= @c` | Index on `LastActivityAtUtc` + key lookup | Index seek + residual filter |
 | `WHERE UserId = @u AND LastActivityAtUtc >= @c` | `IX_ConversationSessions_UserId` | Index seek |
-| `WHERE BaseSessionId = @b` | `IX_ConversationSessions_BaseSessionId` | Index seek |
+| `WHERE BaseSessionId = @b` *(consumer extension)* | `IX_ConversationSessions_BaseSessionId` | Index seek |
 
 > **Consumer extension:** Apps using multitenancy add tenant-scoped indexes per `ab-multitenancy` (e.g., `IX_ConversationSessions_TenantId`, `IX_ConversationSessions_TenantId_BaseSessionId`).
 
 ## 6. Store Implementation Impact
 
-### Populating BaseSessionId and AgentName on write
+### Session key parsing at the UI layer
 
-The store's `AppendTurnAsync` method (and any session creation path) must normalize the `SessionId` into its constituent parts. A helper method parses the known format:
+The library does **not** populate `BaseSessionId` or `AgentName` columns — those don't exist in the base entity. Instead, the full composed `SessionId` string is stored as-is, and parsed back at the UI layer when needed.
+
+The Demo's `DemoSessionBrowserService.SplitSessionKey()` parses the composed key:
 
 ```csharp
-internal static class SessionKeyParser
+internal static (string BaseSessionId, string? AgentName) SplitSessionKey(string sessionKey)
 {
-    private const string AgentSeparator = "::agent::";
-
-    /// Parses a scoped SessionId into its normalized parts.
-    public static (string BaseSessionId, string? AgentName) Parse(string sessionId)
+    var idx = sessionKey.IndexOf(AgentSeparator, StringComparison.OrdinalIgnoreCase);
+    if (idx < 0)
     {
-        // Check for agent isolation suffix
-        var agentIndex = sessionId.IndexOf(AgentSeparator, StringComparison.OrdinalIgnoreCase);
-        if (agentIndex >= 0)
-        {
-            var baseSessionId = sessionId[..agentIndex];
-            var agentName = sessionId[(agentIndex + AgentSeparator.Length)..];
-            return (baseSessionId, agentName);
-        }
-
-        // No agent suffix — isolation is OFF or single agent
-        return (sessionId, null);
+        return (sessionKey, null);
     }
+
+    var baseId = sessionKey.Substring(0, idx).Trim();
+    var agent = sessionKey.Substring(idx + AgentSeparator.Length).Trim();
+    if (string.IsNullOrWhiteSpace(baseId))
+    {
+        baseId = sessionKey;
+    }
+
+    return (baseId, string.IsNullOrWhiteSpace(agent) ? null : agent);
 }
 ```
 
 ### Usage in AppendTurnAsync
 
+The actual store simply uses the composed `SessionId` as the lookup key:
+
 ```csharp
 public async Task AppendTurnAsync(string sessionId, ConversationTurn turn, CancellationToken ct)
 {
-    var (baseSessionId, agentName) = SessionKeyParser.Parse(sessionId);
-
+    // sessionId is the full composed key from BuildSessionKey()
     var session = await db.Sessions
         .FirstOrDefaultAsync(s => s.SessionId == sessionId, ct);
 
@@ -340,10 +345,7 @@ public async Task AppendTurnAsync(string sessionId, ConversationTurn turn, Cance
     {
         session = new ConversationSessionEntity
         {
-            Id = Guid.NewGuid(),
-            SessionId = sessionId,
-            BaseSessionId = baseSessionId,
-            AgentName = agentName,
+            SessionId = sessionId,  // Full composed key — no parsing needed
             UserId = turn.UserId,
             CreatedAtUtc = DateTime.UtcNow,
             LastActivityAtUtc = DateTime.UtcNow,
@@ -357,40 +359,28 @@ public async Task AppendTurnAsync(string sessionId, ConversationTurn turn, Cance
 
     var entity = new ConversationTurnEntity
     {
-        Id = Guid.NewGuid(),
         SessionId = session.Id,
-            TurnId = turn.TurnId,
-            UserMessage = turn.UserMessage,
-            AgentResponse = turn.AgentResponse,
-            // ... JSON columns ...
-            TimestampUtc = DateTime.UtcNow,
-        };
-        db.Turns.Add(entity);
+        TurnId = turn.TurnId,
+        UserMessage = turn.UserMessage,
+        AgentResponse = turn.AgentResponse,
+        // ... JSON columns ...
+        TimestampUtc = DateTime.UtcNow,
+    };
+    db.Turns.Add(entity);
 
     await db.SaveChangesAsync(ct);
 }
 ```
 
-### Design decision: parse vs accept
-
-Two approaches for how the store receives `BaseSessionId` and `AgentName`:
-
-| Approach | How | Pro | Con |
-|---|---|---|---|
-| **Parse from SessionId** | Store receives only `sessionId`, parses it internally | `IConversationStore` interface stays simple; caller doesn't need to know about normalization | Couples store to key format; format changes require store updates |
-| **Accept as parameters** | `AppendTurnAsync(string sessionId, string baseSessionId, string? agentName, ...)` | Store is format-agnostic; caller owns key construction | Interface surface grows; every caller must pass the extra fields |
-
-For the current architecture, **parse from SessionId** is preferred — the `SessionKeyParser` helper isolates the format knowledge to a single place, and the `IConversationStore` interface remains narrow. If the key format evolves, only the parser needs updating.
-
 ### Edge cases to handle
 
 | Scenario | Behavior |
 |---|---|
-| SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` (isolation OFF) | `BaseSessionId = "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"`, `AgentName = null` |
-| SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"` | `BaseSessionId = "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"`, `AgentName = "SupportAgent"` |
-| SessionId is `"user:42"` (consumer-provided, contains colon) | `BaseSessionId = "user:42"` — the parser only splits on `::agent::`, not generic colons |
-| SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::"` (malformed, empty agent name) | Parser returns `AgentName = ""` — treat as null or reject at store layer |
-| Existing row has `BaseSessionId = null` (pre-migration) | Query falls back to `SessionId.StartsWith()` until backfill completes |
+| SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` (isolation OFF) | `SplitSessionKey()` returns `("d1e9a3f2...", null)` — no agent name |
+| SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"` | `SplitSessionKey()` returns `("d1e9a3f2...", "SupportAgent")` |
+| SessionId is `"user:42"` (consumer-provided, contains colon) | `SplitSessionKey()` returns `("user:42", null)` — the parser only splits on `::agent::`, not generic colons |
+| SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::"` (malformed, empty agent name) | Parser returns `("", "")` — the caller should treat empty agent as null |
+| Circuit-scoped lookup without normalized columns | Use `SessionId.StartsWith(baseSessionId)` — works but is slower than exact-match index |
 
 ---
 

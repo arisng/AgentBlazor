@@ -172,7 +172,7 @@ Agent registrations are held in-memory by default (`AgentRegistrationBuilder` �
 - Multitenancy considerations for per-tenant agent registrations
 - Migration strategy for evolving agent configurations alongside code changes
 
-**Proven backing entity: `AgentDefinitionEntity`.** The canonical entity for a database-backed `IAgentRegistry` is [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — a surrogate-keyed entity with `Name` as the case-insensitive lookup key, JSON collection columns (`AllowedComponentsJson`, `AllowedActionsJson`, `AllowedDataSchemasJson`), top-level `Persona`/`EnabledToolsJson` columns for the `IAgentRuntimeCustomizer` seam, `TenantId` for multitenancy, and audit columns. The entity provides `DeserializeSet`/`SerializeSet` helpers for JSON ↔ collection round-trips. Map it to `AgentRegistration` on read:
+**Proven backing entity: `AgentDefinitionEntity`.** The canonical entity for a database-backed `IAgentRegistry` is [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — a surrogate-keyed entity with `Name` as the case-insensitive lookup key, JSON collection columns (`AllowedComponentsJson`, `AllowedActionsJson`, `AllowedDataSchemasJson`), top-level `Persona`/`EnabledToolsJson` columns for the `IAgentRuntimeCustomizer` seam, and audit columns. Consumer apps extend this base with `TenantId` for multitenancy, soft-delete, or other domain-specific columns. The entity provides `DeserializeSet`/`SerializeSet` helpers for JSON ↔ collection round-trips. Map it to `AgentRegistration` on read:
 
 ```csharp
 AgentRegistration MapToRegistration(AgentDefinitionEntity e) => new()

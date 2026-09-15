@@ -1,8 +1,8 @@
 ---
 name: ab-multitenancy
-description: "Enable multi-tenant production deployments of AgentBlazor apps on Blazor Interactive Server with BFF + API + SQL Server. Covers tenant resolution with Finbuckle.MultiTenant, per-tenant LLM provider via proxy IChatClient, per-tenant EF Core conversation/data stores, AgentBlazor middleware for cost control and tenant enrichment, and the full BFF integration pattern. Use when asked about multi-tenant AgentBlazor, per-tenant AI providers, tenant isolation in agent conversations, Finbuckle setup with AgentBlazor, or productionizing AgentBlazor for SaaS platforms. Triggers: multi-tenant, multitenant, SaaS, tenant isolation, per-tenant, Finbuckle, BFF pattern, tenant context, TenantAwareChatClient, proxy IChatClient, tenant resolution, ITenantContext, AgentBlazor multi-tenant, ab-multitenancy."
+description: "Enable multi-tenant production deployments of AgentBlazor apps on Blazor Interactive Server with BFF + API + SQL Server. Covers tenant resolution with Finbuckle.MultiTenant, per-tenant LLM provider via proxy IChatClient, per-tenant EF Core conversation/data stores, and AgentBlazor middleware for cost control and tenant enrichment. Consumer apps inherit the library's abstract base entities (ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity) and add TenantId + global query filters. Use when: multi-tenant AgentBlazor, per-tenant AI providers, tenant isolation in agent conversations, Finbuckle setup, or SaaS production deployments. Triggers: multi-tenant, multitenant, SaaS, tenant isolation, Finbuckle, BFF pattern, TenantAwareChatClient, proxy IChatClient, tenant resolution, ITenantContext, ab-multitenancy."
 metadata:
-    version: 0.1.1
+    version: 0.2.25
 ---
 
 # Multi-Tenant AgentBlazor — Finbuckle Edition
@@ -30,6 +30,43 @@ If you are onboarding an **existing** `.sln`/`.slnx` Blazor solution (not greenf
 - Then return here: replace the scaffolded direct-`UseOpenAI` block with the proxy `IChatClient` + `TenantAwareChatClient` (Step 6 below), and add the Finbuckle wiring + per-tenant store + middleware from Steps 1–7.
 
 The CLI is **non-destructive** for the `AddAgentBlazor(...)` registration — it only inserts when `AddAgentBlazor(` is absent — so re-running `scaffold` after the proxy swap is safe and inert.
+
+## Core Design Principle: Multitenancy Is a Consumer App Extension
+
+**AgentBlazor does NOT include multitenancy in its library base entities.** The library provides abstract base entities in `src/AgentBlazor.Core/Persistence/`:
+
+| Base Entity | Primary Key | Purpose |
+|---|---|---|
+| `ConversationSessionEntity` | `int Id` | Session metadata — `SessionId`, `UserId`, `CreatedAtUtc`, `LastActivityAtUtc` |
+| `ConversationTurnEntity` | `int Id` | Turn data — 25+ columns including 7 token cost columns (`PromptTokens`, `CompletionTokens`, `TotalTokens`, `CachedInputTokens`, `EstimatedCost`, `EstimatedCostCurrency`, rate snapshots) |
+| `AgentDefinitionEntity` | `Guid Id` | Agent registration — `Name`, `Instructions`, JSON collection columns, `Persona` |
+
+**Consumer apps inherit from these base classes and add TenantId**, row-level filtering, global query filters, soft-delete, auditing, and any other cross-cutting concerns:
+
+```csharp
+// Consumer app — not part of the library
+using AgentBlazor.Core.Persistence;
+
+public sealed class TenantSessionEntity : ConversationSessionEntity
+{
+    public required string TenantId { get; set; }
+    public string? BaseSessionId { get; set; }  // optional: circuit-level grouping
+}
+
+public sealed class TenantTurnEntity : ConversationTurnEntity
+{
+    public required string TenantId { get; set; }
+}
+
+public sealed class TenantAgentDefinitionEntity : AgentDefinitionEntity
+{
+    public string? TenantId { get; set; }
+}
+```
+
+> **Note:** `BaseSessionId` and `AgentName` are NOT columns on the library base entities. The runtime composes session keys with `::agent::AgentName` suffix via `AgentConversationScope.BuildSessionKey()`. These are consumer extensions only if the consumer needs them as indexed columns.
+
+The Demo project follows this exact pattern (`DemoConversationSessionEntity`, `DemoConversationTurnEntity`, `DemoAgentDefinitionEntity`) but does NOT include multitenancy — the demo is single-tenant.
 
 ## Architecture
 
@@ -195,7 +232,7 @@ builder.Services.AddAgentBlazor(options =>
     options.UseMiddleware<TenantCostControlMiddleware>();
     options.ConfigureBuilder(ab =>
     {
-            // Entity columns (TenantId, BaseSessionId, AgentName) — see ab-entity-design
+            // TenantId filtering via derived entity (TenantSessionEntity, TenantTurnEntity — see Core Design Principle above)
             ab.UseConversationStore(sp => new TenantConversationStore(
             sp.GetRequiredService<TenantContextAccessor>(),
             sp.GetRequiredService<IOptions<ConversationOptions>>(),
@@ -262,7 +299,7 @@ This also ensures `AgentChatBar` session lists are naturally tenant-scoped — t
 ## Design Limitations
 
 - **`ConversationOptions` is a singleton snapshot.** `MaxTurnsPerSession`, `SessionTimeout`, etc. are resolved once at startup. Per-tenant overrides set via `TenantInfo` fields (e.g., `tenant.MaxTurnsPerSession`) must be read directly from `TenantContextAccessor` inside the store, not from `IOptions<ConversationOptions>`. The `TenantConversationStore` in the reference file demonstrates this pattern.
-- **Conversation history lives in a shared database.** The `ConversationDbContext` uses a single connection string. Tenant isolation depends on the `TenantId` column filter. For per-tenant conversation databases, use Finbuckle’s `WithPerTenantConnectionString` and pass the resolved connection string to `IDbContextFactory<T>` at resolution time.
+- **Conversation history lives in a shared database.** The consumer's `ConversationDbContext` (which registers derived entity types like `TenantSessionEntity` / `TenantTurnEntity`) uses a single connection string. Tenant isolation depends on the `TenantId` column filter on derived entities. For per-tenant conversation databases, use Finbuckle's `WithPerTenantConnectionString` and pass the resolved connection string to `IDbContextFactory<T>` at resolution time.
 - **`TenantInfo` explicit interface members.** `TenantId` and `TenantName` are implemented explicitly (`string ITenantContext.TenantId`). Access via `((ITenantContext)tenantInfo).TenantId` or through the `TenantContextAccessor` which returns `ITenantContext`.
 
 ### ❌ Factory-per-adapter with `UseRuntimeAdapter`
@@ -283,6 +320,8 @@ options.UseRuntimeAdapter(sp =>
 ```csharp
 // BROKEN — singleton IConversationStore can't consume scoped ITenantContext.
 // Use AsyncLocal TenantContextAccessor (singleton) instead.
+// The store reads TenantContextAccessor.TenantContext (AsyncLocal) to get TenantId
+// and filter queries on the consumer-derived entity (TenantSessionEntity.TenantId).
 ```
 
 > **Concrete instance — the fresh-scope rewrite path:** AgentBlazor's `SingletonConversationStoreProxy` (BFF wiring) hits exactly this limitation when the conversation rewrite path runs outside the pushed execution scope: the fresh DI scope has no tenant context and a null scoped `ILifelineSessionContext`, so context must be bridged from a per-identity static cache seeded from the AsyncLocal accessor. AsyncLocal flows across awaits but NOT across `IServiceScopeFactory.CreateScope()`. Remediation: see [Fresh-scope context bridging](references/fresh-scope-context-bridging.md).
@@ -298,7 +337,7 @@ The tenant must survive the whole turn pipeline. Relying only on `SessionId` emb
 | **Tenant identity flow** | `TenantContextAccessor` (AsyncLocal), set by Finbuckle middleware |
 | **Per-tenant LLM** | `TenantAwareChatClient` (proxy `IChatClient`, singleton) |
 | **Agent middleware** | `IAgentTurnMiddleware` reads `TenantContextAccessor` to enforce budgets, log per-tenant |
-| **Conversation store** | Custom `IConversationStore` with `TenantId` filtering OR `TenantId` embedded in session key |
+| **Conversation store** | Custom `IConversationStore` using consumer-derived entities (`TenantSessionEntity` / `TenantTurnEntity`) with `TenantId` column + `TenantContextAccessor` filter |
 | **Application data** | Finbuckle `MultiTenantDbContext` + `WithPerTenantConnectionString` |
 | **BFF → API** | Typed `HttpClient` with `X-Tenant-Id` header + OAuth OBO |
 
@@ -308,4 +347,4 @@ The tenant must survive the whole turn pipeline. Relying only on `SessionId` emb
 - **`ab-provider-config`** — consumer-side `ChatOptions` configuration. Note: `ConfigureChatOptions` (v0.2.23+) applies only to the singleton `IChatClient` registered by `UseOpenAI()`/`UseAzureOpenAI()`/`UseOllama()`. The multi-tenant proxy pattern replaces that singleton, so the hook is **bypassed** — pin per-tenant `ChatOptions` inside your `TenantAwareChatClient` factory instead (see the skill's [Multi-Tenant Per-Tenant Pinning](../ab-provider-config/SKILL.md#multi-tenant-per-tenant-pinning)).
 - **`ab-middleware-authoring`** — `IAgentTurnMiddleware` for per-tenant cost control and audit
 - **`ab-conversation-store`** — per-tenant `IConversationStore` implementations
-- **`ab-entity-design`** — EF Core entities for multitenant conversation storage
+- **`ab-entity-design`** — library abstract base entities for conversation/agent persistence; consumer apps extend with TenantId
