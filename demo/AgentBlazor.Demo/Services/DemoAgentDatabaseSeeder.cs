@@ -134,11 +134,6 @@ internal sealed class DemoAgentDatabaseSeeder(
                 "Focused on validating runtime cancellation behavior in the live demo host.",
                 instructions: sharedInstructionsOrDefault,
                 routePrefixes: ["/demo/workflows/runtime-probe"]),
-            Workflow<CustomizationDemoCapabilities>(
-                "Customization Demo Agent",
-                "Focused on demonstrating per-agent runtime customization: edit the persona and toggle the tool set on the customization showcase, then chat with the customized agent.",
-                instructions: sharedInstructionsOrDefault,
-                routePrefixes: ["/demo/customization"]),
         ];
     }
 

@@ -26,7 +26,6 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<DojoWorkspaceService>();
-builder.Services.AddSingleton<DemoAgentCustomizationStore>();
 builder.Services.AddScoped<DemoFileWorkflowService>();
 builder.Services.AddScoped<DojoRecipeReleaseWorkflowService>();
 builder.Services.AddScoped<IncidentEscalationWorkflowService>();
@@ -361,11 +360,8 @@ builder.Services.AddAgentBlazor(options =>
         abBuilder.AddCapability<ResponseOrchestrationCapabilities>();
         abBuilder.AddCapability<ReleaseDossierCapabilities>();
         abBuilder.AddCapability<RuntimeProbeCapabilities>();
-        abBuilder.AddCapability<CustomizationDemoCapabilities>();
         abBuilder.AddCapability<DemoAssemblyCapabilities>();
 
-        // Runtime customization showcase: persona + tool set edited live on
-        // /demo/customization via the IAgentRuntimeCustomizer seam.
         abBuilder.AddRuntimeCustomizer<DemoAgentCustomizer>();
     });
 });
