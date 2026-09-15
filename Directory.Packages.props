@@ -15,6 +15,10 @@
     <PackageVersion Include="Microsoft.Agents.AI.Hosting.AGUI.AspNetCore" Version="[1.1.0-preview.260410.1]" />
     <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="[1.1.0]" />
     <PackageVersion Include="Microsoft.Agents.AI.Workflows" Version="[1.1.0]" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageVersion>
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.4" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.4" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
@@ -48,6 +52,6 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.5" />
-      <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
-    </ItemGroup>
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
+  </ItemGroup>
 </Project>
