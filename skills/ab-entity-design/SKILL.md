@@ -2,7 +2,7 @@
 name: ab-entity-design
 description: "Design EF Core persistence entities for AgentBlazor: abstract base entities ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity. Covers TPC mapping, surrogate int/GUID keys, inheritance patterns, FK cascades, token cost columns, JSON columns, consumer DbContext ownership, extending for multitenancy/soft-delete/audit. Use when modeling persistence entities, creating entity subclasses, configuring TPC, choosing JSON columns vs owned types, or planning EF Core migrations. Triggers: entity design, persistence model, EF Core entities, FK cascade, surrogate key, ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity, TPC mapping, split queries, concurrency token, audit columns, soft delete, abstract base entity."
 metadata:
-  version: 0.4.0
+  version: 0.5.0
 ---
 
 # Entity Design — AgentBlazor
