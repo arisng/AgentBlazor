@@ -160,7 +160,7 @@ Entity design decisions that differ across database providers:
 | **SQL Server** | `Latin1_General_CP1_CI_AS`                | `rowversion` (`timestamp`)   | `nvarchar(max)`   | Primary production target. Case-insensitive by default.                   |
 | **PostgreSQL** | `citext` extension                        | `xmin` system column         | `jsonb`           | Use `UseNpgsql()`. Enable `citext` for case-insensitive string compares.  |
 | **SQLite**     | `NOCASE` collation per column             | No row version (use semaphore)| `TEXT`            | Dev / test only. Don't use in production.                                 |
-| **Cosmos DB**  | Case-sensitive by default                 | `_etag`                      | Native JSON       | Partition key = `TenantId`. No `Include()` — embed turns in session doc.  |
+| **Cosmos DB**  | Case-sensitive by default                 | `_etag`                      | Native JSON       | Consumer-managed partition key. No `Include()` — embed turns in session doc. |
 
 ### Provider Configuration Snippets
 
@@ -198,8 +198,10 @@ services.AddDbContext<AgentDbContext>(opts =>
 
 ### Cosmos DB Specifics
 
-- **Partition key**: Use `TenantId` so every tenant's sessions & turns
-  colocate in the same logical partition.
+> **Consumer extension:** Cosmos DB partition key configuration is a consumer concern. The core entity model is tenant-agnostic.
+
+- **Partition key**: Consumer apps using multitenancy use `TenantId` as the partition key so every tenant's sessions & turns
+  colocate in the same logical partition. Single-tenant apps may use a fixed partition key or no partition key.
 - **No relational `Include()`**: Cosmos DB doesn't support server-side joins.
   Embed `ConversationTurnEntity` documents inside
   `ConversationSessionEntity` (owned collection) rather than keeping them

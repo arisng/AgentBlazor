@@ -1,8 +1,8 @@
 ---
 name: ab-entity-design
-description: "Design EF Core domain entities for AgentBlazor with concrete relationships supporting multitenancy and session identity resolution. Use when modeling ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity, TenantInfo entities; deciding between composite keys vs surrogate keys; designing FK cascades and indexes; adding multitenancy columns (TenantId); handling IsolateConversationsByAgent entity implications; adding audit columns, soft delete, or concurrency tokens; choosing between JSON columns vs owned entity types; or planning EF Core migrations. Triggers: entity design, domain entities, EF Core entities, entity relationships, FK cascade, composite key, global query filter, TenantId column, BaseSessionId, AgentName, ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity, owned entity types, split queries, concurrency token, audit columns, soft delete."
+description: "Design EF Core persistence entities for AgentBlazor: ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity. Covers surrogate keys, FK cascades, indexes, IsolateConversationsByAgent entity implications, audit columns, soft delete, concurrency tokens, and JSON columns. Use when modeling persistence entities, deciding composite keys vs surrogate keys, adding audit columns, choosing JSON columns vs owned entity types, or planning EF Core migrations. Triggers: entity design, persistence model, EF Core entities, FK cascade, composite key, BaseSessionId, AgentName, ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity, owned entity types, split queries, concurrency token, audit columns, soft delete."
 metadata:
-  version: 0.2.1
+  version: 0.3.0
 ---
 
 # Entity Design — AgentBlazor
@@ -64,7 +64,6 @@ public sealed class ConversationSessionEntity
     /// Format depends on IsolateConversationsByAgent (see session-identity-entities.md).
     /// Isolation OFF:   "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"
     /// Isolation ON:    "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"
-    /// TenantId is stored separately in its own column — see multitenancy-patterns.md.
     /// </summary>
     public required string SessionId { get; set; }
 
@@ -83,12 +82,6 @@ public sealed class ConversationSessionEntity
     /// </summary>
     public string? AgentName { get; set; }
 
-    /// <summary>
-    /// Tenant identifier (denormalized from TenantInfo.Identifier).
-    /// Logical reference — no cross-DB FK. Required for multitenancy queries.
-    /// </summary>
-    public required string TenantId { get; set; }
-
     /// <summary>Optional user identifier for user-scoped session browsing.</summary>
     public string? UserId { get; set; }
 
@@ -99,6 +92,8 @@ public sealed class ConversationSessionEntity
     public List<ConversationTurnEntity> Turns { get; set; } = [];
 }
 ```
+
+> **AgentBlazor feature:** `ConversationSessionEntity` is the core of the durable conversation store. `SessionId` is the primary lookup key for `IConversationStore.GetHistoryAsync()` and `AppendTurnAsync()`. `BaseSessionId` groups sessions from the same Blazor circuit. `AgentName` isolates conversations per agent when `IsolateConversationsByAgent` is ON. See `ab-conversation-store` for store implementation details.
 
 ### ConversationTurnEntity
 
@@ -113,9 +108,6 @@ public sealed class ConversationTurnEntity
 
     /// <summary>FK → ConversationSessionEntity.Id. Cascade delete (turns are meaningless without session).</summary>
     public Guid SessionId { get; set; }
-
-    /// <summary>Denormalized tenant identifier. Avoids JOIN to session for tenant-scoped turn queries.</summary>
-    public required string TenantId { get; set; }
 
     /// <summary>The user's message.</summary>
     public required string UserMessage { get; set; }
@@ -139,6 +131,8 @@ public sealed class ConversationTurnEntity
     public ConversationSessionEntity Session { get; set; } = null!;
 }
 ```
+
+> **AgentBlazor feature:** `ConversationTurnEntity` supports incremental persistence — `AppendTurnAsync` adds turns, `UpdateTurnAsync` patches by `TurnId`, `DeleteTurnAsync` removes, and `ReorderTurnsAsync` rewrites `TurnSequence`. `TurnId` is the stable identity from `ConversationTurn.TurnId`. See `ab-conversation-store` for the incremental persistence contract.
 
 ### AgentDefinitionEntity
 
@@ -188,9 +182,6 @@ public sealed class AgentDefinitionEntity
     /// <summary>JSON object of AgentRegistration.Metadata (e.g. route_prefixes).</summary>
     public string MetadataJson { get; set; } = "{}";
 
-    /// <summary>Optional tenant identifier (nullable for single-tenant apps).</summary>
-    public string? TenantId { get; set; }
-
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
@@ -198,12 +189,13 @@ public sealed class AgentDefinitionEntity
 
 **Key design decisions:**
 
+> **AgentBlazor feature:** `AgentDefinitionEntity` maps to dynamic agent registration via `AgentRegistrationBuilder`. `Name` is the lookup key for `IAgentRegistry.TryGet()`. `Persona` and `EnabledToolsJson` feed `IAgentRuntimeCustomizer` for per-agent system prompt and tool selection customization. See `ab-agent-registration` for entity-to-registration mapping and `ab-context-assembly` for the customizer integration.
+
 | Decision | Rationale |
 |---|---|
 | Surrogate `Id` + unique `Name` | Runtime resolves agents by `Name` (case-insensitive). Surrogate PK avoids coupling storage to the lookup key format. |
 | JSON columns for collections | `AllowedComponents`, `AllowedActions`, `AllowedDataSchemas`, and `EnabledTools` are small, infrequently-queried lists. JSON avoids junction tables for a write-heavy builder flow. Upgrade to owned entity types if you need `WHERE JSON_VALUE(...)` queries. |
 | `Persona` + `EnabledToolsJson` as top-level columns | Not buried in `MetadataJson` — the customizer seam reads them on every turn; top-level columns are cheaper to load and type-safe. |
-| `TenantId` nullable | Single-tenant apps (e.g. the Demo) omit it. Multitenant apps add a global query filter per `ab-multitenancy`. |
 | Audit columns (`CreatedAtUtc` / `UpdatedAtUtc`) | Standard pattern for entity lifecycle tracking. Update `UpdatedAtUtc` on every `AddOrUpdate`. |
 
 **Conversion helpers** — the entity provides static methods for JSON ↔ collection round-trips:
@@ -247,14 +239,15 @@ commonly add these columns (proven in the Demo's `demo_conversation_turns`):
 Cost is consumer policy — never part of the library turn. See `ab-conversation-store`
 ("Turn usage & cost persistence").
 
+> **AgentBlazor feature — Token cost management:** The library tracks raw token usage on `ConversationTurn.Usage`. Consumer apps extend their turn entities with cost columns for budget tracking and per-session billing. This is a consumer extension — the library does not mandate cost storage.
+
 ## Entity Design Principles
 
 | Principle | Decision | Rationale |
 |---|---|---|
-| **Primary keys** | Surrogate GUID (`Id`) | SessionId string format may change (tenant prefix, agent suffix, future revisions). Surrogate avoids coupling storage to key format. |
-| **TenantId denormalization** | Store on both Session AND Turn | Tenant-scoped turn queries (`WHERE TenantId = @t`) avoid JOIN to Sessions table. Storage cost (~36 bytes per row) is negligible. |
-| **Cascade delete** | `Cascade` on Session→Turns | Turns are meaningless without their session. Never cascade cross-DB (TenantInfo lives in separate DbContext). |
-| **String key collation** | `OrdinalIgnoreCase` | SessionId, UserId, TenantId lookups must be case-insensitive. Use `Latin1_General_CP1_CI_AS` (SQL Server) or `citext` (PostgreSQL). |
+| **Primary keys** | Surrogate GUID (`Id`) | SessionId string format may change (agent suffix, future revisions). Surrogate avoids coupling storage to key format. |
+| **Cascade delete** | `Cascade` on Session→Turns | Turns are meaningless without their session. Never cascade cross-DB. |
+| **String key collation** | `OrdinalIgnoreCase` | SessionId, UserId lookups must be case-insensitive. Use `Latin1_General_CP1_CI_AS` (SQL Server) or `citext` (PostgreSQL). |
 | **Navigation properties** | Bidirectional | `Session.Turns` (1:N) and `Turn.Session` (N:1) enable both eager loading and FK queries. |
 | **JSON columns** | Default: `nvarchar(max)` string | Store as raw strings for simplicity. Upgrade to EF Core 8+ owned entity types (`ToJson()`) if querying within JSON content is needed. |
 
@@ -263,16 +256,14 @@ Cost is consumer policy — never part of the library turn. See `ab-conversation
 | Index | Columns | Type | Purpose |
 |---|---|---|---|
 | `IX_ConversationSessions_SessionId` | `SessionId` | Unique, non-clustered | Primary lookup path for `GetHistoryAsync`, `AppendTurnAsync` |
-| `IX_ConversationSessions_TenantId` | `TenantId` | Non-clustered | Tenant-scoped session queries, cleanup by tenant |
-| `IX_ConversationSessions_TenantId_UserId` | `(TenantId, UserId)` | Non-clustered | `GetSessionsForUserAsync` |
-| `IX_ConversationSessions_TenantId_BaseSessionId` | `(TenantId, BaseSessionId)` | Non-clustered | Tenant + circuit queries |
 | `IX_ConversationSessions_BaseSessionId` | `BaseSessionId` | Non-clustered | Circuit-scoped session grouping when isolation is ON |
 | `IX_ConversationSessions_AgentName` | `AgentName` | Non-clustered | Agent-scoped session queries |
 | `IX_ConversationSessions_LastActivityAtUtc` | `LastActivityAtUtc` | Non-clustered | Expired-session cleanup queries |
 | `IX_ConversationTurns_SessionId` | `SessionId` | Non-clustered | FK lookups — efficient turn retrieval by session |
 | `IX_ConversationTurns_SessionId_TurnId` | `(SessionId, TurnId)` | Unique, non-clustered | Turn identity lookups for incremental `UpdateTurnAsync` / `DeleteTurnAsync` / `ReorderTurnsAsync` |
 | `IX_AgentDefinitions_Name` | `Name` | Unique, non-clustered | Case-insensitive agent lookup (primary path for `TryGet`) |
-| `IX_AgentDefinitions_TenantId` | `TenantId` | Non-clustered | Tenant-scoped agent queries, cleanup by tenant |
+
+> **Consumer extension:** Apps using multitenancy add tenant-scoped indexes per `ab-multitenancy` (e.g., `IX_ConversationSessions_TenantId`, `IX_ConversationSessions_TenantId_BaseSessionId`, `IX_AgentDefinitions_TenantId`).
 
 All string index columns use case-insensitive collation. Non-clustered because the clustered PK is on `Id` (GUID — avoids fragmentation from sequential inserts).
 
@@ -303,15 +294,17 @@ For single-instance deployments, the existing `SessionState.Gate` semaphore is s
 
 See [query-and-concurrency.md](references/query-and-concurrency.md) for implementation patterns.
 
-## Multitenancy
+## Persistence Model vs Runtime Model
 
-The `TenantId` column on both session and turn entities provides multitenancy isolation. See [multitenancy-patterns.md](references/multitenancy-patterns.md) for:
+These entities are the **persistence model** — they store conversation state in a database. The runtime model is separate:
 
-- Composite key `(TenantId, Id)` vs surrogate key + `TenantId` column
-- Global query filters vs manual `.Where()`
-- Finbuckle `MultiTenantDbContext` for application data vs manual filtering for AgentBlazor store
-- Compound index strategy for tenant-scoped queries
-- Tenant deletion cascade and cleanup
+| Persistence Entity | Runtime Correlation | AgentBlazor Feature |
+|---|---|---|
+| `ConversationSessionEntity` | `AgentConversationScope` / `IConversationStore` | Durable conversation store — session lookup by `SessionId`, circuit grouping by `BaseSessionId` |
+| `ConversationTurnEntity` | `ConversationTurn` / incremental `AppendTurnAsync` / `UpdateTurnAsync` | Incremental persistence — turns appended per turn, updated/deleted/reordered by `TurnId` |
+| `AgentDefinitionEntity` | `AgentRegistration` / `AgentRegistrationBuilder` | Dynamic agent registration — `Name` maps to registration key, `Persona`/`EnabledToolsJson` feed `IAgentRuntimeCustomizer` |
+
+> **Consumer extension — Multitenancy:** The core persistence model is tenant-agnostic. Consumer apps that need tenant scoping add a `TenantId` column to their entity subclasses and apply global query filters. See [multitenancy-patterns.md](references/multitenancy-patterns.md) for composite keys, Finbuckle integration, and tenant-scoped indexes.
 
 ## Reference Files
 

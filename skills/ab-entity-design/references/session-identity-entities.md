@@ -61,7 +61,7 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 3. `EffectiveSessionId` = `CircuitSessionId` (no explicit param)
 4. `EffectiveConversationSessionId` = `BuildSessionKey(EffectiveSessionId, selectedAgent, isolation)`
 5. Turns persisted with `EffectiveConversationSessionId` as the key
-6. Store populates: `BaseSessionId` = `EffectiveSessionId`, `SessionId` = `EffectiveConversationSessionId`, `TenantId` = from `TenantContextAccessor`
+6. Store populates: `BaseSessionId` = `EffectiveSessionId`, `SessionId` = `EffectiveConversationSessionId`
 
 | Isolation | Circuit GUID | Selected Agent | `SessionId` column | `BaseSessionId` column |
 |---|---|---|---|---|
@@ -78,7 +78,9 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 2. Everything else flows the same as Path A
 3. `BaseSessionId` = `"support-ticket-1042"`, `SessionId` includes agent suffix if isolation ON
 
-**Path C — Tenant-prefixed (optional defense-in-depth convention from `ab-multitenancy`):**
+**Path C — Tenant-prefixed (Consumer Extension):**
+
+> **Note:** This is an optional consumer extension pattern from [`ab-multitenancy`](../.github/skills/ab-multitenancy/), not a core AgentBlazor path. The core entity model is tenant-agnostic.
 
 ```razor
 <AgentChatSurface SessionId="@($"{Tenant.TenantId}:{ComponentRegistry.SessionId}")" />
@@ -86,10 +88,10 @@ Where `CircuitSessionId` is the 32-char hex GUID from `InMemoryAgentComponentReg
 
 1. `EffectiveSessionId` = `"acme:d1e9a3f2..."` (consumer convention — tenant prefix prepended)
 2. `BaseSessionId` = `"acme:d1e9a3f2..."` (tenant prefix baked into BaseSessionId as a side effect)
-3. `TenantId` column = `"acme"` ← set **independently** by `TenantContextAccessor` → Finbuckle
-4. **The tenant prefix in SessionId is redundant with the `TenantId` column** — it is defense-in-depth, not required for correct tenant isolation. All store queries filter by the `TenantId` column; the prefix in `SessionId` provides no additional correctness guarantee.
+3. Consumer-managed tenant context provides tenant filtering in queries (see `ab-multitenancy`)
+4. **The tenant prefix in SessionId provides defense-in-depth** — it is not required for correct tenant isolation when using the consumer extension's query filters.
 
-> **Key design insight**: `BaseSessionId` is whatever `EffectiveSessionId` resolves to. AgentBlazor **never** adds a tenant prefix — the `BuildSessionKey` output has the format `"{EffectiveSessionId}"` or `"{EffectiveSessionId}::agent::{AgentName}"`. The `TenantId` column is the authoritative tenant identifier, set by `TenantContextAccessor` (Finbuckle) per request.
+> **Key design insight**: `BaseSessionId` is whatever `EffectiveSessionId` resolves to. AgentBlazor **never** adds a tenant prefix — the `BuildSessionKey` output has the format `"{EffectiveSessionId}"` or `"{EffectiveSessionId}::agent::{AgentName}"`. Tenant scoping is a consumer extension concern; see [multitenancy-patterns.md](multitenancy-patterns.md).
 
 ## 2. BuildSessionKey() → Entity Column Mapping
 
@@ -168,7 +170,7 @@ The store implementation must not assume `AgentName != null` means isolation is 
 
 ### Current approach: String prefix encoding
 
-The `SessionId` column encodes tenant scope, circuit identifier, and agent isolation in a single colon-delimited string:
+The `SessionId` column encodes circuit identifier and agent isolation in a single colon-delimited string:
 
 ```
 "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"                              // isolation OFF
@@ -193,7 +195,7 @@ db.Sessions.Where(s => s.SessionId.Contains("::agent::"));
 **Risks:**
 - `LIKE` / `StartsWith` queries cannot use exact-match indexes efficiently.
 - Format changes (new separator, additional segments) break all query code.
-- No database-level uniqueness constraint on `(TenantId, BaseSessionId, AgentName)` — duplicate detection requires application code.
+- No database-level uniqueness constraint on `(BaseSessionId, AgentName)` — duplicate detection requires application code.
 - Ad-hoc queries for reporting or debugging must replicate string parsing logic.
 
 ### Recommended for production EF Core: Normalized columns
@@ -203,24 +205,23 @@ Add `BaseSessionId` and `AgentName` as first-class columns alongside the encoded
 ```csharp
 public sealed class ConversationSessionEntity
 {
-    // Denormalized convenience — computed from BaseSessionId + AgentName + TenantId at write time
+    // Denormalized convenience — computed from BaseSessionId + AgentName at write time
     public required string SessionId { get; set; }
 
-    // Normalized — circuit-level identifier without tenant prefix or agent suffix
+    // Normalized — circuit-level identifier without agent suffix
     public string? BaseSessionId { get; set; }
 
     // Normalized — agent name when isolation is active and multiple agents exist
     public string? AgentName { get; set; }
 
-    public required string TenantId { get; set; }
     // ...
 }
 ```
 
 **Advantages:**
-- **Exact-match queries** — `WHERE TenantId = @t AND BaseSessionId = @b` uses a covering index, no string prefix needed.
-- **Compound indexes** — `(TenantId, BaseSessionId)` and `(TenantId, BaseSessionId, AgentName)` enable efficient TenantId-first seeks.
-- **Database-level uniqueness** — unique constraint on `(TenantId, BaseSessionId, AgentName)` with `NULLS NOT DISTINCT` enforces that only one session row exists per tenant/circuit/agent tuple.
+- **Exact-match queries** — `WHERE BaseSessionId = @b` uses a covering index, no string prefix needed.
+- **Compound indexes** — `(BaseSessionId)` and `(BaseSessionId, AgentName)` enable efficient lookups.
+- **Database-level uniqueness** — unique constraint on `(BaseSessionId, AgentName)` with `NULLS NOT DISTINCT` enforces that only one session row exists per circuit/agent tuple.
 - **Reporting** — aggregate by `AgentName`, count sessions per circuit, etc., without parsing strings.
 - **Format resilience** — `SessionId` format can change without breaking query logic; the normalized columns remain stable.
 
@@ -237,8 +238,8 @@ Columns are nullable for backward compatibility:
 ALTER TABLE ConversationSessions ADD BaseSessionId nvarchar(64) NULL;
 ALTER TABLE ConversationSessions ADD AgentName nvarchar(256) NULL;
 
-CREATE INDEX IX_ConversationSessions_TenantId_BaseSessionId
-    ON ConversationSessions (TenantId, BaseSessionId)
+CREATE INDEX IX_ConversationSessions_BaseSessionId
+    ON ConversationSessions (BaseSessionId)
     WHERE BaseSessionId IS NOT NULL;
 
 CREATE INDEX IX_ConversationSessions_AgentName
@@ -254,13 +255,13 @@ The table below shows the EF Core query for each `IConversationStore` method und
 
 | Method | Isolation ON query | Isolation OFF query |
 |---|---|---|
-| `GetHistoryAsync(sessionId, tenantId)` | `WHERE SessionId = @fullKey AND TenantId = @t` | `WHERE SessionId = @baseKey AND TenantId = @t` |
-| `GetActiveSessionsAsync(tenantId, cutoff)` | `WHERE TenantId = @t AND LastActivityAtUtc >= @cutoff` | Same — tenant-scoped, agnostic to isolation |
-| `GetSessionsForUserAsync(userId, tenantId, cutoff)` | `WHERE TenantId = @t AND UserId = @u AND LastActivityAtUtc >= @cutoff` | Same — user-scoped within tenant |
-| Get all sessions for circuit `(baseSessionId, tenantId)` | `WHERE BaseSessionId = @base AND TenantId = @t` (exact match, returns 1–N rows — one per agent) | `WHERE SessionId = @base AND TenantId = @t` (single row — isolation OFF means no agent suffix) |
-| `AppendTurnAsync(sessionId, tenantId, turn)` | `FirstOrDefaultAsync(s => s.SessionId == @fullKey && s.TenantId == @t)` then append turn | Same — uses the full session key from `BuildSessionKey()` |
-| `DeleteSessionAsync(sessionId, tenantId)` | `WHERE SessionId = @fullKey AND TenantId = @t` | Same — deletes the exact session row |
-| `DeleteExpiredSessionsAsync(tenantId, maxAge)` | `WHERE TenantId = @t AND LastActivityAtUtc < @expiry` | Same — bulk cleanup, no isolation dependency |
+| `GetHistoryAsync(sessionId)` | `WHERE SessionId = @fullKey` | `WHERE SessionId = @baseKey` |
+| `GetActiveSessionsAsync(cutoff)` | `WHERE LastActivityAtUtc >= @cutoff` | Same — agnostic to isolation |
+| `GetSessionsForUserAsync(userId, cutoff)` | `WHERE UserId = @u AND LastActivityAtUtc >= @cutoff` | Same — user-scoped |
+| Get all sessions for circuit `baseSessionId` | `WHERE BaseSessionId = @base` (exact match, returns 1–N rows — one per agent) | `WHERE SessionId = @base` (single row — isolation OFF means no agent suffix) |
+| `AppendTurnAsync(sessionId, turn)` | `FirstOrDefaultAsync(s => s.SessionId == @fullKey)` then append turn | Same — uses the full session key from `BuildSessionKey()` |
+| `DeleteSessionAsync(sessionId)` | `WHERE SessionId = @fullKey` | Same — deletes the exact session row |
+| `DeleteExpiredSessionsAsync(maxAge)` | `WHERE LastActivityAtUtc < @expiry` | Same — bulk cleanup, no isolation dependency |
 
 ### Circuit-scoped query (the key difference)
 
@@ -270,7 +271,7 @@ When isolation is ON and the caller wants all sessions for a given browser tab/c
 ```csharp
 var circuitSessions = await db.Sessions
     .AsNoTracking()
-    .Where(s => s.TenantId == tenantId && s.BaseSessionId == baseSessionId)
+    .Where(s => s.BaseSessionId == baseSessionId)
     .OrderByDescending(s => s.LastActivityAtUtc)
     .ToListAsync(ct);
 // Returns multiple rows: one per agent + the non-isolated row (if any exist)
@@ -281,7 +282,7 @@ var circuitSessions = await db.Sessions
 ```csharp
 var singleSession = await db.Sessions
     .AsNoTracking()
-    .FirstOrDefaultAsync(s => s.TenantId == tenantId && s.SessionId == rawSessionId, ct);
+    .FirstOrDefaultAsync(s => s.SessionId == rawSessionId, ct);
 // Returns single row — isolation OFF means one session per circuit
 ```
 
@@ -289,11 +290,12 @@ var singleSession = await db.Sessions
 
 | Query | Index used | Scan type |
 |---|---|---|
-| `WHERE SessionId = @k AND TenantId = @t` | `IX_ConversationSessions_SessionId` | Unique seek |
-| `WHERE TenantId = @t AND LastActivityAtUtc >= @c` | `IX_ConversationSessions_TenantId` + key lookup on `LastActivityAtUtc` | Index seek + residual filter |
-| `WHERE TenantId = @t AND UserId = @u AND LastActivityAtUtc >= @c` | `IX_ConversationSessions_TenantId_UserId` | Index seek |
-| `WHERE BaseSessionId = @b AND TenantId = @t` | `IX_ConversationSessions_TenantId_BaseSessionId` | Index seek |
-| `WHERE BaseSessionId = @b` (circuit-only, no tenant) | `IX_ConversationSessions_BaseSessionId` | Index seek |
+| `WHERE SessionId = @k` | `IX_ConversationSessions_SessionId` | Unique seek |
+| `WHERE LastActivityAtUtc >= @c` | Index on `LastActivityAtUtc` + key lookup | Index seek + residual filter |
+| `WHERE UserId = @u AND LastActivityAtUtc >= @c` | `IX_ConversationSessions_UserId` | Index seek |
+| `WHERE BaseSessionId = @b` | `IX_ConversationSessions_BaseSessionId` | Index seek |
+
+> **Consumer extension:** Apps using multitenancy add tenant-scoped indexes per `ab-multitenancy` (e.g., `IX_ConversationSessions_TenantId`, `IX_ConversationSessions_TenantId_BaseSessionId`).
 
 ## 6. Store Implementation Impact
 
@@ -327,7 +329,7 @@ internal static class SessionKeyParser
 ### Usage in AppendTurnAsync
 
 ```csharp
-public async Task AppendTurnAsync(string sessionId, string tenantId, ConversationTurn turn, CancellationToken ct)
+public async Task AppendTurnAsync(string sessionId, ConversationTurn turn, CancellationToken ct)
 {
     var (baseSessionId, agentName) = SessionKeyParser.Parse(sessionId);
 
@@ -342,7 +344,6 @@ public async Task AppendTurnAsync(string sessionId, string tenantId, Conversatio
             SessionId = sessionId,
             BaseSessionId = baseSessionId,
             AgentName = agentName,
-            TenantId = tenantId,
             UserId = turn.UserId,
             CreatedAtUtc = DateTime.UtcNow,
             LastActivityAtUtc = DateTime.UtcNow,
@@ -359,7 +360,6 @@ public async Task AppendTurnAsync(string sessionId, string tenantId, Conversatio
         Id = Guid.NewGuid(),
         SessionId = session.Id,
             TurnId = turn.TurnId,
-            TenantId = tenantId,
             UserMessage = turn.UserMessage,
             AgentResponse = turn.AgentResponse,
             // ... JSON columns ...
@@ -391,3 +391,7 @@ For the current architecture, **parse from SessionId** is preferred — the `Ses
 | SessionId is `"user:42"` (consumer-provided, contains colon) | `BaseSessionId = "user:42"` — the parser only splits on `::agent::`, not generic colons |
 | SessionId is `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::"` (malformed, empty agent name) | Parser returns `AgentName = ""` — treat as null or reject at store layer |
 | Existing row has `BaseSessionId = null` (pre-migration) | Query falls back to `SessionId.StartsWith()` until backfill completes |
+
+---
+
+For multitenancy patterns (tenant scoping, global query filters), see [multitenancy-patterns.md](multitenancy-patterns.md).

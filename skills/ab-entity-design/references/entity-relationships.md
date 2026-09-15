@@ -7,10 +7,9 @@
 - [Full ER Diagram](#full-er-diagram)
 - [Table-Level Relationship Summary](#table-level-relationship-summary)
 - [Design Rationale](#design-rationale)
-  - [TenantId: Logical Reference (No Cross-DB FK)](#tenantid-logical-reference-no-cross-db-fk)
+  - [Multitenancy (Consumer Extension)](#multitenancy-consumer-extension)
   - [BaseSessionId + AgentName: Separate Columns from SessionId](#basesessionid--agentname-separate-columns-from-sessionid)
   - [Cascade Delete on Session → Turns](#cascade-delete-on-session--turns)
-  - [TenantId Denormalized on ConversationTurnEntity](#tenantid-denormalized-on-conversationturneentity)
   - [AgentDefinitionEntity: Standalone Registry Store](#agentdefinitionentity-standalone-registry-store)
 - [The IsolateConversationsByAgent 1:N Relationship](#the-isolateconversationsbyagent-1n-relationship)
 
@@ -28,33 +27,11 @@
 >
 > This is the **most important structural decision** in the AgentBlazor entity model. When adding your own domain entities, decide whether they belong at the circuit level (`BaseSessionId`) or the agent-conversation level (`SessionId`). See [SKILL.md](../SKILL.md#%EF%B8%8F-two-critical-concepts-basesessionid-vs-sessionid) for guidance.
 
-Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the Finbuckle `TenantDbContext`. `ConversationSessionEntity` and `ConversationTurnEntity` live in the AgentBlazor `ConversationDbContext`.
+Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension concern — see [multitenancy-patterns.md](multitenancy-patterns.md).
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  TenantDbContext (Finbuckle — tenant configuration store)                    ║
-║                                                                              ║
-║  ┌──────────────────────────────────────────────────┐                        ║
-║  │  TenantInfo                                      │                        ║
-║  ├──────────────────────────────────────────────────┤                        ║
-║  │  PK  Id                string                    │                        ║
-║  │  UQ  Identifier        string      (logical ref) │──┐                     ║
-║  │      Name              string                    │  │                     ║
-║  │      ConnectionString  string?                   │  │  Logical reference   ║
-║  │      ProviderType      string                    │  │  (string column,     ║
-║  │      ApiKey            string?                   │  │   no cross-DB FK)    ║
-║  │      Model             string                    │  │                     ║
-║  │      DailyBudgetUsd    decimal                   │  │                     ║
-║  │      MonthlyBudgetUsd  decimal                   │  │                     ║
-║  │      Tier              string                    │  │                     ║
-║  └──────────────────────────────────────────────────┘  │                     ║
-╚═════════════════════════════════════════════════════════╪═════════════════════╝
-                                                          │
-  TenantId = Identifier (denormalized copy)              │
-                                                          │
-╔═════════════════════════════════════════════════════════╪═════════════════════╗
-║  ConversationDbContext (AgentBlazor — application data) │                       ║
-║                                                          │                      ║
+║  ConversationDbContext (AgentBlazor — application data)                      ║
 ║  ┌──────────────────────────────────────────────────────────┐                  ║
 ║  │  ConversationSessionEntity                               │                  ║
 ║  ├──────────────────────────────────────────────────────────┤                  ║
@@ -62,8 +39,7 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 ║  │  UQ  SessionId           string  (required)              │                  ║
 ║  │  IX  BaseSessionId       string? (nullable)              │                  ║
 ║  │  IX  AgentName           string? (nullable)              │                  ║
-║  │  IX  TenantId            string  (required)  ◄───────────┘                  ║
-║  │  IX  UserId              string? (nullable)                                 ║
+║  │  IX  UserId              string? (nullable)              │                  ║
 ║  │      CreatedAtUtc        DateTime                                           ║
 ║  │      LastActivityAtUtc   DateTime                                           ║
 ║  │                                                                             ║
@@ -78,7 +54,6 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 ║  ├──────────────────────────────────────────────────────────────────────────┤  ║
 ║  │  PK  Id                    Guid                                           │  ║
 ║  │  FK  SessionId             Guid       (→ ConversationSessionEntity.Id)    │  ║
-║  │  IX  TenantId              string     (required, denormalized)            │  ║
 ║  │      UserMessage           string     (required)                          │  ║
 ║  │      AgentResponse         string     (required)                          │  ║
 ║  │      PlannedActionsJson    string?    (nvarchar(max))                     │  ║
@@ -108,7 +83,6 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 ║  │      Persona             string?  (customizer override)  │                ║
 ║  │      EnabledToolsJson    string?  (JSON array)           │                ║
 ║  │      MetadataJson        string    (JSON object)         │                ║
-║  │      TenantId            string?  (multitenancy)         │                ║
 ║  │      CreatedAtUtc        DateTime                        │                ║
 ║  │      UpdatedAtUtc        DateTime                        │                ║
 ║  └──────────────────────────────────────────────────────────┘                ║
@@ -127,8 +101,9 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 | `FK` | Foreign key constraint |
 | `IX` | Non-unique index |
 | `NAV` | Navigation property (EF Core only — not a DB constraint) |
-| `◄───` | Logical reference (string match, no DB-enforced FK) |
 | `──►` | Foreign key relationship (DB-enforced) |
+
+> **Note:** `TenantInfo` / `TenantId` columns are a consumer extension concern. See [multitenancy-patterns.md](multitenancy-patterns.md).
 
 ---
 
@@ -136,26 +111,20 @@ Two separate databases — no cross-DB foreign keys. `TenantInfo` lives in the F
 
 | # | Relationship | Parent | Child | FK Column | Cascade | Navigation | Index |
 |---|---|---|---|---|---|---|---|
-| 1 | **TenantInfo → Session** (logical) | `TenantInfo` (TenantDbContext) | `ConversationSessionEntity` (ConversationDbContext) | `TenantId` (string) | None — different DbContext | None | `IX_ConversationSessions_TenantId` non-clustered |
-| 2 | **TenantInfo → Turn** (logical) | `TenantInfo` (TenantDbContext) | `ConversationTurnEntity` (ConversationDbContext) | `TenantId` (string, denormalized) | None — different DbContext | None | `IX_ConversationTurns_TenantId` non-clustered |
-| 3 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (Guid) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
-| 4 | **BaseSessionId → Sessions** (logical grouping) | N/A (same table) | `ConversationSessionEntity` | `BaseSessionId` (string?) | None — self-referencing grouping | None | `IX_ConversationSessions_BaseSessionId` non-clustered |
-| 5 | **AgentDefinitionEntity** (standalone) | N/A (no parent) | `AgentDefinitionEntity` | N/A | N/A — standalone entity | None | `IX_AgentDefinitions_Name` unique, `IX_AgentDefinitions_TenantId` non-clustered |
+| 1 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (Guid) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
+| 2 | **BaseSessionId → Sessions** (logical grouping) | N/A (same table) | `ConversationSessionEntity` | `BaseSessionId` (string?) | None — self-referencing grouping | None | `IX_ConversationSessions_BaseSessionId` non-clustered |
+| 3 | **AgentDefinitionEntity** (standalone) | N/A (no parent) | `AgentDefinitionEntity` | N/A | N/A — standalone entity | None | `IX_AgentDefinitions_Name` unique |
 
 ### Index Details
 
 | Index | Columns | Type | Purpose |
 |---|---|---|---|
 | `IX_ConversationSessions_SessionId` | `SessionId` | Unique, non-clustered | Primary lookup: `GetHistoryAsync`, `AppendTurnAsync` |
-| `IX_ConversationSessions_TenantId` | `TenantId` | Non-clustered | Tenant-scoped session queries, cleanup by tenant |
-| `IX_ConversationSessions_TenantId_BaseSessionId` | `(TenantId, BaseSessionId)` | Non-clustered | Tenant + circuit compound queries |
 | `IX_ConversationSessions_BaseSessionId` | `BaseSessionId` | Non-clustered | Circuit-scoped session grouping when agent isolation is ON |
 | `IX_ConversationSessions_AgentName` | `AgentName` | Non-clustered | Agent-scoped session queries |
 | `IX_ConversationSessions_LastActivityAtUtc` | `LastActivityAtUtc` | Non-clustered | Expired-session cleanup |
 | `IX_ConversationTurns_SessionId` | `SessionId` | Non-clustered | FK lookups — efficient turn retrieval by session |
-| `IX_ConversationTurns_TenantId` | `TenantId` | Non-clustered | Tenant-scoped turn queries without JOIN |
 | `IX_AgentDefinitions_Name` | `Name` | Unique, non-clustered | Case-insensitive agent lookup (primary path for `TryGet`) |
-| `IX_AgentDefinitions_TenantId` | `TenantId` | Non-clustered | Tenant-scoped agent queries, cleanup by tenant |
 
 All string index columns use case-insensitive collation (`Latin1_General_CP1_CI_AS` on SQL Server). Non-clustered because the clustered PK is on `Id` (GUID — avoids fragmentation from sequential inserts).
 
@@ -163,29 +132,9 @@ All string index columns use case-insensitive collation (`Latin1_General_CP1_CI_
 
 ## Design Rationale
 
-### TenantId: Logical Reference (No Cross-DB FK)
+### Multitenancy (Consumer Extension)
 
-**Decision:** `TenantId` is a plain `string` column on both `ConversationSessionEntity` and `ConversationTurnEntity`. There is **no foreign key constraint** to `TenantInfo`.
-
-**Why:**
-
-1. **Different DbContext instances.** `TenantInfo` lives in the Finbuckle `TenantDbContext` (tenant configuration store). `ConversationSessionEntity` and `ConversationTurnEntity` live in the AgentBlazor `ConversationDbContext` (application data). EF Core cannot enforce foreign keys across DbContext boundaries.
-
-2. **Different databases.** In a multi-tenant deployment, the tenant configuration store is a shared "master" database, while each tenant's conversation data lives in its own database (Finbuckle `WithPerTenantConnectionString` pattern). Cross-database foreign keys are not supported by any relational database without federated keys or linked servers — both of which add unacceptable complexity.
-
-3. **Loose coupling.** The tenant configuration store can be migrated, restructured, or replaced (e.g., moved from SQL to Cosmos DB) without any schema change to the conversation data. The `TenantId` string is the stable contract.
-
-4. **Application-level enforcement.** Tenant isolation is enforced at the application layer: every query includes `.Where(s => s.TenantId == _tenantId)`. The `TenantId` value is always populated from the resolved `ITenantContext` — it is never provided by the caller. This is safer than relying solely on DB constraints, which can be bypassed by connection string swaps.
-
-```csharp
-// TenantId is always set from the resolved tenant context — never from input
-var session = new ConversationSessionEntity
-{
-    TenantId = tenantContext.TenantId,  // ← single source of truth
-    SessionId = sessionKey,
-    // ...
-};
-```
+> **Consumer extension:** The core entity model is tenant-agnostic — no `TenantId` column on any core entity. Consumer apps that need tenant scoping should add `TenantId` to their entity subclasses and apply global query filters. See [multitenancy-patterns.md](multitenancy-patterns.md) for tenant-scoped sessions, global query filters, and Finbuckle integration.
 
 ### BaseSessionId + AgentName: Separate Columns from SessionId
 
@@ -205,7 +154,7 @@ var session = new ConversationSessionEntity
 
    String containment queries (`LIKE '%pattern%'`, `SUBSTRING`, `CHARINDEX`) cannot use the unique index on `SessionId`.
 
-2. **Compound indexes.** The compound index `IX_ConversationSessions_TenantId_BaseSessionId` enables efficient tenant-scoped circuit lookups. If `BaseSessionId` were embedded inside `SessionId`, the DB optimizer could not use any index for the combination of tenant + circuit identifier.
+2. **Compound indexes.** The compound index `IX_ConversationSessions_BaseSessionId` enables efficient circuit-scoped lookups. If `BaseSessionId` were embedded inside `SessionId`, the DB optimizer could not use any index for the combination of circuit identifier.
 
 3. **DB constraints.** `SessionId` has a **unique** constraint. If `BaseSessionId` were part of `SessionId`, the DB would guarantee uniqueness across the full key — which we already want. But separate columns allow a **non-unique** index on `BaseSessionId` (many sessions can share one circuit) while keeping `SessionId` unique.
 
@@ -248,47 +197,9 @@ The raw circuit identifier (`sessionId` parameter above) is stored in `BaseSessi
 
 3. **Performance.** A single `DELETE FROM ConversationSessions WHERE Id = @id` cascades to turns in one round-trip. Without cascade, you need two round-trips (SELECT turns + DELETE turns → DELETE session) or a raw SQL query.
 
-4. **Never cascade cross-DB.** The cascade rule applies only within the `ConversationDbContext`. `TenantInfo` deletion must be handled explicitly at the application layer (see [multitenancy-patterns.md](multitenancy-patterns.md) for tenant deletion cascade).
+### Multitenancy (Consumer Extension)
 
-### TenantId Denormalized on ConversationTurnEntity
-
-**Decision:** `TenantId` is duplicated on both `ConversationSessionEntity` and `ConversationTurnEntity`, rather than fetched via JOIN.
-
-**Why:**
-
-1. **Tenant-scoped turn queries avoid JOINs.** The most common query pattern — "get all turns from tenant X in the last Y hours" — becomes a single-table index seek:
-
-   ```sql
-   -- Denormalized: single table, index seek, no JOIN
-   SELECT * FROM ConversationTurns
-   WHERE TenantId = 'd1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f' AND TimestampUtc >= @cutoff;
-
-   -- Without denormalization: JOIN required
-   SELECT t.* FROM ConversationTurns t
-   INNER JOIN ConversationSessions s ON t.SessionId = s.Id
-   WHERE s.TenantId = 'd1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f' AND t.TimestampUtc >= @cutoff;
-   ```
-
-   The JOIN adds a second index seek (or scan) on the Sessions table, doubling I/O.
-
-2. **Storage cost is negligible.** `TenantId` is `nvarchar(256)` — at most 512 bytes per row (typically ~12–40 bytes for short identifiers). Even with 10 million turns, the denormalization costs less than 400 MB of storage, which is a fraction of the storage for `UserMessage`, `AgentResponse`, and the four JSON columns.
-
-3. **Immutable after insert.** Once a turn is persisted, its `TenantId` never changes. This eliminates the risk of denormalization drift — the only write path (`AppendTurnAsync`) sets `TenantId` from the session's `TenantId` at insert time.
-
-4. **Extensibility.** Future features (tenant-level turn analytics, cost attribution across tenants, export by tenant) all benefit from having `TenantId` directly on the turns table without schema changes.
-
-```csharp
-// AppendTurnAsync — TenantId populated at insert from the session
-session.Turns.Add(new ConversationTurnEntity
-{
-    SessionId = session.Id,
-    TurnId = turn.TurnId,
-    TenantId = session.TenantId,  // ← denormalized copy at insert time
-    UserMessage = turn.UserMessage,
-    AgentResponse = turn.AgentResponse,
-    // ...
-});
-```
+> **Consumer extension:** Consumer apps that need tenant-scoped turn queries without JOINs should denormalize `TenantId` onto their `ConversationTurnEntity` subclass. See [multitenancy-patterns.md](multitenancy-patterns.md) for the denormalization pattern and query optimization details.
 
 ### AgentDefinitionEntity: Standalone Registry Store
 
@@ -310,10 +221,6 @@ session.Turns.Add(new ConversationTurnEntity
 -- Case-insensitive unique index on Name (CRITICAL — runtime does case-insensitive lookups)
 CREATE UNIQUE INDEX IX_AgentDefinitions_Name
     ON AgentDefinitions(Name COLLATE Latin1_General_CP1_CI_AS);
-
--- Tenant-scoped queries
-CREATE INDEX IX_AgentDefinitions_TenantId
-    ON AgentDefinitions(TenantId);
 ```
 
 > **SQLite collation trap.** SQLite's `LOWER()` is ASCII-only. A unique index on `LOWER(Name)` will reject `üser` ≠ `ÜSER` while a `WHERE LOWER(Name) = LOWER(@input)` query won't find either. Use ` COLLATE NOCASE` on the column or a generated column with a proper Unicode lower function.
@@ -361,29 +268,29 @@ The `BaseSessionId` = `NULL` row with `SessionId` = `"d1e9a3f2b8c04a5e9d7f6c1b2a
 
 ### Entity State After a Multi-Agent Session
 
-Assume a circuit with `BaseSessionId` = `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"`, tenant `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"`, and two agents: `SupportAgent` and `InboxAgent`. After each agent has processed 2 turns:
+Assume a circuit with `BaseSessionId` = `"d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"` and two agents: `SupportAgent` and `InboxAgent`. After each agent has processed 2 turns:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  ConversationDbContext — ConversationSessions table                               │
-├────┬─────────────────────────────────────┬────────────────┬──────────────┬────────┤
-│ Id │ SessionId                           │ BaseSessionId  │ AgentName    │ TenantId│
-├────┼─────────────────────────────────────┼────────────────┼──────────────┼────────┤
-│ S1 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"                       │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"       │ NULL         │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f" │
-│ S2 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"  │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"       │ SupportAgent │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f" │
-│ S3 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::InboxAgent"    │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"       │ InboxAgent   │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f" │
-└────┴─────────────────────────────────────┴────────────────┴──────────────┴────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│  ConversationDbContext — ConversationSessions table                                       │
+├────┬─────────────────────────────────────────────┬────────────────┬──────────────┤
+│ Id │ SessionId                                   │ BaseSessionId  │ AgentName    │
+├────┼─────────────────────────────────────────────┼────────────────┼──────────────┤
+│ S1 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"           │ d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f  │ NULL         │
+│ S2 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::SupportAgent"  │ d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f  │ SupportAgent │
+│ S3 │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f::agent::InboxAgent"    │ d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f  │ InboxAgent   │
+└────┴─────────────────────────────────────────────┴────────────────┴──────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │  ConversationDbContext — ConversationTurns table                                  │
-├────┬───────────┬──────────┬──────────────────────┬───────────────────────────────┤
-│ Id │ SessionId │ TenantId │ UserMessage          │ AgentResponse                 │
-├────┼───────────┼──────────┼──────────────────────┼───────────────────────────────┤
-│ T1 │    S2     │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"   │ "I need help with..." │ "I can assist with that..."   │
-│ T2 │    S2     │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"   │ "What about...?"     │ "Good question. Here's..."    │
-│ T3 │    S3     │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"   │ "Check my inbox"     │ "You have 3 unread messages"  │
-│ T4 │    S3     │ "d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f"   │ "Archive message #2" │ "Message #2 has been archived"│
-└────┴───────────┴──────────┴──────────────────────┴───────────────────────────────┘
+├────┬───────────┬──────────────────────┬───────────────────────────────┤
+│ Id │ SessionId │ UserMessage          │ AgentResponse                 │
+├────┼───────────┼──────────────────────┼───────────────────────────────┤
+│ T1 │    S2     │ "I need help with..." │ "I can assist with that..."   │
+│ T2 │    S2     │ "What about...?"     │ "Good question. Here's..."    │
+│ T3 │    S3     │ "Check my inbox"     │ "You have 3 unread messages"  │
+│ T4 │    S3     │ "Archive message #2" │ "Message #2 has been archived"│
+└────┴───────────┴──────────────────────┴───────────────────────────────┘
 ```
 
 ### Query Patterns for Isolated Sessions
@@ -397,14 +304,13 @@ var history = await store.GetHistoryAsync(key, ct);
 
 // 2. Get all sessions for a circuit (grouped by BaseSessionId)
 var sessions = await db.Sessions
-    .Where(s => s.TenantId == tenantId && s.BaseSessionId == "abc123")
+    .Where(s => s.BaseSessionId == "abc123")
     .OrderByDescending(s => s.LastActivityAtUtc)
     .ToListAsync(ct);
 
 // 3. Get all turns across all agents in a circuit
 var turns = await db.Turns
-    .Where(t => t.TenantId == tenantId
-        && db.Sessions.Any(s => s.Id == t.SessionId && s.BaseSessionId == "abc123"))
+    .Where(t => db.Sessions.Any(s => s.Id == t.SessionId && s.BaseSessionId == "abc123"))
     .OrderBy(t => t.TimestampUtc)
     .ToListAsync(ct);
 ```
@@ -420,3 +326,7 @@ Circuit "abc123"
 ```
 
 `BuildSessionKey` returns the unchanged `sessionId` — no `::agent::` suffix is appended. The `AgentName` column remains `NULL`. The relationship is effectively 1:1 per circuit.
+
+---
+
+For multitenancy patterns (tenant scoping, global query filters, Finbuckle integration), see [multitenancy-patterns.md](multitenancy-patterns.md).

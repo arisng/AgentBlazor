@@ -385,16 +385,17 @@ Every session-list query must include a reasonable row limit:
 private const int MaxSessionListSize = 100;
 
 public async Task<List<ConversationSessionEntity>> GetActiveSessionsAsync(
-    string tenantId, CancellationToken ct)
+    CancellationToken ct)
 {
     return await db.Sessions
         .AsNoTracking()
-        .Where(s => s.TenantId == tenantId)
         .OrderByDescending(s => s.LastActivityAtUtc)
         .Take(MaxSessionListSize)       // ← mandatory guard
         .ToListAsync(ct);
 }
 ```
+
+> **Consumer extension:** Apps using multitenancy add `.Where(s => s.TenantId == tenantId)` to scope queries to a specific tenant. See [multitenancy-patterns.md](../ab-multitenancy/references/entity-design-guidance.md).
 
 **Rationale:**
 
@@ -408,7 +409,6 @@ For UIs that scroll through sessions (infinite scroll, paginated tables), use **
 
 ```csharp
 public async Task<List<ConversationSessionEntity>> GetSessionsForUserAsync(
-    string tenantId,
     string userId,
     DateTime? cursor,           // LastActivityAtUtc of the last item from previous page
     int pageSize = 50,
@@ -416,7 +416,7 @@ public async Task<List<ConversationSessionEntity>> GetSessionsForUserAsync(
 {
     var query = db.Sessions
         .AsNoTracking()
-        .Where(s => s.TenantId == tenantId && s.UserId == userId);
+        .Where(s => s.UserId == userId);
 
     if (cursor.HasValue)
         query = query.Where(s => s.LastActivityAtUtc < cursor.Value);

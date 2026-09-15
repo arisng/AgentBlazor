@@ -1,6 +1,8 @@
 # Migration Strategy — AgentBlazor Conversation Store
 
-Backward-compatible EF Core migration patterns for adding `BaseSessionId`, `AgentName`, and `TenantId` columns to `ConversationSessionEntity`. Covers column specs, nullable-first rollout, backfill patterns, index strategy, and multi-tenant rolling migrations.
+Backward-compatible EF Core migration patterns for adding `BaseSessionId` and `AgentName` columns to `ConversationSessionEntity`. Covers column specs, nullable-first rollout, backfill patterns, and index strategy.
+
+> **Consumer extension:** Apps using multitenancy add a `TenantId` column via their entity subclass and manage per-tenant database migrations. See [multitenancy-patterns.md](../ab-multitenancy/references/entity-design-guidance.md) and the [Rolling Migration for Multi-Tenant Databases](#rolling-migration-for-multi-tenant-databases-consumer-extension) section below.
 
 ## Column Specifications
 
@@ -22,16 +24,9 @@ Backward-compatible EF Core migration patterns for adding `BaseSessionId`, `Agen
 | **Indexed** | Yes — see [Index Strategy](#index-creation-during-migration) | Powers `WHERE AgentName = @name` queries for agent-scoped session listing. |
 | **Default** | `NULL` | No default — backfill logic sets the value where parseable from `SessionId`. |
 
-### TenantId
-
-| Property | Value | Rationale |
-|---|---|---|
-| **Type** | `nvarchar(256)` | Required for multitenancy isolation. Already exists in the multitenancy reference; documented here as the canonical column definition. |
-| **Nullable** | `false` (`NOT NULL`) | Every session MUST belong to a tenant. Required at insert time. |
-| **Indexed** | Yes | Powers `WHERE TenantId = @tenantId` global query filters and tenant-scoped queries. |
-| **Default** | N/A | Must be provided at insert time — no default. |
-
 > **Collation**: All string columns use case-insensitive collation (`Latin1_General_CP1_CI_AS` on SQL Server, `citext` on PostgreSQL). See the [Entity Design SKILL.md](../SKILL.md#entity-design-principles) for rationale.
+
+> **Consumer extension:** Apps using multitenancy add a `TenantId` column (`nvarchar(256)`, `NOT NULL`) to their `ConversationSessionEntity` subclass. See [multitenancy-patterns.md](../ab-multitenancy/references/entity-design-guidance.md) for the canonical column definition and global query filter patterns.
 
 ## Backward Compatibility Strategy
 
@@ -145,7 +140,7 @@ migrationBuilder.CreateIndex(
 | BaseSessionId | Yes | — | `d1e9a3f2b8c04a5e9d7f6c1b2a3d4e5f` |
 | AgentName | No | `::agent::` suffix | `SupportAgent` |
 
-> **Note**: The tenant prefix is no longer embedded in `SessionId`. `TenantId` is a separate column on the entity, set by `TenantContextAccessor` per request. See [session-identity-entities.md](session-identity-entities.md).
+> **Note**: `SessionId` encoding follows the format `[BaseSessionId]` or `[BaseSessionId]::agent::[AgentName]`. See [session-identity-entities.md](session-identity-entities.md) for the complete encoding specification. Consumer apps using multitenancy may optionally prefix `SessionId` with a tenant identifier — see [multitenancy-patterns.md](../ab-multitenancy/references/entity-design-guidance.md).
 
 **Examples**:
 
@@ -325,13 +320,6 @@ migrationBuilder.CreateIndex(
     table: "ConversationSessions",
     column: "AgentName",
     filter: "[AgentName] IS NOT NULL");
-
-// TenantId + BaseSessionId — composite for tenant-scoped circuit queries
-migrationBuilder.CreateIndex(
-    name: "IX_ConversationSessions_TenantId_BaseSessionId",
-    table: "ConversationSessions",
-    columns: new[] { "TenantId", "BaseSessionId" },
-    filter: "[BaseSessionId] IS NOT NULL");
 ```
 
 ### Index Upgrade Path (when NOT NULL constraints are added)
@@ -351,7 +339,9 @@ migrationBuilder.CreateIndex(
 // Repeat for AgentName and the composite index
 ```
 
-## Rolling Migration for Multi-Tenant Databases
+## Rolling Migration for Multi-Tenant Databases (Consumer Extension)
+
+> **Consumer extension:** This section applies only to apps using the database-per-tenant multitenancy model. Core AgentBlazor uses a single database and does not need rolling migrations. See [multitenancy-patterns.md](../ab-multitenancy/references/entity-design-guidance.md) for the full multitenancy migration guide.
 
 When each tenant has its own database (database-per-tenant model), migrations must run against every tenant database. A sequential loop over N tenants is too slow; a fire-and-forget is unsafe.
 
@@ -548,5 +538,4 @@ ALTER TABLE ConversationSessions DROP COLUMN BaseSessionId;
 ALTER TABLE ConversationSessions DROP COLUMN AgentName;
 DROP INDEX IF EXISTS IX_ConversationSessions_BaseSessionId;
 DROP INDEX IF EXISTS IX_ConversationSessions_AgentName;
-DROP INDEX IF EXISTS IX_ConversationSessions_TenantId_BaseSessionId;
 ```
