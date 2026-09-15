@@ -38,8 +38,7 @@ namespace AgentBlazor.Demo.Migrations
                 name: "demo_conversation_sessions",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     SessionId = table.Column<string>(type: "TEXT", nullable: false),
                     UserId = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
                     CreatedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
@@ -54,9 +53,8 @@ namespace AgentBlazor.Demo.Migrations
                 name: "demo_conversation_turns",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    SessionId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    SessionId = table.Column<Guid>(type: "TEXT", nullable: false),
                     TurnId = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     UserMessage = table.Column<string>(type: "TEXT", nullable: false),
                     AgentResponse = table.Column<string>(type: "TEXT", nullable: false),

@@ -89,7 +89,7 @@ public class ConversationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // TPC (table-per-concrete-type) on abstract roots — per official docs.
-        // Convention handles: int PK AUTOINCREMENT, FK discovery, and navigation pairing.
+        // Convention handles: Guid PK, FK discovery, and navigation pairing.
         modelBuilder.Entity<AgentBlazor.Core.Persistence.ConversationSessionEntity>().UseTpcMappingStrategy();
         modelBuilder.Entity<AgentBlazor.Core.Persistence.ConversationTurnEntity>().UseTpcMappingStrategy();
 

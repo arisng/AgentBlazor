@@ -39,7 +39,7 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 ║  ┌──────────────────────────────────────────────────────────┐                  ║
 ║  │  ConversationSessionEntity  (abstract)                    │                  ║
 ║  ├──────────────────────────────────────────────────────────┤                  ║
-║  │  PK  Id                  int   (auto-increment)          │                  ║
+║  │  PK  Id                  Guid   (client-generated)            │                  ║
 ║  │  UQ  SessionId           string  (required)              │                  ║
 ║  │  IX  UserId              string? (nullable)              │                  ║
 ║  │      CreatedAtUtc        DateTime                                           ║
@@ -57,8 +57,8 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 ║  ┌──────────────────────────▼───────────────────────────────────────────────┐  ║
 ║  │  ConversationTurnEntity  (abstract)                                       │  ║
 ║  ├──────────────────────────────────────────────────────────────────────────┤  ║
-║  │  PK  Id                    int     (auto-increment)                      │  ║
-║  │  FK  SessionId             int      (→ ConversationSessionEntity.Id)     │  ║
+║  │  PK  Id                    Guid     (client-generated)                           │  ║
+║  │  FK  SessionId             Guid      (→ ConversationSessionEntity.Id)            │  ║
 ║  │      TurnId                string   (required, unique per session)       │  ║
 ║  │      UserMessage           string     (required)                          │  ║
 ║  │      AgentResponse         string     (required)                          │  ║
@@ -122,7 +122,7 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 
 | # | Relationship | Parent | Child | FK Column | Cascade | Navigation | Index |
 |---|---|---|---|---|---|---|---|
-| 1 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (int) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
+| 1 | **Session → Turns** (physical FK) | `ConversationSessionEntity` | `ConversationTurnEntity` | `SessionId` (Guid) | **Cascade** | `Session.Turns` (1:N) / `Turn.Session` (N:1) | `IX_ConversationTurns_SessionId` non-clustered |
 | 2 | **AgentDefinitionEntity** (standalone) | N/A (no parent) | `AgentDefinitionEntity` | N/A | N/A — standalone entity | None | `IX_AgentDefinitions_Name` unique |
 
 ### Library-Provided Indexes

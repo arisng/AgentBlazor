@@ -60,8 +60,8 @@ The library provides **abstract base entities** in `AgentBlazor.Core.Persistence
 // Library base: src/AgentBlazor.Core/Persistence/ConversationSessionEntity.cs
 public abstract class ConversationSessionEntity
 {
-    /// <summary>Surrogate primary key (auto-increment int).</summary>
-    public int Id { get; set; }
+    /// <summary>Surrogate primary key.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>
     /// Logical session identifier — the key used by <c>IConversationStore</c> to look up
@@ -97,11 +97,11 @@ public abstract class ConversationSessionEntity
 // Library base: src/AgentBlazor.Core/Persistence/ConversationTurnEntity.cs
 public abstract class ConversationTurnEntity
 {
-    /// <summary>Surrogate primary key (auto-increment int).</summary>
-    public int Id { get; set; }
+    /// <summary>Surrogate primary key.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>Foreign key to the owning <see cref="ConversationSessionEntity"/>.</summary>
-    public int SessionId { get; set; }
+    public Guid SessionId { get; set; }
 
     /// <summary>Stable agent-side turn identity — unique per session. Used by incremental
     /// PATCH/DELETE/reorder operations.</summary>
@@ -267,7 +267,7 @@ Token cost columns are part of the library's `ConversationTurnEntity` base entit
 
 | Principle | Decision | Rationale |
 |---|---|---|
-| **Primary keys** | Surrogate int (`Id`) for session/turn; GUID (`Id`) for agent definition | Session/turn int PKs avoid GUID fragmentation. Agent definition GUIDs enable globally unique identifiers for dynamic registration. |
+| **Primary keys** | GUID (`Id`) for all entities (session, turn, agent definition) | Consistent surrogate keys across all entities. Agent definition GUIDs enable globally unique identifiers for dynamic registration. |
 | **Abstract base classes** | All three entities are `abstract` | Consumer apps inherit and map derived types (e.g., `DemoConversationSessionEntity : ConversationSessionEntity`). Enables TPC mapping. |
 | **Cascade delete** | `Cascade` on Session→Turns | Turns are meaningless without their session. Never cascade cross-DB. |
 | **String key collation** | `OrdinalIgnoreCase` | SessionId, UserId lookups must be case-insensitive. Use `Latin1_General_CP1_CI_AS` (SQL Server) or `citext` (PostgreSQL). |
@@ -390,7 +390,7 @@ public sealed class DemoConversationTurnEntity : ConversationTurnEntity { }
 | **Soft delete** | Add `IsDeleted` / `DeletedAtUtc` columns | Apply global query filter `!IsDeleted`. See `cross-cutting-concerns.md`. |
 | **Audit columns** | Add `CreatedBy` / `UpdatedBy` columns | Override `SaveChangesAsync` to populate. See `cross-cutting-concerns.md`. |
 | **Circuit grouping** | Add `BaseSessionId` / `AgentName` to session subclass | For `IsolateConversationsByAgent` ON. See `session-identity-entities.md`. |
-| **SQLite workarounds** | Add client-side int ID generation in consumer DbContext | Provider-specific; never in library. E.g., `ConfigureSqliteIdentity<T>()` extension. |
+| **SQLite workarounds** | Add client-side GUID generation in consumer DbContext | Provider-specific; never in library. E.g., `ConfigureSqliteIdentity<T>()` extension with `ValueGenerator<Guid>`. |
 
 > **Important:** The `Turns` navigation on `ConversationSessionEntity` uses the base `ConversationTurnEntity` type. Do NOT shadow it with `new` in derived session entities — that creates a separate backing field which breaks EF Core `Include` under TPC mapping.
 

@@ -37,7 +37,7 @@ The consumer app inherits from the library base entities and adds `TenantId`. Op
 using AgentBlazor.Core.Persistence;
 
 // Consumer app entity — inherits all base columns from ConversationSessionEntity:
-//   int Id, string SessionId, string? UserId, DateTime CreatedAtUtc,
+//   Guid Id, string SessionId, string? UserId, DateTime CreatedAtUtc,
 //   DateTime LastActivityAtUtc, List<ConversationTurnEntity> Turns
 public sealed class TenantSessionEntity : ConversationSessionEntity
 {
@@ -49,7 +49,7 @@ public sealed class TenantSessionEntity : ConversationSessionEntity
 }
 
 // Consumer app entity — inherits all base columns from ConversationTurnEntity:
-//   int Id, int SessionId (FK), string TurnId, string UserMessage, string AgentResponse,
+//   Guid Id, Guid SessionId (FK), string TurnId, string UserMessage, string AgentResponse,
 //   string? PlannedActionsJson, string? ExecutionResultsJson, string? ExecutionPlanJson,
 //   string? GeneratedUiJson, DateTime TimestampUtc, int TurnSequence,
 //   long? PromptTokens, long? CompletionTokens, long? TotalTokens, long? CachedInputTokens,
@@ -88,7 +88,7 @@ public sealed class ConversationDbContext : DbContext
         builder.Entity<TenantSessionEntity>(entity =>
         {
             entity.ToTable("ConversationSessions");
-            entity.HasKey(e => e.Id);                                  // int Id (from base)
+            entity.HasKey(e => e.Id);                                  // Guid Id (from base)
             entity.HasIndex(e => e.SessionId).IsUnique();              // string SessionId (from base)
             entity.HasIndex(e => e.TenantId);                          // consumer extension
             entity.HasIndex(e => e.BaseSessionId);                     // consumer extension (optional)
@@ -104,8 +104,8 @@ public sealed class ConversationDbContext : DbContext
         builder.Entity<TenantTurnEntity>(entity =>
         {
             entity.ToTable("ConversationTurns");
-            entity.HasKey(e => e.Id);                                  // int Id (from base)
-            entity.HasIndex(e => e.SessionId);                         // int FK (from base)
+            entity.HasKey(e => e.Id);                                  // Guid Id (from base)
+            entity.HasIndex(e => e.SessionId);                         // Guid FK (from base)
             entity.HasIndex(e => e.TenantId);                          // consumer extension
             entity.Property(e => e.TenantId).HasMaxLength(256).IsRequired();
             entity.HasOne(e => e.Session)

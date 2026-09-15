@@ -21,8 +21,8 @@ namespace AgentBlazor.Core.Persistence;
 /// </remarks>
 public abstract class ConversationSessionEntity
 {
-    /// <summary>Surrogate primary key (auto-increment).</summary>
-    public int Id { get; set; }
+    /// <summary>Surrogate primary key.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>
     /// Logical session identifier — the key used by <c>IConversationStore</c> to look up

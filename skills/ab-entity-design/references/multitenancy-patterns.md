@@ -2,7 +2,7 @@
 
 Comprehensive design rationale for multitenancy in AgentBlazor's conversation store. Covers entity key design, query filtering strategies, Finbuckle integration boundaries, index strategy, denormalization, and lifecycle operations.
 
-> **⚠️ Architecture (v0.4.0):** The library entities are **abstract base classes** with `int Id` (session/turn) or `Guid Id` (agent definition). The code examples below show how consumer apps extend these bases — the actual library base classes are in `AgentBlazor.Core.Persistence`.
+> **⚠️ Architecture (v0.4.0):** The library entities are **abstract base classes** with `Guid Id` (all entities including session, turn, and agent definition). The code examples below show how consumer apps extend these bases — the actual library base classes are in `AgentBlazor.Core.Persistence`.
 
 ---
 
@@ -19,14 +19,14 @@ Every entity's primary key is a composite of the tenant identifier and a tenant-
 public sealed class MySessionEntity : ConversationSessionEntity
 {
     public required string TenantId { get; set; }  // PK part 1
-    // Base `int Id` becomes PK part 2 (mapped via TPC)
+    // Base `Guid Id` becomes PK part 2 (mapped via TPC)
 }
 
 // Consumer app — derived turn entity with composite FK
 public sealed class MyTurnEntity : ConversationTurnEntity
 {
     public required string TenantId { get; set; }   // FK part 1
-    // Base `int SessionId` is FK part 2
+    // Base `Guid SessionId` is FK part 2
 }
 ```
 
@@ -47,14 +47,14 @@ Each entity has a surrogate identity from the abstract base as its primary key, 
 ```csharp
 public sealed class MySessionEntity : ConversationSessionEntity
 {
-    // Base `int Id` is surrogate PK
+    // Base `Guid Id` is surrogate PK
     public required string TenantId { get; set; }   // Regular column, indexed
 }
 
 public sealed class MyTurnEntity : ConversationTurnEntity
 {
-    // Base `int Id` is surrogate PK
-    public int SessionId { get; set; }              // Simple FK — one column
+    // Base `Guid Id` is surrogate PK
+    public Guid SessionId { get; set; }              // Simple FK — one column
     public required string TenantId { get; set; }   // Regular column, indexed
 }
 ```

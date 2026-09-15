@@ -24,11 +24,11 @@ namespace AgentBlazor.Core.Persistence;
 /// </remarks>
 public abstract class ConversationTurnEntity
 {
-    /// <summary>Surrogate primary key (auto-increment).</summary>
-    public int Id { get; set; }
+    /// <summary>Surrogate primary key.</summary>
+    public Guid Id { get; set; }
 
     /// <summary>Foreign key to the owning <see cref="ConversationSessionEntity"/>.</summary>
-    public int SessionId { get; set; }
+    public Guid SessionId { get; set; }
 
     /// <summary>
     /// Stable agent-side turn identifier — unique per session. Used as the lookup key

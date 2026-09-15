@@ -12,15 +12,14 @@ namespace AgentBlazor.Demo.Data;
 internal static class SqliteModelBuilderExtensions
 {
     /// <summary>
-    /// Configures client-side integer identity generation for a concrete entity type
+    /// Configures client-side Guid identity generation for a concrete entity type
     /// in a TPC hierarchy on SQLite.
     /// </summary>
     internal static void ConfigureSqliteIdentity<T>(this ModelBuilder modelBuilder)
         where T : class
     {
         modelBuilder.Entity<T>()
-            .Property<int>("Id")
-            .UseAutoincrement()
-            .HasValueGeneratorFactory<SqliteTpcValueGeneratorFactory>();
+            .Property<Guid>("Id")
+            .HasValueGeneratorFactory<SqliteTpcGuidValueGeneratorFactory>();
     }
 }

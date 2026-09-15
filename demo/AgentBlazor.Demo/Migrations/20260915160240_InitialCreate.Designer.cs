@@ -3,7 +3,6 @@ using System;
 using AgentBlazor.Demo.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
@@ -12,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AgentBlazor.Demo.Migrations
 {
     [DbContext(typeof(DemoDbContext))]
-    [Migration("20260915133415_InitialCreate")]
+    [Migration("20260915160240_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -80,10 +79,9 @@ namespace AgentBlazor.Demo.Migrations
 
             modelBuilder.Entity("AgentBlazor.Core.Persistence.ConversationSessionEntity", b =>
                 {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
-
-                    SqlitePropertyBuilderExtensions.UseAutoincrement(b.Property<int>("Id"));
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .ValueGeneratedOnAdd()
@@ -112,10 +110,9 @@ namespace AgentBlazor.Demo.Migrations
 
             modelBuilder.Entity("AgentBlazor.Core.Persistence.ConversationTurnEntity", b =>
                 {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
-
-                    SqlitePropertyBuilderExtensions.UseAutoincrement(b.Property<int>("Id"));
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("AgentResponse")
                         .IsRequired()
@@ -158,8 +155,8 @@ namespace AgentBlazor.Demo.Migrations
                     b.Property<long?>("PromptTokens")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("SessionId")
-                        .HasColumnType("INTEGER");
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("TimestampUtc")
                         .HasColumnType("TEXT");
