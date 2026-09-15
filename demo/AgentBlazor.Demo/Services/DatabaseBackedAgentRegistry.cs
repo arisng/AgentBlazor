@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using AgentBlazor.Agents;
 using AgentBlazor.Core.Runtime.Customization;
 using AgentBlazor.Demo.Data;
+using AgentBlazor.Core.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentBlazor.Demo.Services;
@@ -17,7 +18,7 @@ namespace AgentBlazor.Demo.Services;
 /// Demonstrates the "replace" dynamic-registration path: registered with
 /// <c>AddSingleton&lt;IAgentRegistry&gt;(...)</c> BEFORE <c>AddAgentBlazor</c>, so the
 /// built-in <c>InMemoryAgentRegistry</c> snapshot is skipped and this store is the
-/// single source of truth for all agents. Uses <c>IDbContextFactory&lt;DemoAgentDbContext&gt;</c>
+/// single source of truth for all agents. Uses <c>IDbContextFactory&lt;DemoDbContext&gt;</c>
 /// so the singleton registry never captures a scoped context. Registered as a
 /// singleton — resolve it from DI wherever agents are mutated (the Agent Builder page).
 /// </remarks>
@@ -29,21 +30,19 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
     /// <summary>Metadata key that persists the runtime-customizer enabled tool ids for an agent.</summary>
     public const string EnabledToolsKey = "agent_builder.enabled_tools";
 
-    private readonly IDbContextFactory<DemoAgentDbContext> _dbFactory;
+    private readonly IDbContextFactory<DemoDbContext> _dbFactory;
     private readonly ConcurrentDictionary<string, AgentRegistration> _cache =
         new(StringComparer.OrdinalIgnoreCase);
     private volatile bool _loaded;
 
-    public DatabaseBackedAgentRegistry(IDbContextFactory<DemoAgentDbContext> dbFactory)
+    public DatabaseBackedAgentRegistry(IDbContextFactory<DemoDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
         // Deliberately do NOT query the database here. The SQLite schema is created by
-        // DemoAgentDatabaseSeeder.InitializeAsync (EnsureCreatedAsync) in the startup
-        // scope, which runs AFTER this singleton is first constructed (it is resolved
-        // by AddAgentBlazor during app.Build). An eager read here throws
-        // "no such table: demo_agent_definitions". Instead we load lazily on first
-        // access, and the seeder calls RefreshFromDatabase() to populate the cache
-        // once it has created the schema and seeded baseline agents.
+        // EF Core migrations at startup, which runs AFTER this singleton is first
+        // constructed (it is resolved by AddAgentBlazor during app.Build). An eager
+        // read here throws "no such table: demo_agent_definitions". Instead we load
+        // lazily on first access.
     }
 
     public IReadOnlyCollection<AgentRegistration> GetAll()
@@ -70,7 +69,7 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
             .FirstOrDefault(e => e.Name.ToLower() == registration.Name.ToLower());
         if (entity is null)
         {
-            entity = new AgentDefinitionEntity
+            entity = new DemoAgentDefinitionEntity
             {
                 Id = Guid.NewGuid(),
                 Name = registration.Name,
@@ -133,7 +132,7 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         _loaded = true;
     }
 
-    private void ApplyRegistration(AgentDefinitionEntity entity, AgentRegistration registration)
+    private void ApplyRegistration(DemoAgentDefinitionEntity entity, AgentRegistration registration)
     {
         entity.Name = registration.Name;
         entity.Description = registration.Description;
@@ -153,7 +152,7 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
             : AgentDefinitionEntity.SerializeSet(enabledTools.Split(',', StringSplitOptions.RemoveEmptyEntries));
     }
 
-    private static AgentRegistration ToRegistration(AgentDefinitionEntity entity)
+    private static AgentRegistration ToRegistration(DemoAgentDefinitionEntity entity)
     {
         var metadata = AgentDefinitionEntity.DeserializeDictionary(entity.MetadataJson);
 

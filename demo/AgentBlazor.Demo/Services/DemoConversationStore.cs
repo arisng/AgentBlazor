@@ -4,6 +4,7 @@ using AgentBlazor.Core.Runtime.Components;
 using AgentBlazor.Core.Runtime.Conversation;
 using AgentBlazor.Core.Runtime.Interfaces;
 using AgentBlazor.Demo.Data;
+using AgentBlazor.Core.Persistence;
 using AgentBlazor.Execution;
 using AgentBlazor.Options;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ namespace AgentBlazor.Demo.Services;
 /// <summary>
 /// Custom EF Core <c>IConversationStore</c> for the Demo — the production-database
 /// pattern the incremental persistence model targets. Registers as a singleton via
-/// <c>IDbContextFactory&lt;DemoConversationDbContext&gt;</c> so it never captures a
+/// <c>IDbContextFactory&lt;DemoDbContext&gt;</c> so it never captures a
 /// scoped context.
 /// <para>
 /// Demonstrates the full incremental contract: turns are appended once per turn and
@@ -27,13 +28,13 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IDbContextFactory<DemoConversationDbContext> _dbFactory;
+    private readonly IDbContextFactory<DemoDbContext> _dbFactory;
     private readonly DemoUsageCostCalculator _costCalculator;
     private readonly ConversationOptions _options;
     private readonly Timer? _cleanupTimer;
 
     public DemoConversationStore(
-        IDbContextFactory<DemoConversationDbContext> dbFactory,
+        IDbContextFactory<DemoDbContext> dbFactory,
         DemoUsageCostCalculator costCalculator,
         IOptions<ConversationOptions>? options = null)
     {
@@ -143,7 +144,7 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
                 .OrderBy(t => t.TurnSequence)
                 .Take(session.Turns.Count - _options.MaxTurnsPerSession)
                 .ToList();
-            db.Turns.RemoveRange(excess);
+            db.Turns.RemoveRange(excess.Cast<DemoConversationTurnEntity>());
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -369,7 +370,7 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
         };
     }
 
-    private static ConversationTurn MapToTurn(DemoConversationTurnEntity entity)
+    private static ConversationTurn MapToTurn(ConversationTurnEntity entity)
     {
         return new ConversationTurn
         {
@@ -389,7 +390,7 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
         };
     }
 
-    private static ConversationTurnUsage? MapUsage(DemoConversationTurnEntity entity)
+    private static ConversationTurnUsage? MapUsage(ConversationTurnEntity entity)
     {
         var usage = new ConversationTurnUsage
         {

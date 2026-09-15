@@ -11,9 +11,10 @@ namespace AgentBlazor.Demo.Configuration;
 /// <list type="bullet">
 /// <item><c>JsonFile</c> (default) — durable, survives process restarts; conversation
 /// history is written to <see cref="FilePath"/>.</item>
-/// <item><c>EFCore</c> — durable SQLite-backed store through
-/// <see cref="AgentBlazor.Demo.Data.DemoConversationDbContext"/>, demonstrating a custom
-/// EF Core <c>IConversationStore</c> implementation (the production-database pattern).</item>
+/// <item><c>EFCore</c> — durable SQLite-backed store through the unified
+/// <see cref="AgentBlazor.Demo.Data.DemoDbContext"/>, demonstrating a custom
+/// EF Core <c>IConversationStore</c> implementation (the production-database pattern).
+/// The connection string is configured via <c>DemoDatabase:ConnectionString</c>.</item>
 /// <item><c>InMemory</c> — ephemeral, reset on process restart (classic demo default).</item>
 /// </list>
 /// </summary>
@@ -33,13 +34,6 @@ internal sealed class DemoConversationOptions
     /// <c>{ContentRootPath}/data/agentblazor-demo-conversations.json</c>.
     /// </summary>
     public string FilePath { get; set; } = string.Empty;
-
-    /// <summary>
-    /// SQLite connection string used when <see cref="Store"/> is <c>EFCore</c>.
-    /// When empty, resolved at startup to
-    /// <c>{ContentRootPath}/data/agentblazor-demo-conversations.db</c>.
-    /// </summary>
-    public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
     /// Maximum turns kept per conversation session. Older turns are trimmed.

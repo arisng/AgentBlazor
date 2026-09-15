@@ -6,8 +6,8 @@ namespace AgentBlazor.Demo.Configuration;
 /// The Demo uses a dedicated SQLite database to persist business-process state
 /// (dojo recipes, incidents, supplier compliance, etc.) that agents operate on.
 /// The connection string follows the same convention as
-/// <see cref="DemoConversationOptions.ConnectionString"/>: when empty, it resolves
-/// at startup to <c>{ContentRootPath}/data/agentblazor-demo.db</c>.
+/// <see cref="DemoDatabaseOptions.ConnectionString"/>: when empty, it resolves
+/// at startup to <c>{ContentRootPath}/data/agentblazor-demo-workflow.db</c>.
 /// </para>
 /// </summary>
 internal sealed class DemoWorkflowOptions

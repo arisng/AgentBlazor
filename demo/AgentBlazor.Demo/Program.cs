@@ -1,16 +1,22 @@
 using AgentBlazor;
+using AgentBlazor.Agents;
+using AgentBlazor.App;
+using AgentBlazor.Attributes;
 using AgentBlazor.Demo.Configuration;
 using AgentBlazor.Demo.Components;
 using AgentBlazor.Demo.Data;
 using AgentBlazor.Demo.Services;
 using AgentBlazor.Core.Data;
 using AgentBlazor.Core.Runtime.Tools;
+using AgentBlazor.Core.Persistence;
 using AgentBlazor.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MudBlazor.Services;
+using System.Reflection;
+using System.Text;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,26 +61,29 @@ if (string.IsNullOrWhiteSpace(demoConversationOptions.FilePath))
 {
     demoConversationOptions.FilePath = Path.Combine(demoDataDir, "agentblazor-demo-conversations.json");
 }
-if (string.IsNullOrWhiteSpace(demoConversationOptions.ConnectionString))
-{
-    demoConversationOptions.ConnectionString =
-        $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo-conversations.db")}";
-}
 
 // Per-session usage rollups for the session browser. The Null query is the default
 // (JsonFile/InMemory stores have no usage columns); the EFCore branch below replaces
 // it with the SQLite-backed query.
 builder.Services.AddSingleton<IDemoConversationUsageQuery, NullDemoConversationUsageQuery>();
 
+// Unified EF Core DbContext — conversation sessions/turns + agent definitions in one
+// SQLite database, managed by code-first migrations.
+var demoDatabaseOptions = builder.Configuration
+    .GetSection(DemoDatabaseOptions.SectionName)
+    .Get<DemoDatabaseOptions>()
+    ?? new DemoDatabaseOptions();
+if (string.IsNullOrWhiteSpace(demoDatabaseOptions.ConnectionString))
+{
+    demoDatabaseOptions.ConnectionString = $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo.db")}";
+}
+builder.Services.AddDbContextFactory<DemoDbContext>(options =>
+    options.UseSqlite(demoDatabaseOptions.ConnectionString));
+
 // EF Core conversation store (DemoConversation:Store=EFCore) — a custom
 // IConversationStore implementation demonstrating the production-database pattern.
-// SQLite-backed, durable, uses an IDbContextFactory so the singleton store never
-// captures a scoped context.
 if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Services.AddDbContextFactory<DemoConversationDbContext>(options =>
-        options.UseSqlite(demoConversationOptions.ConnectionString));
-    builder.Services.AddSingleton<DemoConversationDatabaseInitializer>();
     builder.Services.AddSingleton<IDemoConversationUsageQuery, DemoConversationUsageQuery>();
     builder.Services.Configure<ConversationOptions>(conversationOptions =>
     {
@@ -215,20 +224,12 @@ builder.Services.AddSingleton<DemoWorkflowDatabaseSeeder>();
 // source of truth for all agents. See the "Dynamic Agent Registration" section of
 // the ab-agent-registration skill.
 // -----------------------------------------------------------------------------
-var agentDbConnectionString = $"Data Source={Path.Combine(demoDataDir, "agent-definitions.db")}";
-builder.Services.AddDbContextFactory<DemoAgentDbContext>(options =>
-    options.UseSqlite(agentDbConnectionString));
+// Agent definitions share the unified DemoDbContext — no separate connection string.
 // Register the concrete registry first (so it can be resolved by the page + customizer),
 // then as IAgentRegistry BEFORE AddAgentBlazor so it replaces the in-memory default.
 builder.Services.AddSingleton<DatabaseBackedAgentRegistry>();
 builder.Services.AddSingleton<AgentBlazor.Agents.IAgentRegistry>(sp =>
     sp.GetRequiredService<DatabaseBackedAgentRegistry>());
-// The seeder reads the same shared-instructions file the static agents used to consume,
-// so DB-seeded agents carry identical guidance.
-builder.Services.AddSingleton(sp => new DemoAgentDatabaseSeeder(
-    sp.GetRequiredService<IDbContextFactory<DemoAgentDbContext>>(),
-    sp.GetRequiredService<DatabaseBackedAgentRegistry>(),
-    sharedAgentInstructions));
 
 builder.Services.AddAgentBlazor(options =>
 {
@@ -308,13 +309,13 @@ builder.Services.AddAgentBlazor(options =>
         else if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
         {
             abBuilder.UseConversationStore(sp => new DemoConversationStore(
-                sp.GetRequiredService<IDbContextFactory<DemoConversationDbContext>>(),
+                sp.GetRequiredService<IDbContextFactory<DemoDbContext>>(),
                 sp.GetRequiredService<DemoUsageCostCalculator>(),
                 sp.GetService<IOptions<ConversationOptions>>()));
         }
 
         // ---------------------------------------------------------------------
-        // Agents are defined in the database (see DemoAgentDatabaseSeeder) and
+        // Agents are defined in the database (seeded at startup) and
         // resolved at runtime through DatabaseBackedAgentRegistry — the "replace"
         // dynamic-registration path. This builder block only registers things the
         // DB store does NOT own: capability classes (for [AgentAction] discovery),
@@ -373,15 +374,16 @@ await using (var scope = app.Services.CreateAsyncScope())
     var seeder = scope.ServiceProvider.GetRequiredService<DemoWorkflowDatabaseSeeder>();
     await seeder.InitializeAsync(CancellationToken.None);
 
-    var agentSeeder = scope.ServiceProvider.GetRequiredService<DemoAgentDatabaseSeeder>();
-    await agentSeeder.InitializeAsync(CancellationToken.None);
+    // Apply EF Core migrations for the unified DemoDbContext (creates schema if
+    // fresh, applies pending migrations if existing).
+    var dbFactory = scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<DemoDbContext>>();
+    await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
+    await db.Database.MigrateAsync(CancellationToken.None);
 
-    if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
-    {
-        var conversationInitializer = scope.ServiceProvider
-            .GetRequiredService<DemoConversationDatabaseInitializer>();
-        await conversationInitializer.InitializeAsync(CancellationToken.None);
-    }
+    // Seed baseline agent definitions (idempotent — existing agents are preserved).
+    await using var agentScope = await dbFactory.CreateDbContextAsync(CancellationToken.None);
+    await SeedAgentDefinitionsAsync(agentScope, sharedAgentInstructions, CancellationToken.None);
 }
 
 // Configure the HTTP request pipeline.
@@ -416,6 +418,207 @@ if (demoSecurityOptions.RateLimiting.Enabled)
 }
 
 app.Run();
+
+static async Task SeedAgentDefinitionsAsync(
+    DemoDbContext db,
+    string? sharedInstructions,
+    CancellationToken cancellationToken)
+{
+    var shared = sharedInstructions ??
+        "You are a helpful demo assistant. Keep replies concise and friendly.";
+
+    foreach (var seed in BuildSeeds(shared))
+    {
+        var existing = db.AgentDefinitions.AsNoTracking()
+            .FirstOrDefault(e => e.Name.ToLower() == seed.Name.ToLower());
+        if (existing is not null)
+        {
+            continue; // already seeded (idempotent — user edits persist).
+        }
+
+        db.AgentDefinitions.Add(new DemoAgentDefinitionEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = seed.Name,
+            Description = seed.Description,
+            Instructions = seed.Instructions,
+            AllowedComponentsJson = AgentDefinitionEntity.SerializeSet(seed.AllowedComponents),
+            AllowedActionsJson = AgentDefinitionEntity.SerializeSet(seed.AllowedCapabilityActions),
+            AllowedDataSchemasJson = AgentDefinitionEntity.SerializeSet(seed.AllowedDataSchemas),
+            MetadataJson = AgentDefinitionEntity.SerializeDictionary(seed.Metadata),
+        });
+    }
+
+    await db.SaveChangesAsync(cancellationToken);
+}
+
+/// <summary>
+/// Baseline agents mirroring the static <c>AddAgent</c>/<c>AddWorkflow</c> declarations
+/// previously in <c>Program.cs</c>.
+/// </summary>
+static IEnumerable<AgentRegistration> BuildSeeds(string sharedInstructions)
+{
+    return
+    [
+        Agent(
+            "Workflow Hub Agent",
+            "Focused on routing users toward the right semantic workflow showcase and explaining the workflow-first product story.",
+            instructions: sharedInstructions),
+        Agent(
+            "Supplier Analyst Agent",
+            "Focused on the component reference surface for data-centric controls and selection patterns.",
+            instructions: sharedInstructions,
+            components: ["AgentDataGrid", "AgentForm", "AgentDialog", "AgentTabs", "AgentNavMenu", "AgentSelect", "AgentAutocomplete"],
+            routePrefixes: ["/demo/components", "/demo/components/datagrid", "/demo/components/select", "/demo/components/autocomplete", "/demo/components/date-picker", "/demo/components/date-range-picker", "/demo/components/tree-view"]),
+        Agent(
+            "Workflow Orchestrator Agent",
+            "Focused on the component reference surface for form, dialog, command, and file workflow primitives.",
+            instructions: sharedInstructions,
+            components: ["AgentStepper", "AgentForm", "AgentDialog", "AgentTabs", "AgentNavMenu", "AgentTreeView", "AgentCommandBar", "AgentFileUpload"],
+            routePrefixes: ["/demo/components", "/demo/components/form", "/demo/components/dialog", "/demo/components/tabs", "/demo/components/stepper", "/demo/components/command-bar", "/demo/components/file-upload"]),
+        Workflow<SupplierComplianceWorkflowService>(
+            "Supplier Compliance Agent",
+            "Focused on supplier risk review, explanation, recovery-playbook guidance, and remediation preparation.",
+            instructions: sharedInstructions,
+            components: ["AgentDataGrid", "AgentDialog"],
+            routePrefixes: ["/demo/workflows/supplier-compliance"]),
+        Workflow<SupportInboxWorkflowService>(
+            "Support Inbox Agent",
+            "Focused on support tickets that need a reply, reply drafting, escalation, and queue guidance.",
+            instructions: sharedInstructions,
+            components: ["AgentDataGrid", "AgentDialog"],
+            dataSchemas: ["support-data"],
+            routePrefixes: ["/demo/workflows/support-inbox"]),
+        Workflow<DemoFileWorkflowCapabilities>(
+            "File Workflow Agent",
+            "Focused on file audit bundles, remote handoff, and token verification workflows.",
+            instructions: sharedInstructions,
+            components: ["AgentFileUpload", "AgentCommandBar"],
+            routePrefixes: ["/demo/workflows/file-audit-bundle"]),
+        Workflow<DojoRecipeReleaseWorkflowService>(
+            "Recipe Release Agent",
+            "Focused on recipe readiness, release blockers, recovery-playbook guidance, and publish-ready draft preparation.",
+            instructions: sharedInstructions,
+            components: ["AgentForm", "AgentDataGrid", "AgentDialog"],
+            routePrefixes: ["/demo/workflows/recipe-release"]),
+        Workflow<IncidentEscalationWorkflowService>(
+            "Incident Escalation Agent",
+            "Focused on incident triage, evidence review, escalation brief preparation, and recovery from blocked review-board handoffs.",
+            instructions: sharedInstructions,
+            components: ["AgentTreeView", "AgentTabs", "AgentStepper", "AgentCommandBar", "AgentDialog"],
+            routePrefixes: ["/demo/workflows/incident-escalation"]),
+        Workflow<ResponseOrchestrationWorkflowService>(
+            "Response Orchestration Agent",
+            "Focused on cross-system orchestration across supplier risk, audit evidence, and incident escalation, including guided subsystem-stage advancement before operational handoff.",
+            instructions: sharedInstructions,
+            components: ["AgentDialog"],
+            routePrefixes: ["/demo/workflows/response-orchestration"]),
+        Workflow<ReleaseDossierWorkflowService>(
+            "Release Dossier Agent",
+            "Focused on recipe release readiness and audit evidence orchestration before release dossier handoff.",
+            instructions: sharedInstructions,
+            components: ["AgentDialog"],
+            routePrefixes: ["/demo/workflows/release-dossier"]),
+        Workflow<RuntimeProbeCapabilities>(
+            "Runtime Probe Agent",
+            "Focused on validating runtime cancellation behavior in the live demo host.",
+            instructions: sharedInstructions,
+            routePrefixes: ["/demo/workflows/runtime-probe"]),
+    ];
+}
+
+static AgentRegistration Agent(
+    string name,
+    string description,
+    string? instructions = null,
+    string[]? components = null,
+    string[]? routePrefixes = null,
+    string[]? dataSchemas = null,
+    IReadOnlyList<string>? capabilityTypes = null)
+    => new()
+    {
+        Name = name,
+        Description = description,
+        Instructions = instructions,
+        AllowedComponents = new HashSet<string>(components ?? [], StringComparer.OrdinalIgnoreCase),
+        AllowedDataSchemas = new HashSet<string>(dataSchemas ?? [], StringComparer.OrdinalIgnoreCase),
+        AllowedCapabilityActions = new HashSet<string>(capabilityTypes ?? [], StringComparer.OrdinalIgnoreCase),
+        Metadata = BuildRouteMetadata(routePrefixes)
+    };
+
+static AgentRegistration Workflow<TCapability>(
+    string name,
+    string description,
+    string? instructions = null,
+    string[]? components = null,
+    string[]? routePrefixes = null,
+    string[]? dataSchemas = null)
+    => Agent(
+        name,
+        description,
+        instructions: instructions,
+        components: components,
+        routePrefixes: routePrefixes,
+        dataSchemas: dataSchemas,
+        capabilityTypes: GetCapabilityActionIds(typeof(TCapability)));
+
+static Dictionary<string, string> BuildRouteMetadata(string[]? routePrefixes)
+{
+    var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    if (routePrefixes is { Length: > 0 })
+    {
+        metadata["route_prefixes"] = string.Join(",", routePrefixes);
+    }
+    return metadata;
+}
+
+static IReadOnlyList<string> GetCapabilityActionIds(Type capabilityType)
+{
+    var capabilityId = capabilityType.GetCustomAttribute<AgentCapabilityAttribute>()?.CapabilityId
+        ?? ToCapabilityId(capabilityType.Name);
+
+    return capabilityType
+        .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        .Where(static m => m.GetCustomAttribute<AgentActionAttribute>() is not null)
+        .Select(m =>
+        {
+            var actionId = m.GetCustomAttribute<AgentActionAttribute>()!.ActionId ?? ToSnakeCase(m.Name);
+            return $"{capabilityId}.{actionId}";
+        })
+        .ToArray();
+}
+
+static string ToCapabilityId(string typeName)
+    => ToSnakeCase(typeName.EndsWith("Capabilities", StringComparison.Ordinal)
+        ? typeName[..^"Capabilities".Length]
+        : typeName);
+
+static string ToSnakeCase(string value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return string.Empty;
+    }
+
+    var builder = new StringBuilder(value.Length + 8);
+    for (var i = 0; i < value.Length; i++)
+    {
+        var current = value[i];
+        if (char.IsUpper(current))
+        {
+            if (i > 0)
+            {
+                builder.Append('_');
+            }
+            builder.Append(char.ToLowerInvariant(current));
+        }
+        else
+        {
+            builder.Append(current);
+        }
+    }
+    return builder.ToString();
+}
 
 static string? FirstConfigured(params string?[] values)
 {

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentBlazor.Demo.Services;
 
 /// <summary>
-/// Per-session token/cost rollups over <see cref="DemoConversationDbContext"/>.
+/// Per-session token/cost rollups over <see cref="DemoDbContext"/>.
 /// <para>
 /// Cost is a Demo-side policy (see <see cref="DemoUsageCostCalculator"/>), so it is not part
 /// of the library <c>ConversationTurn</c> — this query is how the session browser reads the
@@ -47,7 +47,7 @@ public sealed record SessionUsageTotals(
 /// <summary>
 /// SQLite-backed <see cref="IDemoConversationUsageQuery"/> over the conversation database.
 /// </summary>
-internal sealed class DemoConversationUsageQuery(IDbContextFactory<DemoConversationDbContext> dbFactory)
+internal sealed class DemoConversationUsageQuery(IDbContextFactory<DemoDbContext> dbFactory)
     : IDemoConversationUsageQuery
 {
     public async Task<SessionUsageTotals?> GetSessionTotalsAsync(
