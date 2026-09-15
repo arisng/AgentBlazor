@@ -4,10 +4,10 @@ Maintained empirical audit of demoable features in `demo/AgentBlazor.Demo`. Stat
 evidence-gated — see `catalog-schema.md` for the taxonomy. Regenerate evidence with
 `.github/skills/ab-demo-feature-overseer/scripts/audit-demo-features.ps1` before editing.
 
-Last audited: 2026-09-14 (audit.json: 9 workflow agents, 3 standalone agents, sourced from `DemoAgentDatabaseSeeder.BuildSeeds()`;
-9 capability classes, 44 agent actions, 11 approvals, 3 clarification sites,
-18 component page families, 30 routes, 9 launchpad scenarios; runtime
-customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
+Last audited: 2026-09-15 (audit.json: 8 workflow agents, 3 standalone agents, sourced from `DemoAgentDatabaseSeeder.BuildSeeds()`;
+8 capability classes, 41 agent actions, 10 approvals, 3 clarification sites,
+18 component page families, 29 routes, 9 launchpad scenarios; runtime
+customization seam wired via Agent Builder; **Agent Builder dynamic-registry showcase wired**)._
 
 ## Agents
 
@@ -34,7 +34,7 @@ customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
   agent definitions seeded into the database registry by `DemoAgentDatabaseSeeder`.
 - **Audit evidence**: `workflows[]` — Supplier Compliance, Support Inbox, File
   Workflow, Recipe Release, Incident Escalation, Response Orchestration, Release
-  Dossier, Runtime Probe, Customization Demo.
+  Dossier, Runtime Probe.
 - **ab\* skill**: `ab-agent-registration`, `ab-capability-authoring`.
 
 ### Standalone agents
@@ -63,15 +63,15 @@ customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
 ## Capabilities & actions
 
 ### Capability classes
-- **Status**: implemented (9)
+- **Status**: implemented (8)
 - **Where**: `Services/*Capabilities*.cs` and `*WorkflowService.cs`.
 - **Audit evidence**: `capabilities[]` with ids `file_audit_bundle`, `recipe_release`,
   `incident_escalation`, `release_dossier`, `response_orchestration`, `runtime_probe`,
-  `supplier_compliance`, `support_inbox`, `customization_demo`.
+  `supplier_compliance`, `support_inbox`.
 - **ab\* skill**: `ab-capability-authoring`.
 
 ### Typed agent actions
-- **Status**: implemented (44 total across 9 classes)
+- **Status**: implemented (41 total across 8 classes)
 - **Audit evidence**: `capabilities[].actions[]` (each `[AgentAction(id, description)]`).
 - **ab\* skill**: `ab-capability-authoring`.
 
@@ -106,15 +106,11 @@ customization seam wired; **Agent Builder dynamic-registry showcase wired**)._
 
 ### Per-agent instructions + tool filtering (`IAgentRuntimeCustomizer`)
 - **Status**: implemented
-- **What**: the `Customization Demo Agent`'s persona (system instructions) and tool set
-  are edited live on `/demo/customization`; the `DemoAgentCustomizer` reads the
-  `DemoAgentCustomizationStore` per turn and returns `null` for unconfigured agents
-  (standard agents unaffected). One action (`run_quick_check`) is approval-gated to show
-  customization + approval interplay.
-- **Where**: `Program.cs` → `AddRuntimeCustomizer<DemoAgentCustomizer>` +
-  `AddWorkflow<CustomizationDemoCapabilities>("Customization Demo Agent")`;
-  `Services/DemoAgentCustomizationStore.cs`, `Services/DemoAgentCustomizer.cs`,
-  `Services/CustomizationDemoCapabilities.cs`; page `CustomizationShowcase.razor`.
+- **What**: the `DemoAgentCustomizer` reads the `DatabaseBackedAgentRegistry` per turn
+  and returns `null` for unconfigured agents (standard agents unaffected). Persona and
+  tool set are managed via the Agent Builder page (`/demo/agent-builder`).
+- **Where**: `Program.cs` → `AddRuntimeCustomizer<DemoAgentCustomizer>`;
+  `Services/DemoAgentCustomizer.cs`, `Services/DatabaseBackedAgentRegistry.cs`.
 - **Audit evidence**: `runtimeCustomization.customizerRegistered = true`,
   `customizerTypes = [DemoAgentCustomizer]`.
 - **ab\* skill**: `ab-context-assembly` (per-agent instructions), `ab-tool-authoring`
@@ -200,7 +196,7 @@ All statuses `implemented`; pages per `components[].files`.
 ### Page routes
 - **Status**: implemented (30 route declarations)
 - **Audit evidence**: `routes[]`, including `/demo`, `/demo/components`, per-workflow
-  routes, `/demo/dashboard`, `/demo/markdown-showcase`, `/demo/customization`, docs pages.
+  routes, `/demo/dashboard`, `/demo/markdown-showcase`, docs pages.
 - **Note**: route prefixes in `Program.cs` (e.g. `/demo/components`, `/demo/workflows/*`)
   narrow each agent's RGPD surface.
 
@@ -271,8 +267,7 @@ All statuses `implemented`; pages per `components[].files`.
 - **Status**: implemented (33 service files)
 - **Where**: `Services/*`, incl. `DemoWorkflowDatabaseSeeder` (SQLite seed),
   `DojoWorkspaceService`, `DemoRemoteStorageAdapter`, `JsonlDemoChatRequestLog`,
-  `JsonlDemoTrafficLog`, `DemoAgentCustomizationStore`, `DemoAgentCustomizer`,
-  `CustomizationDemoCapabilities`.
+  `JsonlDemoTrafficLog`, `DemoAgentCustomizer`.
 - **Audit evidence**: `services[]`.
 - **ab\* skill**: `ab-entity-design` (EF entities in `Data/`), `ab-conversation-store`.
 

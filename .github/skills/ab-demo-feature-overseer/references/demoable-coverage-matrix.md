@@ -24,9 +24,10 @@ case actually wired in the Demo project** — not just because the library suppo
 or because some parameter default is active. If the Demo never exercises the feature,
 mark it ⛔.
 
-_Evidence snapshot: 2026-09-14 (9 workflow agents, 3 standalone agents, 9 capability
-classes, 44 agent actions, 11 approvals, 3 clarification sites, 18 component families,
-30 routes, 9 scenarios, 2 middleware, 8 log endpoints; runtime customization seam wired; Agent Builder dynamic-registry showcase wired)._
+_Evidence snapshot: 2026-09-15 (8 workflow agents, 3 standalone agents, 8 capability
+classes, 41 agent actions, 10 approvals, 3 clarification sites, 18 component families,
+29 routes, 9 scenarios, 2 middleware, 8 log endpoints; runtime customization seam wired
+via Agent Builder; Agent Builder dynamic-registry showcase wired)._
 
 ---
 
@@ -44,16 +45,16 @@ classes, 44 agent actions, 11 approvals, 3 clarification sites, 18 component fam
 | Allowed **actions** / capability actions (fine-grained) | ⛔ | no `WithAllowedActions` in Demo (runtime filtering via the customizer is a separate feature — see below) | `ab-agent-registration` |
 | Service **tools** (`AddTool`) | ⛔ | All demo tools moved to `[AgentCapability]` class (`DemoAssemblyCapabilities`); zero `AddTool()` calls in Program.cs | `ab-tool-authoring` |
 | **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-authoring` |
-| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `CustomizationDemoCapabilities`; persona + tool set edited live on `/demo/customization`; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-authoring` |
+| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `DatabaseBackedAgentRegistry`; persona + tool set managed via Agent Builder; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-authoring` |
 | Agent **selector** in chat | 🔶 | per-route `DefaultAgentName` lock on workflow surfaces; full registry picker proven on `/demo/sessions` New-chat (`MudSelect` over `IAgentRegistry.GetAll()`), not on workflow pages | `ab-in-chat-features` |
 
 ## 2. Capabilities & actions
 
 | Demoable feature | Coverage | Where (evidence) | ab\* skill |
 |---|---|---|---|
-| `[AgentCapability]` classes | ✅ | 9 capability classes (incl. 4 in `*WorkflowService.cs` + `CustomizationDemoCapabilities`) | `ab-capability-authoring` |
+| `[AgentCapability]` classes | ✅ | 8 capability classes (incl. 4 in `*WorkflowService.cs`) | `ab-capability-authoring` |
 | `[AgentAction]` typed actions | ✅ | 44 actions across 9 classes | `ab-capability-authoring` |
-| Approval boundaries (`RequiresApproval`) | ✅ | 11 approvals (draft/escalation/handoff/remediation + `run_quick_check`) | `ab-capability-authoring`, `ab-in-chat-features` |
+| Approval boundaries (`RequiresApproval`) | ✅ | 10 approvals (draft/escalation/handoff/remediation) | `ab-capability-authoring`, `ab-in-chat-features` |
 | Clarification (`NeedsClarification`) | ✅ | SupplierCompliance(1), SupportInbox(2) | `ab-in-chat-features` |
 | Structured outputs / next actions (`WithOutput`, `WithNextAction`) | ✅ | RuntimeProbe structured-error probe; workflows | `ab-capability-authoring` |
 | Recovery playbook + reset actions | ✅ | every workflow has `apply_*_recovery_playbook` + `reset_*` | `ab-capability-authoring` |
