@@ -37,7 +37,7 @@ via Agent Builder; Agent Builder dynamic-registry showcase wired)._
 |---|---|---|---|
 | Standalone agent registration | ✅ | `agentRegistrations[3]` → Workflow Hub, Supplier Analyst, Workflow Orchestrator | `ab-agent-registration` |
 | Workflow-capability agent registration | ✅ | `agentRegistrations[9]`, `workflows[9]` | `ab-agent-registration` |
-| **Dynamic agent registration (DB-backed `IAgentRegistry`, replace)** | ✅ | `DatabaseBackedAgentRegistry : IAgentRegistry` + `AddSingleton<IAgentRegistry>` before `AddAgentBlazor`; page `/demo/agent-builder`; entity `AgentDefinitionEntity` + `DemoAgentDbContext` | `ab-agent-registration`, `ab-entity-design` |
+| **Dynamic agent registration (DB-backed `IAgentRegistry`, replace)** | ✅ | `DatabaseBackedAgentRegistry : IAgentRegistry` + `AddSingleton<IAgentRegistry>` before `AddAgentBlazor`; page `/demo/agent-builder`; entity `DemoAgentDefinitionEntity` + unified `DemoDbContext` | `ab-agent-registration`, `ab-entity-design` |
 | Route prefixes per agent | ✅ | `agentRegistrations[].routePrefixes` | `ab-agent-registration` |
 | Allowed components per agent | ✅ | `agentRegistrations[].allowedComponents` | `ab-agent-registration` |
 | Shared instructions file | ✅ | `agent-instructions.txt` + `hasSharedInstructions=true` (12 of 12 seeds) | `ab-context-assembly` |
@@ -70,7 +70,7 @@ via Agent Builder; Agent Builder dynamic-registry showcase wired)._
 | Generated-UI cards (`EnableGeneratedUi`) | ✅ | `EnableGeneratedUi=true` on both surfaces | `ab-in-chat-features` |
 | Session key isolation | ✅ | `SessionId` from `ComponentRegistry.SessionId` | `ab-chat-session-management` |
 | Conversation persistence (durable store) | ✅ | `UseJsonFileConversationStore` (default `Store=JsonFile`) or `UseConversationStore(DemoConversationStore)` when `Store=EFCore` (appsettings); InMemory only if explicitly set | `ab-conversation-store` |
-| Token usage & cost persistence | ✅ | `ConversationTurn.Usage` → `demo_conversation_turns` columns (`PromptTokens`/`EstimatedCost`/rate snapshot incl. `CachedInputTokenCostPerMillion`); `DemoTokenPricing` section (cached rate 0.0075); `DemoUsageCostCalculator` shared with JSONL log; `DemoConversationUsageQuery` + session-browser chips with cache-hit % and K/M/B formatting; idempotent column upgrade in `DemoConversationDatabaseInitializer` | `ab-conversation-store` |
+| Token usage & cost persistence | ✅ | `ConversationTurn.Usage` → `demo_conversation_turns` columns (`PromptTokens`/`EstimatedCost`/rate snapshot incl. `CachedInputTokenCostPerMillion`); `DemoTokenPricing` section (cached rate 0.0075); `DemoUsageCostCalculator` shared with JSONL log; `DemoConversationUsageQuery` + session-browser chips with cache-hit % and K/M/B formatting; schema managed by EF Core code-first migrations | `ab-conversation-store` |
 | Session browser / history resume | ✅ | `SessionBrowser.razor` master-detail + New-chat picker + `AgentChatSurface` (`DefaultAgentName` + base `SessionId`, no lock, handoff off); `DemoSessionBrowserService` (`GetActiveSessionsAsync`/`GetHistoryAsync`/`GetAvailableAgents`/`BuildNewBaseSessionId`); `?session=` deep link; widget suppressed on `/demo/sessions` | `ab-chat-session-management` |
 | Suggestion chips / predefined prompts | ⛔ | no `PredefinedPrompts`/`Suggestions` params | `ab-in-chat-features` |
 | Proactive insights | ⛔ | no proactive-insight wiring; only host-side workflow "insight" panels | `ab-in-chat-features` |

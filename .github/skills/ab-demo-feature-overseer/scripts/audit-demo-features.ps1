@@ -71,23 +71,21 @@ $report = [ordered]@{
     dynamicRegistry     = @()
     }
 
-# --- Agents & workflows: now sourced from the DB seeder ------------------------
-# Agent definitions moved OUT of Program.cs into DemoAgentDatabaseSeeder.BuildSeeds()
+# --- Agents & workflows: now sourced from Program.cs seed function -----------
+# Agent definitions are seeded directly in Program.cs via SeedAgentDefinitionsAsync
 # (the DB-backed IAgentRegistry is authoritative). Program.cs only calls AddCapability
 # for [AgentAction] discovery. So agents/workflows/agentRegistrations are parsed from
-# BuildSeeds(): Workflow<TCapability>("Name", ...) are workflow agents, Agent(...) are
-# standalone. Evidence is cross-checked by the dynamicRegistry probe below.
+# Program.cs. Evidence is cross-checked by the dynamicRegistry probe below.
 $programCs = Join-Path $DemoRoot 'Program.cs'
 $programText = Get-Content $programCs -Raw
-$seederPath = Join-Path $DemoRoot 'Services\DemoAgentDatabaseSeeder.cs'
-$seederText = if (Test-Path $seederPath) { Get-Content $seederPath -Raw } else { '' }
 
 $agentRegistrations = @()
-if (-not [string]::IsNullOrWhiteSpace($seederText)) {
+if (-not [string]::IsNullOrWhiteSpace($programText)) {
+    # Seed entries are now in Program.cs SeedAgentDefinitionsAsync.
     # A seed entry is Workflow<TCap>("Name", ...) [workflow] or Agent("Name", ...) [standalone].
     # The `cap` group is non-empty only for workflow seeds, distinguishing the two kinds.
     $seedEntryPattern = '(?:Workflow<(?<cap>[^>]+)>|Agent)\(\s*"(?<name>[^"]+)"(?<rest>[\s\S]*?)\)\s*,'
-    foreach ($m in [regex]::Matches($seederText, $seedEntryPattern)) {
+    foreach ($m in [regex]::Matches($programText, $seedEntryPattern)) {
         $rest = $m.Groups['rest'].Value
         $components = @([regex]::Matches($rest, 'components:\s*\[([^\]]*)\]') | ForEach-Object {
             [regex]::Matches($_.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
@@ -261,10 +259,10 @@ foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs'
     if ($text -match 'class (\w+)\s*:\s*IAgentRegistry') {
         $dynamicRegistry.registryType += $file.BaseName
     }
-    if ($text -match 'DemoAgentDbContext') {
+    if ($text -match 'DemoDbContext') {
         $dynamicRegistry.storeContext += $file.BaseName
     }
-    if ($file.BaseName -eq 'DemoAgentDatabaseSeeder') {
+    if ($file.BaseName -eq 'SeedAgentDefinitions') {
         $dynamicRegistry.seeder = $true
     }
 }

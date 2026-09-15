@@ -181,11 +181,11 @@ Since v0.2.25 the library turn carries raw provider usage:
   rate (`DemoTokenPricing:CachedInputTokenCostPerMillion`, gpt-4o-mini = $0.0075/1M) and
   clamp `cached ≤ input`. Snapshot the rates onto each persisted row so historical cost
   stays auditable after a rate change.
-- **Schema evolution without migrations** — `EnsureCreatedAsync` never evolves an existing
-  DB. For SQLite, add missing columns idempotently at startup (`PRAGMA table_info` +
-  `ALTER TABLE ADD COLUMN`, duplicate-column race guard) — the Demo's
-  `DemoConversationDatabaseInitializer` pattern. For SQL Server use EF migrations (see
-  `references/ef-core-sqlserver.md`).
+- **Schema evolution** — the Demo now uses code-first EF migrations (`DemoDbContext` with
+  TPC mapping). `MigrateAsync()` at startup applies pending migrations. For consumer apps
+  targeting SQL Server or PostgreSQL, use standard EF migrations (see
+  `references/ef-core-sqlserver.md`). SQLite consumers with TPC should use client-side
+  value generators for integer identity columns.
 
 ## Usage-record model (ConversationId-keyed)
 

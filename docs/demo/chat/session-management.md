@@ -36,7 +36,7 @@ Session management is the foundation for multi-page, multi-user agent experience
   `UseJsonFileConversationStore(...)`, `UseInMemoryConversationStore(...)`, or
   `UseConversationStore(...)` with `DemoConversationStore` (EF Core)
 - `Configuration/DemoConversationOptions.cs` → store selection (`JsonFile` | `InMemory` | `EFCore`), file path, connection string, turn/session limits
-- EF Core stack: `Data/DemoConversationDbContext.cs`, `Services/DemoConversationStore.cs`
+- EF Core stack: `Data/DemoDbContext.cs` (unified context, TPC mapping), `Services/DemoConversationStore.cs`
 
 ## How to experience it
 

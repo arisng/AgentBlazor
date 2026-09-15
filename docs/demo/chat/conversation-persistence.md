@@ -39,12 +39,12 @@ and required a scope-bridging workaround. The new model eliminates the rewrite:
   `UseJsonFileConversationStore(...)` (JsonFile), `UseInMemoryConversationStore(...)`
   (InMemory), or `UseConversationStore(sp => new DemoConversationStore(...))` (EFCore)
 - `Configuration/DemoConversationOptions.cs` → store selection + limits
-- `appsettings.json` → `DemoConversation` section
-- EF Core stack: `Data/DemoConversationSessionEntity.cs`, `Data/DemoConversationTurnEntity.cs`,
-  `Data/DemoConversationDbContext.cs` (SQLite, unique `(SessionId,TurnId)` index),
-  `Services/DemoConversationStore.cs` (full incremental `IConversationStore` contract),
-  `Services/DemoConversationDatabaseInitializer.cs` (startup `EnsureCreatedAsync` +
-  idempotent additive column upgrade)
+- `appsettings.json` → `DemoConversation` section + `DemoDatabase:ConnectionString`
+- EF Core stack: `Data/DemoDbContext.cs` (unified context with TPC mapping for conversation
+  sessions/turns + agent definitions), `Data/DemoConversationSessionEntity.cs`,
+  `Data/DemoConversationTurnEntity.cs` (inheriting from `AgentBlazor.Core.Persistence` base
+  entities), `Services/DemoConversationStore.cs` (full incremental `IConversationStore`
+  contract), `Data/DemoDbContextFactory.cs` (design-time factory for migrations)
 - Token usage & cost: `src/AgentBlazor.Core/Runtime/Conversation/ConversationTurnUsage.cs`
   (library turn usage), `Services/DemoUsageCostCalculator.cs` (shared pricing),
   `Services/DemoConversationUsageQuery.cs` (per-session rollups for the session browser)
@@ -73,9 +73,9 @@ conversation database (EF Core store only):
   `EstimatedCostCurrency`, and a rate snapshot (`InputTokenCostPerMillion` /
   `OutputTokenCostPerMillion` / `CachedInputTokenCostPerMillion`) so historical rows stay
   auditable after a rate change.
-- **Schema upgrade** — the Demo has no EF migrations; `DemoConversationDatabaseInitializer`
-  adds the missing columns idempotently on startup (the same additive pattern as
-  `DemoWorkflowDatabaseSeeder`), so pre-existing `.db` files keep working.
+- **Schema upgrade** — the Demo uses code-first EF migrations (via `dotnet ef`).
+  `DemoDbContext` manages all tables (sessions, turns, agent definitions) with TPC mapping.
+  At startup, `db.Database.MigrateAsync()` applies any pending migrations automatically.
 - **Surfacing** — `/demo/sessions` shows a per-session token breakdown (prompt /
   completion / cached / total chips in the detail header; a compact `in / out` split with
   a full hover breakdown in the list), plus the estimated cost — fed by

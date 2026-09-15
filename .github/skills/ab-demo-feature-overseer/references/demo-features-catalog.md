@@ -4,7 +4,7 @@ Maintained empirical audit of demoable features in `demo/AgentBlazor.Demo`. Stat
 evidence-gated — see `catalog-schema.md` for the taxonomy. Regenerate evidence with
 `.github/skills/ab-demo-feature-overseer/scripts/audit-demo-features.ps1` before editing.
 
-Last audited: 2026-09-15 (audit.json: 8 workflow agents, 3 standalone agents, sourced from `DemoAgentDatabaseSeeder.BuildSeeds()`;
+Last audited: 2026-09-15 (audit.json: 8 workflow agents, 3 standalone agents, sourced from seed data in `Program.cs`;
 8 capability classes, 41 agent actions, 10 approvals, 3 clarification sites,
 18 component page families, 29 routes, 9 launchpad scenarios; runtime
 customization seam wired via Agent Builder; **Agent Builder dynamic-registry showcase wired**)._
@@ -20,10 +20,10 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
 - **Where**: `Program.cs` → `AddSingleton<DatabaseBackedAgentRegistry>()` +
   `AddSingleton<IAgentRegistry>(...)` BEFORE `AddAgentBlazor`; page
   `Components/Pages/Demo/AgentBuilder.razor` (`/demo/agent-builder`); services
-  `DatabaseBackedAgentRegistry.cs`, `DemoAgentDatabaseSeeder.cs`; entity
-  `Data/AgentDefinitionEntity.cs` + `Data/DemoAgentDbContext.cs`.
+  `DatabaseBackedAgentRegistry.cs`; entity
+  `Data/DemoAgentDefinitionEntity.cs` (inherits from `AgentBlazor.Core.Persistence.AgentDefinitionEntity`).
 - **Audit evidence**: page route `@page "/demo/agent-builder"` in `routes[]`;
-  `DatabaseBackedAgentRegistry` implements `IAgentRegistry`; `DemoAgentDbContext`.
+  `DatabaseBackedAgentRegistry` implements `IAgentRegistry`; `DemoDbContext`.
 - **ab\* skill**: `ab-agent-registration` (Dynamic Agent Registration),
   `ab-context-assembly` (customizer integration), `ab-entity-design`.
 
@@ -31,7 +31,7 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
 - **Status**: implemented (9)
 - **What it demonstrates**: semantic workflow agents routing to their showcase route.
 - **Where**: capability classes registered via `AddCapability<T>` in `Program.cs`;
-  agent definitions seeded into the database registry by `DemoAgentDatabaseSeeder`.
+  agent definitions seeded into the database registry at startup via `SeedAgentDefinitionsAsync` in `Program.cs`.
 - **Audit evidence**: `workflows[]` — Supplier Compliance, Support Inbox, File
   Workflow, Recipe Release, Incident Escalation, Response Orchestration, Release
   Dossier, Runtime Probe.
@@ -40,14 +40,14 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
 ### Standalone agents
 - **Status**: implemented (3)
 - **What it demonstrates**: non-workflow agents with route/component scope.
-- **Where**: seeded into the database registry by `DemoAgentDatabaseSeeder.BuildSeeds()`.
+- **Where**: seeded into the database registry at startup via `SeedAgentDefinitionsAsync` in `Program.cs`.
 - **Audit evidence**: `agents[]` — Workflow Hub, Supplier Analyst, Workflow
   Orchestrator.
 - **ab\* skill**: `ab-agent-registration`.
 
 ### Shared instructions & route/component scope
 - **Status**: implemented
-- **Where**: `agent-instructions.txt` → passed to `DemoAgentDatabaseSeeder`;
+- **Where**: `agent-instructions.txt` → passed to `SeedAgentDefinitionsAsync`;
   agents seeded with `Instructions` + `Metadata["route_prefixes"]` + `AllowedComponents`.
 - **Audit evidence**: `agentRegistrations[].hasSharedInstructions`; per-agent
   `allowedComponents[]` and `routePrefixes`.
