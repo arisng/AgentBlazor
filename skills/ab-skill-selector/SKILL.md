@@ -1,8 +1,8 @@
 ---
 name: ab-skill-selector
-description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, runtime agent authoring (agent builder), UI-library coexistence, or CLI onboarding. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
+description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, session browser master-detail page, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, runtime agent authoring (agent builder), UI-library coexistence, or CLI onboarding. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
 metadata:
-  version: 0.2.0
+  version: 0.2.1
 ---
 
 # `ab-skill-selector` — Consumer Skill Selection & Chaining
@@ -12,7 +12,7 @@ spans several areas — **in what order** to chain them. It is the entry point
 for AgentBlazor consumer work: it never re-implements what the owning skills
 already know, it points to them and sequences their execution.
 
-**Scope**: This skill covers the 19 consumer-facing ab-* skills shipped in the
+**Scope**: This skill covers the 20 consumer-facing ab-* skills shipped in the
 AgentBlazor plugin (`skills/`), excluding this selector itself. Internal/contributor skills (testing, UAT,
 release, fork sync, roadmap triage, demo auditing, entity design,
 contribution) are not in the plugin and not covered here.
@@ -29,17 +29,18 @@ contribution) are not in the plugin and not covered here.
 | 6 | `ab-prompt-engineering` | Author/align `WithInstructions` with the registered surface |
 | 7 | `ab-chat-composer` | Composer script loading, keyboard behavior, text retention |
 | 8 | `ab-in-chat-features` | Approvals, clarifications, handoff, generated UI, chips, slash commands |
-| 9 | `ab-chat-session-management` | Session browse/resume/hydrate from stored history |
-| 10 | `ab-conversation-store` | `IConversationStore` implementations, incremental persistence, action history |
-| 11 | `ab-entity-design` | EF Core entities, multitenancy columns, migrations |
-| 12 | `ab-middleware-authoring` | `IAgentTurnMiddleware` authoring, cross-cutting concerns |
-| 13 | `ab-inspector` | Agent Inspector, dev tools, run/event/prompt/state replay |
-| 14 | `ab-provider-config` | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning |
-| 15 | `ab-multitenancy` | Multi-tenant production (Finbuckle, per-tenant providers/stores, BFF) |
-| 16 | `ab-mud-components` | MudBlazor wrappers, generative UI blocks, controllable-component base classes |
-| 17 | `ab-ui-integration` | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) |
-| 18 | `ab-remote-chat` | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) |
-| 19 | `ab-cli` | Onboard an existing app via CLI (analyze / scaffold / doctor / validate) |
+| 9 | `ab-chat-session-browser` | Master-detail session browser UI: list, detail, agent picker, new-chat draft lifecycle, deep-linking |
+| 10 | `ab-chat-session-management` | Session browse/resume/hydrate from stored history |
+| 11 | `ab-conversation-store` | `IConversationStore` implementations, incremental persistence, action history |
+| 12 | `ab-entity-design` | EF Core entities, multitenancy columns, migrations |
+| 13 | `ab-middleware-authoring` | `IAgentTurnMiddleware` authoring, cross-cutting concerns |
+| 14 | `ab-inspector` | Agent Inspector, dev tools, run/event/prompt/state replay |
+| 15 | `ab-provider-config` | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning |
+| 16 | `ab-multitenancy` | Multi-tenant production (Finbuckle, per-tenant providers/stores, BFF) |
+| 17 | `ab-mud-components` | MudBlazor wrappers, generative UI blocks, controllable-component base classes |
+| 18 | `ab-ui-integration` | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) |
+| 19 | `ab-remote-chat` | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) |
+| 20 | `ab-cli` | Onboard an existing app via CLI (analyze / scaffold / doctor / validate) |
 
 ## When to use
 
@@ -74,7 +75,7 @@ contribution) are not in the plugin and not covered here.
 - **Foundation before surface**: registration (`ab-agent-registration`) before
   capabilities/tools/components; those before prompts and in-chat UX.
 - **Data before UI**: `ab-entity-design` → `ab-conversation-store` →
-  `ab-chat-session-management` → chat-surface skills.
+  `ab-chat-session-management` → `ab-chat-session-browser` → chat-surface skills.
 - **Author before align**: `ab-capability-authoring` / `ab-tool-authoring`
   before `ab-prompt-engineering` (prompts must match the registered surface).
 - **Setup before debug**: `ab-provider-config` / `ab-context-assembly` before
@@ -94,6 +95,7 @@ contribution) are not in the plugin and not covered here.
 | Composer script loading, keyboard behavior, text retention | `ab-chat-composer` |
 | Approvals, clarifications, handoff approval, generated UI, chips, slash commands, stop button, dev tools | `ab-in-chat-features` |
 | Session browse/resume/hydrate from stored history | `ab-chat-session-management` |
+| Master-detail session browser UI: list panel, detail panel, agent picker, new-chat draft lifecycle, deep-linking | `ab-chat-session-browser` |
 | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) | `ab-remote-chat` |
 | MudBlazor wrappers, generative UI blocks, controllable-component base classes | `ab-mud-components` |
 | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) | `ab-ui-integration` |

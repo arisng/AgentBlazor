@@ -61,20 +61,23 @@ call them.
 ## 3. Build a session browser UI
 
 **Goal examples**: "Build a UI to browse past conversations and resume them",
-"add a session selector to my chat page".
+"add a session selector to my chat page", "build a master-detail session
+browser with agent picker".
 
-**Chain**: `ab-chat-session-management` → `ab-conversation-store` →
-`ab-mud-components` → `ab-chat-composer` (if the surface wiring needs
-attention).
+**Chain**: `ab-chat-session-browser` → `ab-chat-session-management` →
+`ab-conversation-store` → `ab-mud-components` → `ab-chat-composer` (if the
+surface wiring needs attention).
 
-**Why this order**: understand the session model and hydration pipeline first,
-confirm/choose the store that backs it, then build the browser UI with
-MudBlazor components, then wire the composer/surface.
+**Why this order**: start with the UI composition guide (layout, parameter
+constraints, state model), then understand the backend session model and
+hydration pipeline, confirm/choose the store that backs it, build the browser
+UI with MudBlazor components, then wire the composer/surface.
 
 **Handoff notes**:
+- → session management: session-key isolation model, hydration pipeline
+  entry points, user-scoped browsing middleware.
 - → store: which queries the browser needs (`GetActiveSessionsAsync`,
-  `GetSessionsForUserAsync`, `GetHistoryAsync`) and the session-key isolation
-  model.
+  `GetSessionsForUserAsync`, `GetHistoryAsync`).
 - → components: the session list/selector UI shape and the
   `AgentChatSurface` hydration entry points.
 

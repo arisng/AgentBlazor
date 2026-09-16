@@ -39,8 +39,8 @@ and still browse them later?"
 
 ### 5. Multi-skill UI + persistence
 **Prompt:** "Build a session browser so users can resume past chats."
-**Expected:** Chain — `ab-chat-session-management` → `ab-conversation-store` →
-`ab-mud-components` — data model before UI, with hydration entry points noted.
+**Expected:** Chain — `ab-chat-session-browser` → `ab-chat-session-management` → `ab-conversation-store` →
+`ab-mud-components` — UI composition first, then backend session model, then store, with hydration entry points noted.
 
 ### 6. Multi-skill provider + tenant
 **Prompt:** "We're going multi-tenant SaaS with per-tenant model options."

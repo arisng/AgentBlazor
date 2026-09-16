@@ -1,6 +1,6 @@
 # Skill Catalog — Consumer Selection Detail
 
-Full per-skill selection detail for the 19 consumer skills in `skills/`. Read
+Full per-skill selection detail for the 20 consumer skills in `skills/`. Read
 this when the compact table in `SKILL.md` is ambiguous, or when a goal touches
 multiple areas and you need each skill's boundaries.
 
@@ -10,21 +10,22 @@ multiple areas and you need each skill's boundaries.
 2. [ab-agent-registration](#ab-agent-registration)
 3. [ab-capability-authoring](#ab-capability-authoring)
 4. [ab-chat-composer](#ab-chat-composer)
-5. [ab-chat-session-management](#ab-chat-session-management)
-6. [ab-cli](#ab-cli)
-7. [ab-context-assembly](#ab-context-assembly)
-8. [ab-conversation-store](#ab-conversation-store)
-9. [ab-entity-design](#ab-entity-design)
-10. [ab-in-chat-features](#ab-in-chat-features)
-11. [ab-inspector](#ab-inspector)
-12. [ab-middleware-authoring](#ab-middleware-authoring)
-13. [ab-mud-components](#ab-mud-components)
-14. [ab-multitenancy](#ab-multitenancy)
-15. [ab-prompt-engineering](#ab-prompt-engineering)
-16. [ab-provider-config](#ab-provider-config)
-17. [ab-remote-chat](#ab-remote-chat)
-18. [ab-tool-authoring](#ab-tool-authoring)
-19. [ab-ui-integration](#ab-ui-integration)
+5. [ab-chat-session-browser](#ab-chat-session-browser)
+6. [ab-chat-session-management](#ab-chat-session-management)
+7. [ab-cli](#ab-cli)
+8. [ab-context-assembly](#ab-context-assembly)
+9. [ab-conversation-store](#ab-conversation-store)
+10. [ab-entity-design](#ab-entity-design)
+11. [ab-in-chat-features](#ab-in-chat-features)
+12. [ab-inspector](#ab-inspector)
+13. [ab-middleware-authoring](#ab-middleware-authoring)
+14. [ab-mud-components](#ab-mud-components)
+15. [ab-multitenancy](#ab-multitenancy)
+16. [ab-prompt-engineering](#ab-prompt-engineering)
+17. [ab-provider-config](#ab-provider-config)
+18. [ab-remote-chat](#ab-remote-chat)
+19. [ab-tool-authoring](#ab-tool-authoring)
+20. [ab-ui-integration](#ab-ui-integration)
 
 ---
 
@@ -97,10 +98,33 @@ multiple areas and you need each skill's boundaries.
   `attachEnterSubmit`, `setInputValue`, `getInputValue`,
   `ab-chat-surface__input`.
 - **Boundaries**: consumer-side only (host page + wwwroot); never edit package
-  internals. Does NOT cover session browsing (`ab-chat-session-management`) or
-  in-chat interactive features (`ab-in-chat-features`).
-- **Related**: `ab-chat-session-management`, `ab-in-chat-features`,
-  `ab-mud-components`, `ab-ui-integration`.
+  internals. Does NOT cover session browsing (`ab-chat-session-browser` /
+  `ab-chat-session-management`) or in-chat interactive features
+  (`ab-in-chat-features`).
+- **Related**: `ab-chat-session-browser`, `ab-chat-session-management`,
+  `ab-in-chat-features`, `ab-mud-components`, `ab-ui-integration`.
+
+## ab-chat-session-browser
+
+- **Scope**: Compose a master-detail session browser page — session list
+  panel, detail panel with resume or new-chat, agent picker for new
+  conversations, deep-linking via query params, and `AgentChatSurface`
+  parameter constraints (`LockAgentToCurrentRoute`, `EnableAgentHandoff`,
+  `RequireHandoffApproval`, `ShowAgentSelector`, `@key` strategy) for
+  correct browser hydration. Consumer-side data service pattern over
+  `IConversationStore` + `IAgentRegistry`, legacy session handling
+  (`SplitSessionKey`), token usage display, and the new-chat draft
+  lifecycle (mint → chat → promote → resume). UI-implementation agnostic.
+- **Signals**: session browser, master-detail, session list, session picker,
+  browse past chats, resume session, new chat page, agent picker for
+  sessions, session browser layout, session deep-link.
+- **Boundaries**: backend session lifecycle, ID resolution, and hydration
+  internals are `ab-chat-session-management`. Agent authoring at runtime is
+  `ab-agent-builder`. Component library wrappers are `ab-mud-components`.
+  Does NOT cover delete/end session (no API), search/filter (v2), or store
+  implementation (`ab-conversation-store`).
+- **Related**: `ab-chat-session-management`, `ab-agent-builder`,
+  `ab-conversation-store`, `ab-mud-components`.
 
 ## ab-chat-session-management
 
@@ -112,10 +136,12 @@ multiple areas and you need each skill's boundaries.
 - **Signals**: session browser, session list, resume chat, browse past chats,
   session selector, chat history browser, switch session, load session.
 - **Boundaries**: assumes a conversation store exists; choosing/implementing
-  the store is `ab-conversation-store`. Does NOT cover the composer
+  the store is `ab-conversation-store`. UI composition for session browsing
+  (master-detail layout, agent picker, new-chat draft) is
+  `ab-chat-session-browser`. Does NOT cover the composer
   (`ab-chat-composer`).
-- **Related**: `ab-conversation-store`, `ab-chat-composer`,
-  `ab-mud-components`.
+- **Related**: `ab-chat-session-browser`, `ab-conversation-store`,
+  `ab-chat-composer`, `ab-mud-components`.
 
 ## ab-cli
 
