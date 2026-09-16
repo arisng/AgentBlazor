@@ -72,16 +72,25 @@ When a consumer app lets users **build agents at runtime** (a database-backed `I
 | `Instructions` | `string?` | System instructions |
 | `AllowedComponentsJson` | `string` | JSON array of component IDs |
 | `AllowedActionsJson` | `string` | JSON array of action IDs |
+| `AllowedCapabilityActionsJson` | `string` | JSON array of capability action IDs (mirrors `AgentRegistration.AllowedCapabilityActions`) |
 | `AllowedDataSchemasJson` | `string` | JSON array of data schema names |
-| `EnabledToolsJson` | `string?` | JSON array of enabled tool IDs (null = all tools) |
-| `Persona` | `string?` | System-instruction override for the runtime customizer |
-| `MetadataJson` | `string` | JSON object of extensible metadata |
+| `MetadataJson` | `string` | JSON object of extensible metadata — **the builder's single source of truth for persona + enabled tools** |
 
-Consumer apps **inherit** from this base to add their own columns (e.g. `TenantId`, soft-delete, audit fields). The library never directly queries consumer entity subtypes — it works through the base type and the `IAgentRegistry` / `IAgentRuntimeCustomizer` seams.
+Consumer apps **inherit** from this base to add their own columns (e.g.
+`TenantId`, soft-delete, audit fields). The library never directly queries
+consumer entity subtypes — it works through
+the base type and the `IAgentRegistry` / `IAgentRuntimeCustomizer` seams.
 
-1. **Persist persona + enabled tools alongside the agent definition.** On your concrete entity subclass (e.g. `DemoAgentDefinitionEntity`), the base columns `Persona` and `EnabledToolsJson` are inherited — no extra mapping needed. In the DB-backed registry's `ApplyRegistration`, read `Persona`/`EnabledToolsJson` and stash them somewhere the customizer can resolve (e.g. a `ConcurrentDictionary<string, AgentDefinitionEntity>` keyed by `Name`, or store them directly on a custom `AgentRegistration` extension).
-2. **Have a single registered `IAgentRuntimeCustomizer` resolve from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`).
-3. **Construct `AgentRuntimeCustomization` from the persisted values.** The registry's `TryGetCustomization` method reads from the entity's `Persona` / `EnabledToolsJson` columns (or from metadata keys for backward compatibility) and returns an `AgentRuntimeCustomization`:
+1. **Persist persona + enabled tools in `Metadata`.** On the concrete entity
+   subclass, carry persona + enabled tools in `AgentRegistration.Metadata`
+   under the `agent_builder.persona` / `agent_builder.enabled_tools` keys and
+   persist them via `MetadataJson` — the base entity has no dedicated
+   columns, so `MetadataJson` ↔ `Metadata` round-trips 1:1 (no
+   dual-write). The DB-backed registry's `ApplyRegistration` writes
+   `MetadataJson` from `registration.Metadata`; `ToRegistration` hydrates it
+   back. (The Demo's SQLite registry follows the same pattern.)
+2. **Have a single registered `IAgentRuntimeCustomizer` resolve from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`). **The customizer is optional** — without it, agents run with registered instructions + all tools (persisted persona/tools are inert).
+3. **Construct `AgentRuntimeCustomization` from the persisted values.** The registry's `TryGetCustomization` method reads the `agent_builder.persona` / `agent_builder.enabled_tools` metadata keys and returns an `AgentRuntimeCustomization` (its `Instructions` parameter carries the **custom persona**, appended after the agent's registered instructions and before the auto-generated READ-SAFE data-schema block):
    ```csharp
    // In the DB-backed registry — resolves the customizer payload for an agent
    public AgentRuntimeCustomization? TryGetCustomization(string agentName)
@@ -115,3 +124,4 @@ See **`ab-agent-registration`** for the DB-backed registry part (replace path, `
 - [`ab-conversation-store`](../ab-conversation-store/SKILL.md) — how conversation history is persisted and how to control `MaxHistoryInPrompt`
 - [`ab-in-chat-features`](../ab-in-chat-features/SKILL.md) — how the chat components build runtime context and how `ShowDevTools` enables the inspector
 - [`ab-inspector`](../ab-inspector/SKILL.md) — how the inspector renders prompt traces and run data; full panel/store reference
+- [`ab-agent-builder`](../ab-agent-builder/SKILL.md) — runtime agent authoring (agent builder): user-authored instructions reach the agent through the `IAgentRuntimeCustomizer` seam this skill's pipeline consumes

@@ -39,7 +39,7 @@ The CLI is **non-destructive** for the `AddAgentBlazor(...)` registration — it
 |---|---|---|
 | `ConversationSessionEntity` | `Guid Id` | Session metadata — `SessionId`, `UserId`, `CreatedAtUtc`, `LastActivityAtUtc` |
 | `ConversationTurnEntity` | `Guid Id` | Turn data — 25+ columns including 7 token cost columns (`PromptTokens`, `CompletionTokens`, `TotalTokens`, `CachedInputTokens`, `EstimatedCost`, `EstimatedCostCurrency`, rate snapshots) |
-| `AgentDefinitionEntity` | `Guid Id` | Agent registration — `Name`, `Instructions`, JSON collection columns, `Persona` |
+| `AgentDefinitionEntity` | `Guid Id` | Agent registration — `Name`, `Instructions`, JSON collection columns, `MetadataJson` (persona + enabled tools) |
 
 **Consumer apps inherit from these base classes and add TenantId**, row-level filtering, global query filters, soft-delete, auditing, and any other cross-cutting concerns:
 

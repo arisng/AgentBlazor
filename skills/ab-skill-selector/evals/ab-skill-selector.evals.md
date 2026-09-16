@@ -60,30 +60,52 @@ actually sent."
 `skills/`, does not invent its content, and selects `ab-ui-integration`
 + `ab-mud-components` instead.
 
+### 9. Agent builder single-skill selection
+**Prompt:** "I want to add an agent builder so my users can author custom
+agents and persist them to SQL Server."
+**Expected:** Selects `ab-agent-builder` as the owning skill (store-backed
+`IAgentRegistry`, `AgentDefinitionEntity` subclass, authoring surface), and
+loads its `SKILL.md` before acting. Does not re-derive the feature from
+`ab-agent-registration` alone.
+
+### 10. Agent builder chain
+**Prompt:** "Build an agent builder feature end-to-end: users create agents at
+runtime, stored in SQL, with their own instructions."
+**Expected:** Produces the chain — `ab-agent-builder` → `ab-entity-design`
+(entity/migration review) → `ab-agent-registration` (registry replacement +
+route locking) → `ab-context-assembly` (runtime customizer) — with handoff
+notes per phase, matching playbook #10.
+
+### 11. Agent builder disambiguation
+**Prompt:** "Let users edit agent instructions at runtime without redeploying."
+**Expected:** Selects `ab-agent-builder` (runtime authoring + customizer), NOT
+`ab-prompt-engineering` — the prompt text is user-authored data, not
+developer-authored prompt prose.
+
 ## Negative cases (skill should not fire or gracefully abstain)
 
-### 9. Unrelated topic
+### 12. Unrelated topic
 **Prompt:** "Explain how to configure Serilog sinks in ASP.NET Core."
 **Expected:** No AgentBlazor surface in the goal — the skill abstains and
 answers directly (or the skill does not fire at all).
 
-### 10. Generic Blazor question
+### 13. Generic Blazor question
 **Prompt:** "How do I style a MudBlazor button in a plain Blazor app?"
 **Expected:** No AgentBlazor surface — no selection; a general MudBlazor answer is
 correct.
 
-### 11. Single-skill goal already named by the user
+### 14. Single-skill goal already named by the user
 **Prompt:** "Use `ab-cli` to run `doctor` on my solution."
 **Expected:** The skill confirms the single-skill selection (fast path) and loads
 `ab-cli`; it does not invent a chain or re-explain CLI internals itself.
 
-### 12. No covering skill
+### 15. No covering skill
 **Prompt:** "How do I deploy AgentBlazor to AWS Lambda with a custom HTTP
 adapter?"
 **Expected:** No skill covers this — the skill says so explicitly rather than
 stretching `ab-remote-chat` or `ab-multitenancy` to fit.
 
-### 13. Internal skill requested
+### 16. Internal skill requested
 **Prompt:** "Write unit tests for my new capability."
 **Expected:** The skill notes that `ab-testing` is an internal skill not in the
 plugin, and suggests the user refer to the repo's `.github/skills/` directory

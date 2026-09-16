@@ -1,6 +1,6 @@
 ---
 name: ab-skill-selector
-description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, UI-library coexistence, or CLI onboarding. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
+description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, runtime agent authoring (agent builder), UI-library coexistence, or CLI onboarding. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
 metadata:
   version: 0.2.0
 ---
@@ -12,8 +12,8 @@ spans several areas — **in what order** to chain them. It is the entry point
 for AgentBlazor consumer work: it never re-implements what the owning skills
 already know, it points to them and sequences their execution.
 
-**Scope**: This skill covers the 17 consumer-facing skills shipped in the
-AgentBlazor plugin (`skills/`). Internal/contributor skills (testing, UAT,
+**Scope**: This skill covers the 19 consumer-facing ab-* skills shipped in the
+AgentBlazor plugin (`skills/`), excluding this selector itself. Internal/contributor skills (testing, UAT,
 release, fork sync, roadmap triage, demo auditing, entity design,
 contribution) are not in the plugin and not covered here.
 
@@ -22,23 +22,24 @@ contribution) are not in the plugin and not covered here.
 | # | Skill | Purpose |
 |---|-------|---------|
 | 1 | `ab-agent-registration` | Register agents/workflows, route prefixes, allowed components/actions, data schemas |
-| 2 | `ab-capability-authoring` | Author `[AgentCapability]`/`[AgentAction]`/`[AgentParam]` classes, `CapabilityResult`, approvals, outputs |
-| 3 | `ab-tool-authoring` | Service tools, MCP servers, tool parameters, per-agent tool filtering |
-| 4 | `ab-context-assembly` | System-prompt construction, runtime context injection, prompt tracing, runtime adapter |
-| 5 | `ab-prompt-engineering` | Author/align `WithInstructions` with the registered surface |
-| 6 | `ab-chat-composer` | Composer script loading, keyboard behavior, text retention |
-| 7 | `ab-in-chat-features` | Approvals, clarifications, handoff, generated UI, chips, slash commands |
-| 8 | `ab-chat-session-management` | Session browse/resume/hydrate from stored history |
-| 9 | `ab-conversation-store` | `IConversationStore` implementations, incremental persistence, action history |
-| 10 | `ab-entity-design` | EF Core entities, multitenancy columns, migrations |
-| 10 | `ab-middleware-authoring` | `IAgentTurnMiddleware` authoring, cross-cutting concerns |
-| 11 | `ab-inspector` | Agent Inspector, dev tools, run/event/prompt/state replay |
-| 12 | `ab-provider-config` | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning |
-| 13 | `ab-multitenancy` | Multi-tenant production (Finbuckle, per-tenant providers/stores, BFF) |
-| 14 | `ab-mud-components` | MudBlazor wrappers, generative UI blocks, controllable-component base classes |
-| 15 | `ab-ui-integration` | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) |
-| 16 | `ab-remote-chat` | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) |
-| 17 | `ab-cli` | Onboard an existing app via CLI (analyze / scaffold / doctor / validate) |
+| 2 | `ab-agent-builder` | Runtime agent authoring (agent builder): SQL Server-backed definitions, store-backed `IAgentRegistry` as the authoring surface |
+| 3 | `ab-capability-authoring` | Author `[AgentCapability]`/`[AgentAction]`/`[AgentParam]` classes, `CapabilityResult`, approvals, outputs |
+| 4 | `ab-tool-authoring` | Service tools, MCP servers, tool parameters, per-agent tool filtering |
+| 5 | `ab-context-assembly` | System-prompt construction, runtime context injection, prompt tracing, runtime adapter |
+| 6 | `ab-prompt-engineering` | Author/align `WithInstructions` with the registered surface |
+| 7 | `ab-chat-composer` | Composer script loading, keyboard behavior, text retention |
+| 8 | `ab-in-chat-features` | Approvals, clarifications, handoff, generated UI, chips, slash commands |
+| 9 | `ab-chat-session-management` | Session browse/resume/hydrate from stored history |
+| 10 | `ab-conversation-store` | `IConversationStore` implementations, incremental persistence, action history |
+| 11 | `ab-entity-design` | EF Core entities, multitenancy columns, migrations |
+| 12 | `ab-middleware-authoring` | `IAgentTurnMiddleware` authoring, cross-cutting concerns |
+| 13 | `ab-inspector` | Agent Inspector, dev tools, run/event/prompt/state replay |
+| 14 | `ab-provider-config` | Provider seam, `ConfigureChatOptions`, reasoning_effort pinning |
+| 15 | `ab-multitenancy` | Multi-tenant production (Finbuckle, per-tenant providers/stores, BFF) |
+| 16 | `ab-mud-components` | MudBlazor wrappers, generative UI blocks, controllable-component base classes |
+| 17 | `ab-ui-integration` | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) |
+| 18 | `ab-remote-chat` | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) |
+| 19 | `ab-cli` | Onboard an existing app via CLI (analyze / scaffold / doctor / validate) |
 
 ## When to use
 
@@ -84,6 +85,7 @@ contribution) are not in the plugin and not covered here.
 | Goal area | Skill |
 |-----------|-------|
 | Register agents/workflows, route prefixes, allowed components/actions, data schemas, dynamic/per-tenant registries | `ab-agent-registration` |
+| Runtime agent authoring (agent builder): create/edit/delete agents persisted to SQL Server, store-backed registry as the authoring surface | `ab-agent-builder` |
 | Onboard an existing app via CLI (analyze / scaffold / doctor / validate, `.agentblazor/AGENT.md`) | `ab-cli` |
 | Author `[AgentCapability]` / `[AgentAction]` / `[AgentParam]` classes, `CapabilityResult`, approvals, outputs, next actions | `ab-capability-authoring` |
 | Service tools, MCP servers, tool parameters, per-agent tool filtering, tool dispatch | `ab-tool-authoring` |
@@ -130,5 +132,5 @@ contribution) are not in the plugin and not covered here.
 - One handoff note per phase: state what changed and what the next skill needs.
 - Keep the selection plan visible: state the skill list and order up front,
   then execute.
-- Consumer skills only: this plugin ships 17 skills. Do not reference skills
+- Consumer skills only: this plugin ships 20 skills. Do not reference skills
   outside the plugin (`.github/skills/`) as if they were available.

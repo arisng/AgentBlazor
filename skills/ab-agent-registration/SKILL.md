@@ -172,7 +172,7 @@ Agent registrations are held in-memory by default (`AgentRegistrationBuilder` �
 - Multitenancy considerations for per-tenant agent registrations
 - Migration strategy for evolving agent configurations alongside code changes
 
-**Proven backing entity: `AgentDefinitionEntity`.** The canonical entity for a database-backed `IAgentRegistry` is [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — a surrogate-keyed entity with `Name` as the case-insensitive lookup key, JSON collection columns (`AllowedComponentsJson`, `AllowedActionsJson`, `AllowedDataSchemasJson`), top-level `Persona`/`EnabledToolsJson` columns for the `IAgentRuntimeCustomizer` seam, and audit columns. Consumer apps extend this base with `TenantId` for multitenancy, soft-delete, or other domain-specific columns. The entity provides `DeserializeSet`/`SerializeSet` helpers for JSON ↔ collection round-trips. Map it to `AgentRegistration` on read:
+**Proven backing entity: `AgentDefinitionEntity`.** The canonical entity for a database-backed `IAgentRegistry` is [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) — a surrogate-keyed entity with `Name` as the case-insensitive lookup key, JSON collection columns (`AllowedComponentsJson`, `AllowedActionsJson`, `AllowedCapabilityActionsJson`, `AllowedDataSchemasJson`), `MetadataJson` carrying persona + enabled tools for the `IAgentRuntimeCustomizer` seam, and audit columns. Consumer apps extend this base with `TenantId` for multitenancy, soft-delete, or other domain-specific columns. The entity provides `DeserializeSet`/`SerializeSet` helpers for JSON ↔ collection round-trips. Map it to `AgentRegistration` on read:
 
 ```csharp
 AgentRegistration MapToRegistration(AgentDefinitionEntity e) => new()
@@ -349,4 +349,5 @@ Resolve the registry through DI where you mutate (it is a singleton), not a new 
 - **`ab-cli`** — onboarding existing solutions with `agentblazor init`/`analyze`/`scaffold`
 - **`ab-multitenancy`** — required prerequisite for tenant-scoped dynamic agents (AsyncLocal tenant context + proxy `IChatClient`)
 - **`ab-entity-design`** — entity/migration patterns for the store backing a data-driven registry
+- **`ab-agent-builder`** — end-to-end runtime agent authoring feature (SQL Server-backed `AgentDefinitionEntity` store, store-backed `IAgentRegistry` as the authoring surface)
 - **`ab-in-chat-features`** — for the agent selector and handoff behavior that render whatever `GetAll()` returns

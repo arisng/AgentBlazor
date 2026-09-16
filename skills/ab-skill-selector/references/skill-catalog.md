@@ -1,31 +1,54 @@
 # Skill Catalog — Consumer Selection Detail
 
-Full per-skill selection detail for the 17 consumer skills in `skills/`. Read
+Full per-skill selection detail for the 19 consumer skills in `skills/`. Read
 this when the compact table in `SKILL.md` is ambiguous, or when a goal touches
 multiple areas and you need each skill's boundaries.
 
 ## Contents
 
-1. [ab-agent-registration](#ab-agent-registration)
-2. [ab-capability-authoring](#ab-capability-authoring)
-3. [ab-chat-composer](#ab-chat-composer)
-4. [ab-chat-session-management](#ab-chat-session-management)
-5. [ab-cli](#ab-cli)
-6. [ab-context-assembly](#ab-context-assembly)
-7. [ab-conversation-store](#ab-conversation-store)
-8. [ab-entity-design](#ab-entity-design)
-9. [ab-in-chat-features](#ab-in-chat-features)
-9. [ab-inspector](#ab-inspector)
-10. [ab-middleware-authoring](#ab-middleware-authoring)
-11. [ab-mud-components](#ab-mud-components)
-12. [ab-multitenancy](#ab-multitenancy)
-13. [ab-prompt-engineering](#ab-prompt-engineering)
-14. [ab-provider-config](#ab-provider-config)
-15. [ab-remote-chat](#ab-remote-chat)
-16. [ab-tool-authoring](#ab-tool-authoring)
-17. [ab-ui-integration](#ab-ui-integration)
+1. [ab-agent-builder](#ab-agent-builder)
+2. [ab-agent-registration](#ab-agent-registration)
+3. [ab-capability-authoring](#ab-capability-authoring)
+4. [ab-chat-composer](#ab-chat-composer)
+5. [ab-chat-session-management](#ab-chat-session-management)
+6. [ab-cli](#ab-cli)
+7. [ab-context-assembly](#ab-context-assembly)
+8. [ab-conversation-store](#ab-conversation-store)
+9. [ab-entity-design](#ab-entity-design)
+10. [ab-in-chat-features](#ab-in-chat-features)
+11. [ab-inspector](#ab-inspector)
+12. [ab-middleware-authoring](#ab-middleware-authoring)
+13. [ab-mud-components](#ab-mud-components)
+14. [ab-multitenancy](#ab-multitenancy)
+15. [ab-prompt-engineering](#ab-prompt-engineering)
+16. [ab-provider-config](#ab-provider-config)
+17. [ab-remote-chat](#ab-remote-chat)
+18. [ab-tool-authoring](#ab-tool-authoring)
+19. [ab-ui-integration](#ab-ui-integration)
 
 ---
+
+## ab-agent-builder
+
+- **Scope**: Build an "agent builder" feature — users author custom agents
+  on-demand, persisted to SQL Server. Covers the `AgentDefinitionEntity`
+  subclass + DbContext (TPC, unique CI name index), the store-backed
+  `IAgentRegistry` replacement (`SqlServerAgentRegistry` with lazy load,
+  `AddOrUpdate`/`RemoveAgent`/`RefreshFromDatabase`/`TryGetCustomization`),
+  idempotent seeding, and the store-backed `IAgentRegistry` as the authoring
+  surface (the UI calls `GetAll`/`AddOrUpdate`/`RemoveAgent` directly) with
+  `UpdatedAtUtc` concurrency and capability/tool discovery seams.
+- **Signals**: agent builder, author custom agents, runtime agent authoring,
+  user-defined agents, store-backed registry, SQL Server agent definitions,
+  `AgentDefinitionEntity`, `SqlServerAgentRegistry`, `IAgentRegistry` replace.
+- **Boundaries**: does NOT cover static registration wiring
+  (`ab-agent-registration`), entity/migration design (`ab-entity-design`), or
+  prompt/context assembly (`ab-context-assembly`) — it orchestrates them.
+  UI-library-agnostic: no component guidance (see `ab-mud-components` /
+  `ab-ui-integration` for surfaces). Single-tenant only; tenancy is
+  `ab-multitenancy`'s job.
+- **Related**: `ab-agent-registration`, `ab-entity-design`,
+  `ab-context-assembly`, `ab-capability-authoring`, `ab-tool-authoring`.
 
 ## ab-agent-registration
 

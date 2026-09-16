@@ -184,3 +184,26 @@ correctly, then use components without regressions.
 **Handoff notes**:
 - → composer: the asset-loading strategy chosen (order, isolation).
 - → components: any class-name constraints from the integration.
+
+## 10. Build an agent builder feature
+
+**Goal examples**: "Let users author custom agents on-demand", "add an agent
+builder to my app", "persist agent definitions to SQL Server".
+
+**Chain**: `ab-agent-builder` → `ab-entity-design` (entity/migration review) →
+`ab-agent-registration` (registry replacement + route locking) →
+`ab-context-assembly` (customizer/instructions integration).
+
+**Why this order**: the builder skill owns the end-to-end feature (store,
+registry, authoring surface); entity design validates the
+`AgentDefinitionEntity` subclass and migrations; registration confirms the
+`IAgentRegistry` replacement and route-prefix locking; context assembly wires
+the runtime customizer so authored instructions actually reach the agent.
+
+**Handoff notes**:
+- → entity design: the entity subclass + DbContext + migration plan from the
+  builder skill.
+- → registration: the store-backed registry and which static agents were
+  dropped/seeded.
+- → context assembly: the `IAgentRuntimeCustomizer` implementation and
+  `AgentRuntimeCustomization` usage.

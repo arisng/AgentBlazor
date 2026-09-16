@@ -196,18 +196,10 @@ public abstract class AgentDefinitionEntity
     public string AllowedDataSchemasJson { get; set; } = "[]";
 
     /// <summary>
-    /// Optional persona (system-instruction override) for IAgentRuntimeCustomizer.
-    /// Persisted so the Agent Builder composes with the customizer seam (see ab-context-assembly).
+    /// JSON object of AgentRegistration.Metadata (e.g. route_prefixes). Persona
+    /// and enabled tools are carried here under the agent_builder.persona /
+    /// agent_builder.enabled_tools keys, mirroring AgentRegistration.Metadata 1:1.
     /// </summary>
-    public string? Persona { get; set; }
-
-    /// <summary>
-    /// Optional JSON array of enabled tool ids for IAgentRuntimeCustomizer.
-    /// null = no filtering per the AgentRuntimeCustomization contract.
-    /// </summary>
-    public string? EnabledToolsJson { get; set; }
-
-    /// <summary>JSON object of AgentRegistration.Metadata (e.g. route_prefixes).</summary>
     public string MetadataJson { get; set; } = "{}";
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
@@ -239,18 +231,18 @@ public abstract class AgentDefinitionEntity
 
 **Key design decisions:**
 
-> **AgentBlazor feature:** `AgentDefinitionEntity` maps to dynamic agent registration via `AgentRegistrationBuilder`. `Name` is the lookup key for `IAgentRegistry.TryGet()`. `Persona` and `EnabledToolsJson` feed `IAgentRuntimeCustomizer` for per-agent system prompt and tool selection customization. See `ab-agent-registration` for entity-to-registration mapping and `ab-context-assembly` for the customizer integration.
+> **AgentBlazor feature:** `AgentDefinitionEntity` maps to dynamic agent registration via `AgentRegistrationBuilder`. `Name` is the lookup key for `IAgentRegistry.TryGet()`. Persona and enabled tools are carried in `Metadata` (via `MetadataJson`) and feed `IAgentRuntimeCustomizer` for per-agent system prompt and tool selection customization. See `ab-agent-registration` for entity-to-registration mapping and `ab-context-assembly` for the customizer integration.
 
 | Decision | Rationale |
 |---|---|
 | Surrogate `Id` + unique `Name` | Runtime resolves agents by `Name` (case-insensitive). Surrogate PK avoids coupling storage to the lookup key format. |
 | JSON columns for collections | `AllowedComponents`, `AllowedActions`, `AllowedDataSchemas`, and `EnabledTools` are small, infrequently-queried lists. JSON avoids junction tables for a write-heavy builder flow. Upgrade to owned entity types if you need `WHERE JSON_VALUE(...)` queries. |
-| `Persona` + `EnabledToolsJson` as top-level columns | Not buried in `MetadataJson` — the customizer seam reads them on every turn; top-level columns are cheaper to load and type-safe. |
+| Persona + enabled tools in `MetadataJson` | Mirrors `AgentRegistration.Metadata` 1:1 — no dual-write; the customizer reads them from the hydrated registration's `Metadata` on every turn. |
 | Audit columns (`CreatedAtUtc` / `UpdatedAtUtc`) | Standard pattern for entity lifecycle tracking. Update `UpdatedAtUtc` on every `AddOrUpdate`. |
 
 **Conversion helpers** — the base entity provides static methods for JSON ↔ collection round-trips (see code above). These are on the entity (not a shared utility) so the mapping layer stays self-contained.
 
-**See also:** `ab-agent-registration` → "Entity Persistence" for the full mapping between `AgentDefinitionEntity` and `AgentRegistration`, and `ab-context-assembly` → "Agent Builder × customizer integration" for how `Persona`/`EnabledToolsJson` feed the runtime customizer.
+**See also:** `ab-agent-registration` → "Entity Persistence" for the full mapping between `AgentDefinitionEntity` and `AgentRegistration`, and `ab-context-assembly` → "Agent Builder × customizer integration" for how the metadata-carried persona/enabled tools feed the runtime customizer.
 
 ### Token usage & cost columns (built into base)
 
@@ -329,7 +321,7 @@ These entities are the **persistence model** — they store conversation state i
 |---|---|---|
 | `ConversationSessionEntity` | `AgentConversationScope` / `IConversationStore` | Durable conversation store — session lookup by `SessionId` |
 | `ConversationTurnEntity` | `ConversationTurn` / incremental `AppendTurnAsync` / `UpdateTurnAsync` | Incremental persistence — turns appended per turn, updated/deleted/reordered by `TurnId` |
-| `AgentDefinitionEntity` | `AgentRegistration` / `AgentRegistrationBuilder` | Dynamic agent registration — `Name` maps to registration key, `Persona`/`EnabledToolsJson` feed `IAgentRuntimeCustomizer` |
+| `AgentDefinitionEntity` | `AgentRegistration` / `AgentRegistrationBuilder` | Dynamic agent registration — `Name` maps to registration key, metadata-carried persona/enabled tools feed `IAgentRuntimeCustomizer` |
 
 > **Consumer extension — Multitenancy:** The core persistence model is tenant-agnostic. Consumer apps that need tenant scoping add a `TenantId` column to their entity subclasses and apply global query filters. See [multitenancy-patterns.md](references/multitenancy-patterns.md) for composite keys, Finbuckle integration, and tenant-scoped indexes.
 
@@ -391,6 +383,7 @@ public sealed class DemoConversationTurnEntity : ConversationTurnEntity { }
 | **Audit columns** | Add `CreatedBy` / `UpdatedBy` columns | Override `SaveChangesAsync` to populate. See `cross-cutting-concerns.md`. |
 | **Circuit grouping** | Add `BaseSessionId` / `AgentName` to session subclass | For `IsolateConversationsByAgent` ON. See `session-identity-entities.md`. |
 | **SQLite workarounds** | Add client-side GUID generation in consumer DbContext | Provider-specific; never in library. E.g., `ConfigureSqliteIdentity<T>()` extension with `ValueGenerator<Guid>`. |
+| **Agent builder** | Subclass `AgentDefinitionEntity`, add the store-backed `IAgentRegistry` (the authoring surface) | Full SQL Server implementation (unique CI name index, JSON columns, seeding). See `ab-agent-builder`. |
 
 > **Important:** The `Turns` navigation on `ConversationSessionEntity` uses the base `ConversationTurnEntity` type. Do NOT shadow it with `new` in derived session entities — that creates a separate backing field which breaks EF Core `Include` under TPC mapping.
 

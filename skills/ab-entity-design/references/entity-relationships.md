@@ -91,8 +91,6 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 ║  │      AllowedComponentsJson  string    (JSON array)       │                ║
 ║  │      AllowedActionsJson     string    (JSON array)       │                ║
 ║  │      AllowedDataSchemasJson string    (JSON array)       │                ║
-║  │      Persona             string?  (customizer override)  │                ║
-║  │      EnabledToolsJson    string?  (JSON array)           │                ║
 ║  │      MetadataJson        string    (JSON object)         │                ║
 ║  │      CreatedAtUtc        DateTime                        │                ║
 ║  │      UpdatedAtUtc        DateTime                        │                ║
@@ -232,9 +230,9 @@ The raw circuit identifier (`sessionId` parameter above) is stored in `BaseSessi
 
 3. **Optional for most apps.** Most apps use static `AddAgent`/`AddWorkflow` and never need this entity. Making it standalone means apps that don't use a DB-backed registry pay no schema cost.
 
-4. **JSON columns for collections.** `AllowedComponentsJson`, `AllowedActionsJson`, `AllowedDataSchemasJson`, and `EnabledToolsJson` are stored as `nvarchar(max)` JSON strings. This avoids junction tables for a write-heavy builder flow where collections are small (< 20 items) and rarely queried by content. Upgrade to owned entity types (`ToJson()`) only if you need `WHERE JSON_VALUE(...)` queries.
+4. **JSON columns for collections.** `AllowedComponentsJson`, `AllowedActionsJson`, `AllowedCapabilityActionsJson`, and `AllowedDataSchemasJson` are stored as `nvarchar(max)` JSON strings. This avoids junction tables for a write-heavy builder flow where collections are small (< 20 items) and rarely queried by content. Upgrade to owned entity types (`ToJson()`) only if you need `WHERE JSON_VALUE(...)` queries.
 
-5. **Persona + EnabledTools as top-level columns.** These feed the `IAgentRuntimeCustomizer` seam on every turn. Top-level columns are cheaper to load than extracting from `MetadataJson`, and they have explicit null semantics (null = "no customization" vs empty string = "empty persona").
+5. **Persona + enabled tools in `MetadataJson`.** These feed the `IAgentRuntimeCustomizer` seam on every turn. They are carried in `Metadata` under the `agent_builder.persona` / `agent_builder.enabled_tools` keys, mirroring `AgentRegistration.Metadata` 1:1 — no dual-write, and the customizer reads them from the hydrated registration.
 
 ```sql
 -- Case-insensitive unique index on Name (CRITICAL — runtime does case-insensitive lookups)
