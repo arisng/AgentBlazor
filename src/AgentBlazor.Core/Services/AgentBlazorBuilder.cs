@@ -182,29 +182,29 @@ public sealed class AgentBlazorBuilder
         return this;
     }
 
-        /// <summary>
-        /// Registers a runtime customizer that can override system instructions and filter tools
-        /// per agent turn. A single customizer is supported — the last registration wins.
-        /// </summary>
-        public AgentBlazorBuilder AddRuntimeCustomizer<TCustomizer>()
-            where TCustomizer : class, IAgentRuntimeCustomizer
-        {
-            Services.RemoveAll<IAgentRuntimeCustomizer>();
-            Services.AddSingleton<IAgentRuntimeCustomizer, TCustomizer>();
-            return this;
-        }
+    /// <summary>
+    /// Registers a runtime customizer that can override system instructions and filter tools
+    /// per agent turn. A single customizer is supported — the last registration wins.
+    /// </summary>
+    public AgentBlazorBuilder AddRuntimeCustomizer<TCustomizer>()
+        where TCustomizer : class, IAgentRuntimeCustomizer
+    {
+        Services.RemoveAll<IAgentRuntimeCustomizer>();
+        Services.AddSingleton<IAgentRuntimeCustomizer, TCustomizer>();
+        return this;
+    }
 
-        /// <summary>
-        /// Registers a factory-backed runtime customizer. A single customizer is supported — the
-        /// last registration wins.
-        /// </summary>
-        public AgentBlazorBuilder AddRuntimeCustomizer(Func<IServiceProvider, IAgentRuntimeCustomizer> factory)
-        {
-            ArgumentNullException.ThrowIfNull(factory);
-            Services.RemoveAll<IAgentRuntimeCustomizer>();
-            Services.AddSingleton(factory);
-            return this;
-        }
+    /// <summary>
+    /// Registers a factory-backed runtime customizer. A single customizer is supported — the
+    /// last registration wins.
+    /// </summary>
+    public AgentBlazorBuilder AddRuntimeCustomizer(Func<IServiceProvider, IAgentRuntimeCustomizer> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Services.RemoveAll<IAgentRuntimeCustomizer>();
+        Services.AddSingleton(factory);
+        return this;
+    }
 
     /// <summary>
     /// Replaces the default runtime adapter with a custom implementation.
