@@ -2,7 +2,7 @@
 name: ab-chat-session-management
 description: "Manage agent chat sessions — browse past conversations, select and resume sessions, and hydrate chat UI from stored history. Use when building session browser/selector UIs, wiring session selection to AgentChatSurface/AgentChatWidget, querying IConversationStore for active or user-scoped sessions (GetActiveSessionsAsync, GetSessionsForUserAsync, GetHistoryAsync), understanding the session-key isolation model (AgentConversationScope), setting up user-to-session associations (SetUserIdAsync), or working with the AgentChatSurface hydration pipeline (HydrateTimelineFromHistoryAsync, TryResumeActiveRunAsync). Triggers: session browser, session list, resume chat, browse past chats, session selector, chat history browser, switch session, load session, session management."
 metadata:
-    version: 0.3.1
+    version: 0.3.2
 ---
 
 # Chat Session Management — AgentBlazor
@@ -149,6 +149,16 @@ builder.UseJsonFileConversationStore(
 ```
 
 For production durability, implement `IConversationStore` with EF Core — see [ab-conversation-store](../ab-conversation-store/SKILL.md). Use a stable, app-authored `SessionId` (not a circuit GUID) when the conversation must survive a page refresh.
+
+## Custom SessionId Approach
+
+If you want to generate your own `Guid` (or any string) in your chat UI component and pass it as the `SessionId` parameter to `AgentChatSurface`, see the [Custom SessionId Guide](custom-session-id-guide.md) for a plain English explanation of how this works, when you might want it, and important considerations.
+
+**Key points:**
+- This is a legitimate, supported approach called "consumer-provided session ID"
+- Your custom ID becomes the `BaseSessionId` in the entity model
+- **DO NOT** embed tenant IDs in session keys — use the `TenantId` column in the entity model for tenant isolation instead
+- Generate the Guid once per component lifecycle, not on every render
 
 ## Key Code References
 

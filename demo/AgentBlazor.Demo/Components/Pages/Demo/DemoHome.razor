@@ -188,15 +188,15 @@ IReadOnlyList<string> Tags);
         new("Inspector", "Agent Inspector",
             "Dev tools panel showing runs, events, prompts, and state for every agent turn.",
             "/demo/debug", "Open inspector",
-            ["AgentInspectorPanel", "DevTools", "5-tab panel"]),
-        new("Customization", "Runtime Customization",
-            "Edit an agent's persona and toggle its tool set live, then chat with the customized agent.",
-            "/demo/customization", "Open showcase",
             ["IAgentRuntimeCustomizer", "Per-agent persona", "Tool filtering"]),
         new("Customization", "Agent Builder",
             "Build and register agents at runtime against a database-backed IAgentRegistry — the dynamic counterpart to static AddAgent/AddWorkflow.",
             "/demo/agent-builder", "Open builder",
             ["IAgentRegistry", "Database-backed", "AddOrUpdate", "Persona"]),
+        new("Sessions", "Custom Session ID",
+            "Use custom session IDs instead of circuit IDs, with tenant isolation via entity model (not embedded in session keys).",
+            "/demo/custom-session-id", "Open demo",
+            ["Custom SessionId", "Tenant isolation", "Entity model"]),
             ];
 
     private static string GetScaleLabel(DemoScenarioScale scale)

@@ -1,0 +1,95 @@
+@page "/demo/custom-session-id"
+@layout DemoLayout
+@using AgentBlazor.Components
+@using AgentBlazor.Components.Chat
+@using MudBlazor
+
+<PageTitle>Custom Session ID Demo — AgentBlazor Demo</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Custom Session ID Demo</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    This demo shows how to use custom session IDs instead of the default Blazor circuit IDs.
+    The chat UI component generates a new Guid and passes it as the SessionId parameter.
+    Tenant isolation is handled by the TenantId column in the entity model, NOT by embedding tenant IDs in session keys.
+</MudText>
+
+<MudPaper Elevation="0" Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-2">How It Works</MudText>
+    <MudList T="string">
+        <MudListItem T="string">
+            <MudText><strong>1. Custom Session ID:</strong> The component generates a new Guid when initialized</MudText>
+        </MudListItem>
+        <MudListItem T="string">
+            <MudText><strong>2. Pass to Chat Surface:</strong> The Guid is passed as the SessionId parameter to AgentChatSurface</MudText>
+        </MudListItem>
+        <MudListItem T="string">
+            <MudText><strong>3. Tenant Isolation:</strong> Handled by TenantId column in the entity model, NOT embedded in session keys</MudText>
+        </MudListItem>
+    </MudList>
+</MudPaper>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-2">Chat with Custom Session ID</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                Session ID: <code>@_sessionId</code>
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="GenerateNewSessionId" Class="mb-4">
+                Generate New Session ID
+            </MudButton>
+            
+            <AgentChatSurface SessionId="@_sessionId"
+                              Title="Custom Session Chat"
+                              Description="This chat uses a custom session ID instead of the circuit ID" />
+        </MudPaper>
+    </MudItem>
+    
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="0" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-2">Session ID Details</MudText>
+            <MudList T="string">
+                <MudListItem T="string">
+                    <MudText><strong>Current Session ID:</strong> @_sessionId</MudText>
+                </MudListItem>
+                <MudListItem T="string">
+                    <MudText><strong>Session ID Type:</strong> Custom Guid (not circuit ID)</MudText>
+                </MudListItem>
+                <MudListItem T="string">
+                    <MudText><strong>Tenant Isolation:</strong> Via TenantId column (not embedded in session key)</MudText>
+                </MudListItem>
+                <MudListItem T="string">
+                    <MudText><strong>Persistence:</strong> Session survives page refresh if stored in browser storage</MudText>
+                </MudListItem>
+            </MudList>
+            
+            <MudDivider Class="my-4" />
+            
+            <MudText Typo="Typo.h6" Class="mb-2">Key Points</MudText>
+            <MudList T="string">
+                <MudListItem T="string">
+                    <MudText>✓ Session ID is generated once per component lifecycle</MudText>
+                </MudListItem>
+                <MudListItem T="string">
+                    <MudText>✓ No tenant ID embedded in session key</MudText>
+                </MudListItem>
+                <MudListItem T="string">
+                    <MudText>✓ Tenant isolation handled by entity model</MudText>
+                </MudListItem>
+                <MudListItem T="string">
+                    <MudText>✓ Works with agent isolation if enabled</MudText>
+                </MudListItem>
+            </MudList>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _sessionId = Guid.NewGuid().ToString();
+
+    private void GenerateNewSessionId()
+    {
+        _sessionId = Guid.NewGuid().ToString();
+        StateHasChanged();
+    }
+}
