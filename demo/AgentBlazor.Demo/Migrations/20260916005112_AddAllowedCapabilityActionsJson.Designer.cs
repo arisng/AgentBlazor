@@ -3,6 +3,7 @@ using System;
 using AgentBlazor.Demo.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AgentBlazor.Demo.Migrations
 {
     [DbContext(typeof(DemoDbContext))]
-    partial class DemoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260916005112_AddAllowedCapabilityActionsJson")]
+    partial class AddAllowedCapabilityActionsJson
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
@@ -24,10 +27,6 @@ namespace AgentBlazor.Demo.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("AllowedActionsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("AllowedCapabilityActionsJson")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -48,6 +47,9 @@ namespace AgentBlazor.Demo.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("EnabledToolsJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("Instructions")
                         .HasColumnType("TEXT");
 
@@ -59,6 +61,9 @@ namespace AgentBlazor.Demo.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("Persona")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .ValueGeneratedOnAdd()
@@ -183,6 +188,10 @@ namespace AgentBlazor.Demo.Migrations
             modelBuilder.Entity("AgentBlazor.Demo.Data.DemoAgentDefinitionEntity", b =>
                 {
                     b.HasBaseType("AgentBlazor.Core.Persistence.AgentDefinitionEntity");
+
+                    b.Property<string>("AllowedCapabilityActionsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("TenantId")
                         .HasMaxLength(128)

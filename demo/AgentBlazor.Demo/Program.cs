@@ -443,7 +443,10 @@ static async Task SeedAgentDefinitionsAsync(
             Description = seed.Description,
             Instructions = seed.Instructions,
             AllowedComponentsJson = AgentDefinitionEntity.SerializeSet(seed.AllowedComponents),
-            AllowedActionsJson = AgentDefinitionEntity.SerializeSet(seed.AllowedCapabilityActions),
+            AllowedActionsJson = AgentDefinitionEntity.SerializeSet(seed.AllowedActions),
+            // Workflow agents: AllowedCapabilityActions has its own column —
+            // persist it there (mirrors the runtime model).
+            AllowedCapabilityActionsJson = AgentDefinitionEntity.SerializeSet(seed.AllowedCapabilityActions),
             AllowedDataSchemasJson = AgentDefinitionEntity.SerializeSet(seed.AllowedDataSchemas),
             MetadataJson = AgentDefinitionEntity.SerializeDictionary(seed.Metadata),
         });

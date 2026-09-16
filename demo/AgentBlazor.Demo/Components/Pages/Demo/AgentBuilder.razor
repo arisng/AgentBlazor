@@ -252,6 +252,18 @@
             metadata["route_prefixes"] = string.Join(",", routes);
         }
 
+        // Persona + enabled tools are part of the runtime model — carry them in
+        // Metadata so a single AddOrUpdate persists everything (no SetCustomization).
+        if (!string.IsNullOrWhiteSpace(_persona))
+        {
+            metadata[DatabaseBackedAgentRegistry.PersonaKey] = _persona.Trim();
+        }
+
+        if (_enabledToolIds.Count > 0)
+        {
+            metadata[DatabaseBackedAgentRegistry.EnabledToolsKey] = string.Join(",", _enabledToolIds);
+        }
+
         var registration = new AgentRegistration
         {
             Name = _name.Trim(),
@@ -263,10 +275,6 @@
         };
 
         Registry.AddOrUpdate(registration);
-        Registry.SetCustomization(
-            registration.Name,
-            string.IsNullOrWhiteSpace(_persona) ? null : _persona.Trim(),
-            _enabledToolIds.Count == 0 ? null : new HashSet<string>(_enabledToolIds, StringComparer.OrdinalIgnoreCase));
 
         _selectedAgent ??= registration.Name;
         Refresh();

@@ -72,10 +72,10 @@ public sealed class DemoDbContext(DbContextOptions<DemoDbContext> options)
         agent.Property(static x => x.Description).HasMaxLength(512);
         agent.Property(static x => x.AllowedComponentsJson).HasColumnType("text");
         agent.Property(static x => x.AllowedActionsJson).HasColumnType("text");
+        agent.Property(static x => x.AllowedCapabilityActionsJson).HasColumnType("text");
         agent.Property(static x => x.AllowedDataSchemasJson).HasColumnType("text");
         agent.Property(static x => x.MetadataJson).HasColumnType("text");
-        agent.Property(static x => x.Persona).HasColumnType("text");
-        agent.Property(static x => x.EnabledToolsJson).HasColumnType("text");
+
         agent.Property(static x => x.TenantId).HasMaxLength(128);
         agent.Property(static x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
         agent.Property(static x => x.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");

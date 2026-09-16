@@ -139,35 +139,19 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         entity.Instructions = registration.Instructions;
         entity.AllowedComponentsJson = AgentDefinitionEntity.SerializeSet(registration.AllowedComponents);
         entity.AllowedActionsJson = AgentDefinitionEntity.SerializeSet(registration.AllowedActions);
+        entity.AllowedCapabilityActionsJson = AgentDefinitionEntity.SerializeSet(registration.AllowedCapabilityActions);
         entity.AllowedDataSchemasJson = AgentDefinitionEntity.SerializeSet(registration.AllowedDataSchemas);
+        // MetadataJson is the single source of truth — persona + enabled tools
+        // are carried in Metadata under PersonaKey / EnabledToolsKey, so this
+        // round-trips 1:1 with AgentRegistration.Metadata.
         entity.MetadataJson = AgentDefinitionEntity.SerializeDictionary(registration.Metadata);
-
-        // Persist the runtime-customizer persona / enabled tools carried in metadata.
-        entity.Persona = registration.Metadata.TryGetValue(PersonaKey, out var persona) ? persona : null;
-        var enabledTools = registration.Metadata.TryGetValue(EnabledToolsKey, out var tools)
-            ? tools
-            : null;
-        entity.EnabledToolsJson = enabledTools is null
-            ? null
-            : AgentDefinitionEntity.SerializeSet(enabledTools.Split(',', StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static AgentRegistration ToRegistration(DemoAgentDefinitionEntity entity)
     {
+        // MetadataJson ↔ Metadata round-trips 1:1 — persona + enabled tools
+        // are already in the metadata under PersonaKey / EnabledToolsKey.
         var metadata = AgentDefinitionEntity.DeserializeDictionary(entity.MetadataJson);
-
-        // Re-attach persisted persona / enabled tools into the in-memory registration so
-        // the Agent Builder page can read them back.
-        if (!string.IsNullOrWhiteSpace(entity.Persona))
-        {
-            metadata[PersonaKey] = entity.Persona;
-        }
-
-        if (!string.IsNullOrWhiteSpace(entity.EnabledToolsJson))
-        {
-            metadata[EnabledToolsKey] = string.Join(",",
-                AgentDefinitionEntity.DeserializeSet(entity.EnabledToolsJson));
-        }
 
         return new AgentRegistration
         {
@@ -176,6 +160,10 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
             Instructions = entity.Instructions,
             AllowedComponents = AgentDefinitionEntity.DeserializeSet(entity.AllowedComponentsJson),
             AllowedActions = AgentDefinitionEntity.DeserializeSet(entity.AllowedActionsJson),
+            // AllowedCapabilityActions is set only at construction (object
+            // initializer; AgentRegistrationBuilder.Build() is internal). The
+            // AllowedCapabilityActionsJson column mirrors it 1:1.
+            AllowedCapabilityActions = AgentDefinitionEntity.DeserializeSet(entity.AllowedCapabilityActionsJson),
             AllowedDataSchemas = AgentDefinitionEntity.DeserializeSet(entity.AllowedDataSchemasJson),
             Metadata = metadata
         };
@@ -206,9 +194,17 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
     }
 
     /// <summary>
-    /// Persists the persona / enabled-tool customization for an agent (creating the agent if
-    /// needed) and refreshes the cache.
+    /// Convenience for a <b>customization-only</b> update path (e.g. a persona
+    /// editor that does not touch the agent definition): persists the persona /
+    /// enabled-tool customization for an agent (creating the agent if needed)
+    /// and refreshes the cache.
     /// </summary>
+    /// <remarks>
+    /// The builder's save path does NOT need this — build the full
+    /// <see cref="AgentRegistration"/> with persona / enabled tools in
+    /// <c>Metadata</c> under <see cref="PersonaKey"/> / <see cref="EnabledToolsKey"/>
+    /// and call <see cref="AddOrUpdate"/> once (single write).
+    /// </remarks>
     public void SetCustomization(string agentName, string? persona, IReadOnlySet<string>? enabledToolIds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
