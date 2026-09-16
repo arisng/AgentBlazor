@@ -2,7 +2,7 @@
 name: ab-conversation-store
 description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; implementing incremental persistence operations (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync) keyed by ConversationTurn.TurnId; wiring UseJsonFileConversationStore; or enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore. Consumer-side only; never edit package internals. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, TurnId, conversation persistence, incremental persistence, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, UseProLicense, agent action persistence, action history SQL."
 metadata:
-    version: 0.4.0
+    version: 0.4.1
 ---
 
 # Conversation Store — AgentBlazor
@@ -293,3 +293,7 @@ A Singleton store/proxy that must carry circuit identity into backend calls (tok
 - Seed **only the current identity's entry** from fresh scope; if identity is unresolvable, log a structured warning and skip seeding — never fall back to another user's cached credentials.
 - This pattern prevents cross-user data/credential leakage when a single Singleton instance serves all circuits. See the `SingletonConversationStoreProxyTests` reference for the isolation test shape.
 - **Capture in scope → restore into fresh scopes.** The proxy has two resolution branches: the pushed execution scope (`IAgentExecutionScopeAccessor.Current`) and a fresh `IServiceScopeFactory.CreateScope()`. A fresh scope inherits nothing (`HttpContext` null, `CircuitTokenCache` empty, scoped session context null) — seed it from the per-identity cache, including the session context, only when identity resolves; see [Fresh-scope context bridging](references/fresh-scope-context-bridging.md).
+
+## Related Skills
+
+- **[Custom SessionId Guide](../ab-chat-session-management/custom-session-id-guide.md)** — Plain English explanation of using consumer-provided session IDs instead of circuit GUIDs, including when to use it, code examples, and entity model implications

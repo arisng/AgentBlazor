@@ -2,7 +2,7 @@
 name: ab-remote-chat
 description: "Host AgentBlazor remote chat in Blazor WebAssembly — server MapAgentBlazorRemoteChat plus browser-safe AgentBlazor.Client components. Use when wiring /agentblazor/chat/run on the server, mounting AgentRemoteChatSurface/Widget/Panel/Bar in a WASM client, registering WASM HttpClient, choosing SessionId/AgentName/UserId/Context, or diagnosing remote-chat failures. Consumer-side only; never edit package internals. Triggers: MapAgentBlazorRemoteChat, AgentBlazor.Client, AgentRemoteChatSurface, AgentRemoteChatWidget, RemoteChatRunRequest, hosted WebAssembly, browser-safe chat."
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # `ab-remote-chat` — Blazor WASM Remote Chat
@@ -123,3 +123,4 @@ Optional request params: `AgentName` targets one server agent, `UserId` feeds pe
 - Session identity, hydration, browser UIs → see `ab-chat-session-management`.
 - Store choice and `IConversationStore` impl → see `ab-conversation-store`.
 - Server-first composer assets and Enter behavior → see `ab-chat-composer`.
+- Custom session ID approach (plain English guide) → see `ab-chat-session-management/custom-session-id-guide.md`.

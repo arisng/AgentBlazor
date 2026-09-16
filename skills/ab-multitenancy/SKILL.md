@@ -2,7 +2,7 @@
 name: ab-multitenancy
 description: "Enable multi-tenant production deployments of AgentBlazor apps on Blazor Interactive Server with BFF + API + SQL Server. Covers tenant resolution with Finbuckle.MultiTenant, per-tenant LLM provider via proxy IChatClient, per-tenant EF Core conversation/data stores, and AgentBlazor middleware for cost control and tenant enrichment. Consumer apps inherit the library's abstract base entities (ConversationSessionEntity, ConversationTurnEntity, AgentDefinitionEntity) and add TenantId + global query filters. Use when: multi-tenant AgentBlazor, per-tenant AI providers, tenant isolation in agent conversations, Finbuckle setup, or SaaS production deployments. Triggers: multi-tenant, multitenant, SaaS, tenant isolation, Finbuckle, BFF pattern, TenantAwareChatClient, proxy IChatClient, tenant resolution, ITenantContext, ab-multitenancy."
 metadata:
-    version: 0.3.0
+    version: 0.3.1
 ---
 
 # Multi-Tenant AgentBlazor — Finbuckle Edition
@@ -348,3 +348,4 @@ The tenant must survive the whole turn pipeline. Relying only on `SessionId` emb
 - **`ab-middleware-authoring`** — `IAgentTurnMiddleware` for per-tenant cost control and audit
 - **`ab-conversation-store`** — per-tenant `IConversationStore` implementations
 - **`ab-entity-design`** — library abstract base entities for conversation/agent persistence; consumer apps extend with TenantId
+- **`ab-chat-session-management/custom-session-id-guide.md`** — Plain English guide for using custom session IDs (relevant when considering session key design for multitenancy)
