@@ -19,8 +19,8 @@ namespace AgentBlazor.Core.Persistence;
 /// <remarks>
 /// <strong>AgentBlazor features:</strong>
 /// <list type="bullet">
-///   <item><description>Dynamic agent registration — Name, Instructions, tool/component/action collections</description></item>
-///   <item><description>Agent persona customization — Persona property for system-instruction override</description></item>
+///   <item><description>Dynamic agent registration — Name, Instructions, tool/component/action/capability-action collections</description></item>
+///   <item><description>Agent persona customization — custom persona + enabled tools carried in MetadataJson (agent_builder.persona / agent_builder.enabled_tools)</description></item>
 ///   <item><description>Token cost management — metadata JSON carries pricing configuration</description></item>
 /// </list>
 /// </remarks>
@@ -46,21 +46,21 @@ public abstract class AgentDefinitionEntity
     /// <summary>JSON array of allowed action IDs, e.g. <c>["compId.actionId"]</c>.</summary>
     public string AllowedActionsJson { get; set; } = "[]";
 
+    /// <summary>
+    /// JSON array of allowed capability action IDs, e.g. <c>["capabilityId.localActionId"]</c>.
+    /// Mirrors <c>AgentRegistration.AllowedCapabilityActions</c>.
+    /// </summary>
+    public string AllowedCapabilityActionsJson { get; set; } = "[]";
+
     /// <summary>JSON array of allowed data schema names.</summary>
     public string AllowedDataSchemasJson { get; set; } = "[]";
 
     /// <summary>
-    /// Optional persona (system-instruction override) for the runtime customizer.
+    /// JSON object of agent metadata (e.g. route_prefixes). Persona and enabled
+    /// tools are carried here under the <c>agent_builder.persona</c> /
+    /// <c>agent_builder.enabled_tools</c> keys, mirroring
+    /// <c>AgentRegistration.Metadata</c> 1:1.
     /// </summary>
-    public string? Persona { get; set; }
-
-    /// <summary>
-    /// Optional JSON array of enabled tool IDs for the runtime customizer. Null means
-    /// "no filtering" (all tools enabled).
-    /// </summary>
-    public string? EnabledToolsJson { get; set; }
-
-    /// <summary>JSON object of agent metadata (e.g. route_prefixes).</summary>
     public string MetadataJson { get; set; } = "{}";
 
     /// <summary>UTC timestamp when this agent definition was created.</summary>
