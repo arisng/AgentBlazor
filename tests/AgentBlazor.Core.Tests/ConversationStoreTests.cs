@@ -416,6 +416,112 @@ public class ConversationStoreTests
             }
         }
 
+    // --- GetSessionSummariesAsync tests ---
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_EmptyStore_ReturnsEmpty()
+    {
+        var store = CreateStore();
+
+        var summaries = await store.GetSessionSummariesAsync();
+
+        Assert.Empty(summaries);
+    }
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_ReturnsCorrectMetadata()
+    {
+        var store = CreateStore();
+        await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+        await Task.Delay(10);
+        await store.AppendTurnAsync("session-1", CreateTurn("Update", "Updated!"));
+
+        var summaries = await store.GetSessionSummariesAsync();
+        var summary = Assert.Single(summaries);
+
+        Assert.Equal("session-1", summary.SessionKey);
+        Assert.Equal("session-1", summary.BaseSessionId);
+        Assert.Null(summary.AgentName);
+        Assert.Equal(2, summary.TurnCount);
+        // LastMessage is from the LAST turn's user message
+        Assert.Equal("Update", summary.LastMessage);
+        Assert.True(summary.LastActivity >= summary.CreatedAt);
+    }
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_WithoutTitle_FallsBackToFirstUserMessage()
+    {
+        var store = CreateStore();
+        await store.AppendTurnAsync("session-1", CreateTurn("What is Blazor?", "Blazor is..."));
+
+        var history = await store.GetHistoryAsync("session-1");
+        Assert.NotNull(history);
+
+        var summaries = await store.GetSessionSummariesAsync();
+        var summary = Assert.Single(summaries);
+
+        Assert.Null(summary.Title);
+        // GetDisplayTitle requires turns passed in for the fallback
+        Assert.Equal("What is Blazor?", summary.GetDisplayTitle(history.Turns));
+    }
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_EmptyTurns_ReturnsEmptyTitle()
+    {
+        var store = CreateStore();
+
+        // Append then clear — turns removed but session still exists with 0 turns
+        await store.AppendTurnAsync("session-1", CreateTurn("Hello", "Hi!"));
+        await store.ClearSessionAsync("session-1");
+
+        var summaries = await store.GetSessionSummariesAsync();
+
+        // ClearSessionAsync removes the session entirely, so no summary
+        Assert.Empty(summaries);
+    }
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_AgentScopedSession_ParsesAgentName()
+    {
+        var store = CreateStore();
+        await store.AppendTurnAsync("session-1::agent::weather", CreateTurn("Forecast?", "Sunny."));
+
+        var summaries = await store.GetSessionSummariesAsync();
+        var summary = Assert.Single(summaries);
+
+        Assert.Equal("session-1::agent::weather", summary.SessionKey);
+        Assert.Equal("session-1", summary.BaseSessionId);
+        Assert.Equal("weather", summary.AgentName);
+    }
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_MaxCount_LimitsResults()
+    {
+        var store = CreateStore();
+        await store.AppendTurnAsync("s1", CreateTurn("A", "B"));
+        await store.AppendTurnAsync("s2", CreateTurn("C", "D"));
+        await store.AppendTurnAsync("s3", CreateTurn("E", "F"));
+
+        var summaries = await store.GetSessionSummariesAsync(maxCount: 2);
+
+        Assert.Equal(2, summaries.Count);
+    }
+
+    [Fact]
+    public async Task GetSessionSummariesAsync_MultipleSessions_OrderByLastActivity()
+    {
+        var store = CreateStore();
+        await store.AppendTurnAsync("old", CreateTurn("Old", "Old response"));
+        await Task.Delay(50);
+        await store.AppendTurnAsync("new", CreateTurn("New", "New response"));
+
+        var summaries = (await store.GetSessionSummariesAsync()).ToList();
+
+        Assert.Equal(2, summaries.Count);
+        Assert.Equal("new", summaries[0].SessionKey);
+        Assert.Equal("old", summaries[1].SessionKey);
+    }
+
     private static InMemoryConversationStore CreateStore()
     {
         var options = MsOptions.Create(new ConversationOptions

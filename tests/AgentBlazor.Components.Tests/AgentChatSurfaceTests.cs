@@ -884,5 +884,10 @@ public sealed class AgentChatSurfaceTests : TestContext
                 string userId,
                 CancellationToken cancellationToken = default)
                 => _inner.GetSessionsForUserAsync(userId, cancellationToken);
+
+            public Task<IReadOnlyCollection<SessionSummary>> GetSessionSummariesAsync(
+                int? maxCount = null,
+                CancellationToken cancellationToken = default)
+                => _inner.GetSessionSummariesAsync(maxCount, cancellationToken);
         }
     }
