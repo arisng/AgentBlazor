@@ -265,10 +265,9 @@ foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs'
     if ($text -match 'DemoDbContext') {
         $dynamicRegistry.storeContext += $file.BaseName
     }
-    if ($file.BaseName -eq 'SeedAgentDefinitions') {
-        $dynamicRegistry.seeder = $true
-    }
 }
+# The seeder lives in Program.cs (SeedAgentDefinitionsAsync), not in a Services file.
+$dynamicRegistry.seeder = [regex]::IsMatch($programText, 'SeedAgentDefinitions')
 $builderPage = Join-Path $DemoRoot 'Components\Pages\Demo\AgentBuilder.razor'
 if (Test-Path $builderPage) {
     $page = Get-Content $builderPage -Raw
