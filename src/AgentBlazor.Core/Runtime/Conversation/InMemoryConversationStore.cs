@@ -307,6 +307,46 @@ internal sealed class InMemoryConversationStore : IConversationStore, IDisposabl
         return Task.FromResult<IReadOnlyCollection<string>>(Array.Empty<string>());
     }
 
+    public Task<IReadOnlyCollection<SessionSummary>> GetSessionSummariesAsync(
+        int? maxCount = null,
+        CancellationToken cancellationToken = default)
+    {
+        var summaries = _sessions
+            .Where(kvp => !IsExpired(kvp.Value) && kvp.Value.Turns.Count > 0)
+            .Select(kvp =>
+            {
+                var history = kvp.Value;
+                var lastTurn = history.Turns[^1];
+                var lastMessage = !string.IsNullOrWhiteSpace(lastTurn.UserMessage)
+                    ? TruncatePreview(lastTurn.UserMessage)
+                    : !string.IsNullOrWhiteSpace(lastTurn.AgentResponse)
+                        ? TruncatePreview(lastTurn.AgentResponse)
+                        : null;
+
+                return new SessionSummary
+                {
+                    SessionKey = kvp.Key,
+                    Title = history.Title,
+                    TurnCount = history.Turns.Count,
+                    CreatedAt = history.CreatedAt,
+                    LastActivity = history.LastActivityAt,
+                    UserId = history.UserId,
+                    LastMessage = lastMessage
+                };
+            })
+            .OrderByDescending(static s => s.LastActivity)
+            .ToList();
+
+        var result = maxCount is > 0
+            ? summaries.Take(maxCount.Value).ToList()
+            : summaries;
+
+        return Task.FromResult<IReadOnlyCollection<SessionSummary>>(result);
+
+        static string TruncatePreview(string value)
+            => SessionSummary.TruncatePreview(value);
+    }
+
     private bool IsExpired(ConversationHistory history) =>
         DateTime.UtcNow - history.LastActivityAt > _options.SessionTimeout;
 
