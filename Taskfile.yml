@@ -4,8 +4,9 @@
 #
 # Usage:
 #   task                     → lists all tasks
-#   task demo                → run Demo with EF Core store (default)
-#   task demo:run:jsonfile   → run Demo with JsonFile store
+#   task demo                → run Demo via Aspire AppHost (SQL Server + Docker)
+#   task demo:aspire         → run Demo via Aspire AppHost explicitly
+#   task demo:build          → build Demo project
 #   task starter             → run Starter sample (default)
 #   task starter:run:openai  → run Starter with OpenAI provider
 #   task build               → build entire solution (Release)
@@ -14,6 +15,7 @@
 #
 # Prerequisites:
 #   - .NET SDK 10.0.x (pinned via global.json)
+#   - Docker Desktop (required for Aspire AppHost SQL Server container)
 #   - Node.js + npm (for E2E tests only)
 #   - Playwright (installed via tests/e2e/ npm scripts)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -21,6 +23,7 @@ version: '3'
 
 vars:
   DEMO_PROJECT: demo/AgentBlazor.Demo/AgentBlazor.Demo.csproj
+  APPHOST_PROJECT: demo/AgentBlazor.Demo.AppHost/AgentBlazor.Demo.AppHost.csproj
   STARTER_PROJECT: samples/AgentBlazor.Starter/AgentBlazor.Starter.csproj
   SOLUTION: AgentBlazor.slnx
   E2E_DIR: tests/e2e
@@ -72,6 +75,23 @@ tasks:
     deps: [clean, restore]
     cmds:
       - task: build
+
+  # ── Aspire AppHost (solution-level) ──────────────────────────────────────
+
+  aspire:build:
+    desc: Build the Aspire AppHost project
+    cmds:
+      - dotnet build {{.APPHOST_PROJECT}} -c Release
+
+  aspire:
+    desc: "Run Aspire AppHost (orchestrates Demo + SQL Server)"
+    aliases: [a]
+    summary: >-
+      Launches the Aspire AppHost which orchestrates the Demo project
+      with a SQL Server Docker container. Connection strings are
+      injected automatically by Aspire.
+    cmds:
+      - dotnet run --project {{.APPHOST_PROJECT}} -c Release
 
   # ═══════════════════════════════════════════════════════════════════════════
   #  CODE QUALITY: Format / Lint / CSS
@@ -144,7 +164,7 @@ tasks:
         platforms: [windows]
 
   # ═══════════════════════════════════════════════════════════════════════════
-  #  DEMO PROJECT — Build & Run
+  #  DEMO PROJECT — Build & Run (Aspire AppHost + SQL Server)
   # ═══════════════════════════════════════════════════════════════════════════
 
   demo:build:
@@ -152,127 +172,38 @@ tasks:
     cmds:
       - dotnet build {{.DEMO_PROJECT}} -c Release
 
-  demo:build:debug:
-    desc: Build the Demo project (Debug)
-    cmds:
-      - dotnet build {{.DEMO_PROJECT}} -c Debug
+  # ── Aspire AppHost (primary local dev workflow) ─────────────────────────
 
-  # ── Run with conversation store variants ──────────────────────────────────
+  demo:aspire:
+    desc: "Run Demo via Aspire AppHost (SQL Server + Docker)"
+    aliases: [da]
+    summary: >-
+      Launches the Demo through the Aspire AppHost which orchestrates a
+      SQL Server Docker container (agentblazor-demo-sqlserver) and injects
+      the connection string. Dashboard at https://localhost:22222.
+    cmds:
+      - dotnet run --project {{.APPHOST_PROJECT}} -c Release
 
   demo:
-    desc: "Run Demo with EF Core conversation store (default)"
+    desc: "Run Demo via Aspire AppHost (default)"
     aliases: [d]
-    summary: |-
-      Launches the Demo Blazor app with the EF Core + SQLite conversation
-      store. Data persists in a temp SQLite database across restarts.
-      Override with CONVERSATION_STORE env var (JsonFile | EFCore | InMemory).
-    cmds:
-      - task: demo:run:efcore
-
-  demo:run:efcore:
-    desc: "Run Demo with EF Core + SQLite conversation store"
     summary: >-
-      Durable conversation store backed by SQLite via EF Core.
-      Data persists across restarts in a temp SQLite database.
-    env:
-      DemoConversation__Store: EFCore
-      ASPNETCORE_ENVIRONMENT: Development
+      Launches the Demo through the Aspire AppHost which orchestrates
+      SQL Server via Docker and injects the connection string.
     cmds:
-      - dotnet run --project {{.DEMO_PROJECT}} -c Release
-
-  demo:run:jsonfile:
-    desc: "Run Demo with JsonFile conversation store"
-    summary: >-
-      Durable conversation store backed by a single JSON file on disk.
-      Data persists across restarts. File location is configurable.
-    env:
-      DemoConversation__Store: JsonFile
-      ASPNETCORE_ENVIRONMENT: Development
-    cmds:
-      - dotnet run --project {{.DEMO_PROJECT}} -c Release
-
-  demo:run:inmemory:
-    desc: "Run Demo with InMemory conversation store (ephemeral)"
-    summary: >-
-      Ephemeral conversation store — data is lost on process restart.
-      Useful for quick experimentation or CI smoke tests.
-    env:
-      DemoConversation__Store: InMemory
-      ASPNETCORE_ENVIRONMENT: Development
-    cmds:
-      - dotnet run --project {{.DEMO_PROJECT}} -c Release
-
-  # ── Run with provider variants ───────────────────────────────────────────
-
-  demo:run:openai:
-    desc: "Run Demo with OpenAI provider (requires OPENAI_API_KEY)"
-    env:
-      DemoConversation__Store: EFCore
-      ASPNETCORE_ENVIRONMENT: Development
-    preconditions:
-      - sh: test -n "$OPENAI_API_KEY"
-        platforms: [linux, darwin]
-        msg: "Set OPENAI_API_KEY environment variable first"
-      - cmd: if "%OPENAI_API_KEY%"=="" exit /b 1
-        platforms: [windows]
-        msg: "Set OPENAI_API_KEY environment variable first"
-    cmds:
-      - dotnet run --project {{.DEMO_PROJECT}} -c Release
-
-  demo:run:ollama:
-    desc: "Run Demo with Ollama provider (local, requires Ollama running)"
-    env:
-      DemoConversation__Store: EFCore
-      ASPNETCORE_ENVIRONMENT: Development
-    cmds:
-      - dotnet run --project {{.DEMO_PROJECT}} -c Release
-
-  demo:run:debug:
-    desc: "Run Demo in Debug mode with EF Core store"
-    env:
-      DemoConversation__Store: EFCore
-      ASPNETCORE_ENVIRONMENT: Development
-    cmds:
-      - dotnet run --project {{.DEMO_PROJECT}} -c Debug
-
-  # ── Docker ───────────────────────────────────────────────────────────────
-
-  demo:docker:build:
-    desc: Build the Demo Docker image
-    vars:
-      TAG:
-        sh: git rev-parse --short HEAD
-    cmds:
-      - docker build -t agentblazor-demo:{{.TAG}} -t agentblazor-demo:latest .
-
-  demo:docker:run:
-    desc: Run the Demo Docker container
-    vars:
-      TAG:
-        sh: git rev-parse --short HEAD
-    cmds:
-      - docker run -p 8080:8080 --rm agentblazor-demo:{{.TAG}}
-
-  demo:docker:publish:
-    desc: Build and push Demo Docker image to ghcr.io
-    vars:
-      TAG:
-        sh: git rev-parse --short HEAD
-    cmds:
-      - docker build -t ghcr.io/ashpeterson/agentblazor-demo:{{.TAG}} -t ghcr.io/ashpeterson/agentblazor-demo:latest .
-      - docker push ghcr.io/ashpeterson/agentblazor-demo:{{.TAG}}
-      - docker push ghcr.io/ashpeterson/agentblazor-demo:latest
+      - task: demo:aspire
 
   # ── Database utilities ───────────────────────────────────────────────────
 
   demo:db:reset:
-    desc: Delete both workflow and conversation SQLite databases (fresh start)
-    summary: Removes the temp SQLite files so the Demo re-creates them on next run.
+    desc: Remove the SQL Server Docker container and volume (fresh database)
+    summary: >-
+      Stops and removes the agentblazor-demo-sqlserver container and its
+      Docker volume. The next Aspire AppHost run will recreate both.
     cmds:
-      - cmd: powershell -Command 'Remove-Item "$env:TEMP\agentblazor-demo.db" -Force -ErrorAction SilentlyContinue; Remove-Item "$env:TEMP\agentblazor-demo-conversations.db" -Force -ErrorAction SilentlyContinue; echo "Databases reset"'
-        platforms: [windows]
-      - cmd: rm -f /tmp/agentblazor-demo.db /tmp/agentblazor-demo-conversations.db
-        platforms: [linux, darwin]
+      - docker rm -f agentblazor-demo-sqlserver 2>/dev/null || true
+      - docker volume rm agentblazor-demo-sqlserver 2>/dev/null || true
+      - echo "SQL Server container and volume removed"
 
   # ═══════════════════════════════════════════════════════════════════════════
   #  STARTER SAMPLE — Build & Run
@@ -481,6 +412,9 @@ tasks:
 
   demo:watch:
     desc: Run Demo with dotnet watch (hot-reload on code changes)
+    summary: >-
+      Hot-reload for the Demo project. Requires a running SQL Server —
+      start demo:aspire in another terminal first to spin up the container.
     cmds:
       - dotnet watch run --project {{.DEMO_PROJECT}} -c Debug
 
