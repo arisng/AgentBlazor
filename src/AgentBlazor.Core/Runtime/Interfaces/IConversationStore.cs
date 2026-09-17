@@ -110,4 +110,74 @@ public interface IConversationStore
     Task<IReadOnlyCollection<string>> GetSessionsForUserAsync(
         string userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets lightweight session summaries for list-panel display. Returns no turn payloads —
+    /// only scalar metadata (turn count, last activity, title, agent name, usage).
+    /// </summary>
+    /// <param name="maxCount">
+    /// Optional maximum number of summaries to return. <c>null</c> returns all active sessions.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Collection of session summaries ordered by most-recent activity.</returns>
+    async Task<IReadOnlyCollection<SessionSummary>> GetSessionSummariesAsync(
+        int? maxCount = null,
+        CancellationToken cancellationToken = default)
+    {
+        var sessionIds = await GetActiveSessionsAsync(cancellationToken);
+
+        // Apply a multiplier to maxCount before loading to bound the work.
+        // Sessions with 0 turns are skipped, so we load extra to compensate.
+        // This trades slightly more loading for avoiding a full O(N×M) scan.
+        var loadLimit = maxCount is > 0 ? maxCount.Value * 3 : 0;
+        var sessionIdsToLoad = loadLimit > 0
+            ? sessionIds.Take(loadLimit)
+            : sessionIds;
+
+        var results = new List<SessionSummary>();
+
+        foreach (var sessionId in sessionIdsToLoad)
+        {
+            var history = await GetHistoryAsync(sessionId, cancellationToken);
+            if (history is null || history.Turns.Count == 0)
+            {
+                continue;
+            }
+
+            var lastTurn = history.Turns[^1];
+            var lastMessage = !string.IsNullOrWhiteSpace(lastTurn.UserMessage)
+                ? TruncatePreview(lastTurn.UserMessage)
+                : !string.IsNullOrWhiteSpace(lastTurn.AgentResponse)
+                    ? TruncatePreview(lastTurn.AgentResponse)
+                    : null;
+
+            results.Add(new SessionSummary
+            {
+                SessionKey = sessionId,
+                Title = history.Title,
+                TurnCount = history.Turns.Count,
+                CreatedAt = history.CreatedAt,
+                LastActivity = history.LastActivityAt,
+                UserId = history.UserId,
+                LastMessage = lastMessage
+            });
+
+            // Early exit once we have enough summaries for the requested count.
+            if (maxCount is > 0 && results.Count >= maxCount.Value)
+            {
+                break;
+            }
+        }
+
+        var ordered = results
+            .OrderByDescending(static s => s.LastActivity)
+            .ToList();
+
+        return maxCount is > 0
+            ? ordered.Take(maxCount.Value).ToList()
+            : ordered;
+
+        static string TruncatePreview(string value)
+            => SessionSummary.TruncatePreview(value);
+    }
 }

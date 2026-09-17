@@ -33,6 +33,9 @@ public abstract class ConversationSessionEntity
     /// <summary>Optional user identifier for per-user conversation scoping.</summary>
     public string? UserId { get; set; }
 
+    /// <summary>Optional display title for the session.</summary>
+    public string? Title { get; set; }
+
     /// <summary>UTC timestamp when this session was first created.</summary>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 

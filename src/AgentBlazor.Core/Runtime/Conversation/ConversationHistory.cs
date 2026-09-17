@@ -166,12 +166,18 @@ public sealed record ConversationHistory
     public string? UserId { get; init; }
 
     /// <summary>
+    /// Optional display title for the session.
+    /// </summary>
+    public string? Title { get; init; }
+
+    /// <summary>
     /// Creates an empty history for a new session.
     /// </summary>
-    public static ConversationHistory Create(string sessionId, string? userId = null) => new()
+    public static ConversationHistory Create(string sessionId, string? userId = null, string? title = null) => new()
     {
         SessionId = sessionId,
         UserId = userId,
+        Title = title,
         Turns = [],
         CreatedAt = DateTime.UtcNow,
         LastActivityAt = DateTime.UtcNow

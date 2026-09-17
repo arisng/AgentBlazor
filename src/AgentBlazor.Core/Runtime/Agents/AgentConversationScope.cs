@@ -5,7 +5,7 @@ namespace AgentBlazor.Core.Runtime.Agents;
 /// </summary>
 public static class AgentConversationScope
 {
-    private const string Separator = "::agent::";
+    public const string Separator = "::agent::";
 
     public static string BuildSessionKey(
         string sessionId,
