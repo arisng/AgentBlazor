@@ -54,6 +54,16 @@ public static class AgentBlazorServiceCollectionExtensions
         services.TryAddSingleton<IAgentRegistry>(sp => BuildAgentRegistry(
             sp.GetRequiredService<AgentBlazorConfigurationStore>()));
 
+        // Async seam over the registry. Resolved from IAgentRegistry rather than built
+        // independently so both interfaces always observe the same instance; a consumer
+        // that registered its own IAgentRegistry (directly, or by calling AddAgentBlazor
+        // after its own registration) wins here exactly as it does for IAgentRegistry.
+        services.TryAddSingleton<IAsyncAgentRegistry>(sp =>
+        {
+            var registry = sp.GetRequiredService<IAgentRegistry>();
+            return registry as IAsyncAgentRegistry ?? new SyncAgentRegistryAsyncAdapter(registry);
+        });
+
         // Component action executors (specialized, kept for backwards compatibility)
         services.TryAddSingleton<IDataGridActionExecutor, NoOpDataGridActionExecutor>();
         services.TryAddSingleton<IDialogActionExecutor, NoOpDialogActionExecutor>();

@@ -2213,6 +2213,151 @@ public class ServiceRegistrationTests
         Assert.Equal("country-select", result.Message);
     }
 
+    #region Async agent registry
+
+    [Fact]
+    public void AddAgentBlazorServices_ResolvesSameInstanceForSyncAndAsyncRegistry()
+    {
+        var services = new ServiceCollection();
+        services.AddAgentBlazorServices();
+
+        using var provider = services.BuildServiceProvider();
+
+        var sync = provider.GetRequiredService<IAgentRegistry>();
+        var async_ = provider.GetRequiredService<IAsyncAgentRegistry>();
+
+        // The render path injects IAsyncAgentRegistry while the turn path injects
+        // IAgentRegistry. Two distinct instances would give the two paths divergent agent
+        // lists, so identity here is a correctness requirement, not an optimization.
+        Assert.Same(sync, async_);
+    }
+
+    [Fact]
+    public void AddAgentBlazorServices_AsyncRegistryExposesConfiguredAgents()
+    {
+        var services = new ServiceCollection();
+        services.AddAgentBlazorServices();
+        services.AgentBlazor().AddAgent("Async Seam Agent");
+
+        using var provider = services.BuildServiceProvider();
+
+        var registry = provider.GetRequiredService<IAsyncAgentRegistry>();
+        var names = registry.GetAllAsync().GetAwaiter().GetResult().Select(a => a.Name);
+
+        Assert.Contains("Async Seam Agent", names);
+    }
+
+    [Fact]
+    public async Task AddAgentBlazorServices_TryGetAsync_InvokesCallbackOnlyWhenFound()
+    {
+        var services = new ServiceCollection();
+        services.AddAgentBlazorServices();
+        services.AgentBlazor().AddAgent("Callback Agent");
+
+        using var provider = services.BuildServiceProvider();
+        var registry = provider.GetRequiredService<IAsyncAgentRegistry>();
+
+        AgentRegistration? found = null;
+        var hit = await registry.TryGetAsync("Callback Agent", registration =>
+        {
+            found = registration;
+            return true;
+        });
+
+        // Case-insensitive, mirroring the sync contract.
+        var lowerHit = await registry.TryGetAsync("callback agent", _ => true);
+
+        var missInvoked = false;
+        var miss = await registry.TryGetAsync("No Such Agent", _ =>
+        {
+            missInvoked = true;
+            return true;
+        });
+
+        Assert.True(hit);
+        Assert.Equal("Callback Agent", found?.Name);
+        Assert.True(lowerHit);
+        Assert.False(miss);
+        // A miss must not surface as a null registration the caller could mistake for a hit.
+        Assert.False(missInvoked);
+    }
+
+    [Fact]
+    public async Task SyncAgentRegistryAsyncAdapter_ServesReadsThroughTheAsyncSeam()
+    {
+        var inner = new InMemoryAgentRegistry();
+        inner.AddOrUpdate(new AgentRegistration { Name = "Adapted Agent" });
+        var adapter = new SyncAgentRegistryAsyncAdapter(inner);
+
+        var all = await adapter.GetAllAsync();
+        var hit = await adapter.TryGetAsync("Adapted Agent", _ => true);
+        var miss = await adapter.TryGetAsync("Absent Agent", _ => true);
+
+        Assert.Single(all);
+        Assert.True(hit);
+        Assert.False(miss);
+
+        // The sync members must delegate to the same store rather than return empty.
+        Assert.True(adapter.TryGet("Adapted Agent", out var viaSync));
+        Assert.Equal("Adapted Agent", viaSync.Name);
+        Assert.Single(adapter.GetAll());
+    }
+
+    [Fact]
+    public void AddAgentBlazorServices_ConsumerRegisteredAsyncRegistryWins()
+    {
+        var services = new ServiceCollection();
+        var custom = new InMemoryAgentRegistry();
+        custom.AddOrUpdate(new AgentRegistration { Name = "Consumer Agent" });
+
+        // Registered before AddAgentBlazorServices, mirroring the documented "replace" path
+        // the demo uses. TryAdd must not clobber it.
+        services.AddSingleton<IAsyncAgentRegistry>(custom);
+        services.AddAgentBlazorServices();
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Same(custom, provider.GetRequiredService<IAsyncAgentRegistry>());
+    }
+
+    [Fact]
+    public async Task InMemoryAgentRegistry_AsyncMembersAvoidTheDefaultLinearScan()
+    {
+        var registry = new InMemoryAgentRegistry();
+        for (var i = 0; i < 50; i++)
+        {
+            registry.AddOrUpdate(new AgentRegistration { Name = $"Agent {i}" });
+        }
+
+        var probed = 0;
+        var hit = await registry.TryGetAsync("Agent 7", registration =>
+        {
+            probed++;
+            return true;
+        });
+
+        Assert.True(hit);
+        // An override that performs a keyed lookup reaches exactly one registration; the
+        // inherited default would materialize and walk all 50.
+        Assert.Equal(1, probed);
+        Assert.Equal(50, (await registry.GetAllAsync()).Count);
+    }
+
+    [Fact]
+    public async Task IAsyncAgentRegistry_AddOrUpdateAsync_RejectsNullSynchronously()
+    {
+        var registry = new InMemoryAgentRegistry();
+
+        // Null must surface at the call site rather than as a faulted task, matching the
+        // synchronous AddOrUpdate contract.
+        var ex = await Assert.ThrowsAsync<ArgumentNullException>(
+            () => registry.AddOrUpdateAsync(null!));
+
+        Assert.Equal("registration", ex.ParamName);
+    }
+
+    #endregion
+
     private sealed class StubDataGridActionExecutor : IDataGridActionExecutor
     {
         public Task<ComponentActionExecutionResult> ExecuteAsync(
