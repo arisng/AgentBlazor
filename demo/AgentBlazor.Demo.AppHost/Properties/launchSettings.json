@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "AgentBlazor.Demo.AppHost": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:22222;http://localhost:22223",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_ROLL_FORWARD": "LatestMajor"
+      }
+    }
+  }
+}

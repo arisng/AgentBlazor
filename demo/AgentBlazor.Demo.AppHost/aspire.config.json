@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "AgentBlazor.Demo.AppHost.csproj"
+  }
+}

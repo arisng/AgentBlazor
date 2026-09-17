@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/demo/">
+    <Project Path="demo/AgentBlazor.Demo.AppHost/AgentBlazor.Demo.AppHost.csproj" />
+    <Project Path="demo/AgentBlazor.Demo.ServiceDefaults/AgentBlazor.Demo.ServiceDefaults.csproj" />
     <Project Path="demo/AgentBlazor.Demo/AgentBlazor.Demo.csproj" />
   </Folder>
   <Folder Name="/samples/">

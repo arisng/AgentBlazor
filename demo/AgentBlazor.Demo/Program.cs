@@ -5,6 +5,7 @@ using AgentBlazor.Attributes;
 using AgentBlazor.Demo.Configuration;
 using AgentBlazor.Demo.Components;
 using AgentBlazor.Demo.Data;
+using AgentBlazor.Demo.ServiceDefaults;
 using AgentBlazor.Demo.Services;
 using AgentBlazor.Core.Data;
 using AgentBlazor.Core.Runtime.Tools;
@@ -21,6 +22,7 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseStaticWebAssets();
+builder.AddServiceDefaults();
 
 // Ensure [AgentFlow] logs are visible when running prompts
 builder.Logging.AddFilter("AgentBlazor.Core.Runtime.Agents.AgentRuntime", LogLevel.Information);
@@ -45,40 +47,25 @@ builder.Services.Configure<DemoTokenPricingOptions>(builder.Configuration.GetSec
 builder.Services.Configure<DemoRemoteStorageOptions>(builder.Configuration.GetSection(DemoRemoteStorageOptions.SectionName));
 builder.Services.Configure<DemoConversationOptions>(builder.Configuration.GetSection(DemoConversationOptions.SectionName));
 builder.Services.Configure<DemoWorkflowOptions>(builder.Configuration.GetSection(DemoWorkflowOptions.SectionName));
-// ---------------------------------------------------------------
-// SQLite database convention — all Demo SQLite files live in
-//   demo/AgentBlazor.Demo/data/
-// The directory is created on startup if missing and is gitignored.
-// ---------------------------------------------------------------
-var demoDataDir = Path.Combine(builder.Environment.ContentRootPath, "data");
-Directory.CreateDirectory(demoDataDir);
-
 var demoConversationOptions = builder.Configuration
     .GetSection(DemoConversationOptions.SectionName)
     .Get<DemoConversationOptions>()
     ?? new DemoConversationOptions();
-if (string.IsNullOrWhiteSpace(demoConversationOptions.FilePath))
-{
-    demoConversationOptions.FilePath = Path.Combine(demoDataDir, "agentblazor-demo-conversations.json");
-}
 
 // Per-session usage rollups for the session browser. The Null query is the default
 // (JsonFile/InMemory stores have no usage columns); the EFCore branch below replaces
-// it with the SQLite-backed query.
+// it with the SQL Server-backed query.
 builder.Services.AddSingleton<IDemoConversationUsageQuery, NullDemoConversationUsageQuery>();
 
 // Unified EF Core DbContext — conversation sessions/turns + agent definitions in one
-// SQLite database, managed by code-first migrations.
-var demoDatabaseOptions = builder.Configuration
-    .GetSection(DemoDatabaseOptions.SectionName)
-    .Get<DemoDatabaseOptions>()
-    ?? new DemoDatabaseOptions();
-if (string.IsNullOrWhiteSpace(demoDatabaseOptions.ConnectionString))
-{
-    demoDatabaseOptions.ConnectionString = $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo.db")}";
-}
+// SQL Server database, managed by code-first migrations.
+// Connection string is injected by Aspire AppHost as "ConnectionStrings:demo-db".
+var demoConnectionString = builder.Configuration.GetConnectionString("demo-db")
+    ?? throw new InvalidOperationException(
+        "Connection string 'demo-db' not found. When running via Aspire AppHost, this is injected automatically. " +
+        "For standalone development, add 'ConnectionStrings:demo-db' to appsettings.json.");
 builder.Services.AddDbContextFactory<DemoDbContext>(options =>
-    options.UseSqlite(demoDatabaseOptions.ConnectionString));
+    options.UseSqlServer(demoConnectionString));
 
 // EF Core conversation store (DemoConversation:Store=EFCore) — a custom
 // IConversationStore implementation demonstrating the production-database pattern.
@@ -130,10 +117,6 @@ var demoWorkflowOptions = builder.Configuration
     .GetSection(DemoWorkflowOptions.SectionName)
     .Get<DemoWorkflowOptions>()
     ?? new DemoWorkflowOptions();
-if (string.IsNullOrWhiteSpace(demoWorkflowOptions.ConnectionString))
-{
-    demoWorkflowOptions.ConnectionString = $"Data Source={Path.Combine(demoDataDir, "agentblazor-demo-workflow.db")}";
-}
 var sharedAgentInstructionsPath = Path.Combine(builder.Environment.ContentRootPath, "agent-instructions.txt");
 var sharedAgentInstructions = File.Exists(sharedAgentInstructionsPath)
     ? File.ReadAllText(sharedAgentInstructionsPath)
@@ -214,13 +197,13 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddDbContextFactory<DemoWorkflowDbContext>(options =>
-    options.UseSqlite(demoWorkflowOptions.ConnectionString));
+    options.UseSqlServer(demoConnectionString));
 builder.Services.AddSingleton<DemoWorkflowDatabaseSeeder>();
 
 // -----------------------------------------------------------------------------
 // Agent Builder — database-backed IAgentRegistry (replace path).
 // A custom IAgentRegistry is registered BEFORE AddAgentBlazor so it wins over the
-// built-in InMemoryAgentRegistry snapshot, making this SQLite store the single
+// built-in InMemoryAgentRegistry snapshot, making this SQL Server store the single
 // source of truth for all agents. See the "Dynamic Agent Registration" section of
 // the ab-agent-registration skill.
 // -----------------------------------------------------------------------------
@@ -294,7 +277,7 @@ builder.Services.AddAgentBlazor(options =>
         // (append once, targeted UpdateTurnAsync patches for enriched/edited turns, never full-history rewrites) 
         // across three store backends:
         //   - JsonFile (default) — durable JSON-file store
-        //   - EFCore           — durable SQLite EF Core store (custom IConversationStore)
+        //   - EFCore           — durable SQL Server EF Core store (custom IConversationStore)
         //   - InMemory         — ephemeral
         if (string.Equals(demoConversationOptions.Store, "JsonFile", StringComparison.OrdinalIgnoreCase))
         {
@@ -371,15 +354,22 @@ var app = builder.Build();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    var seeder = scope.ServiceProvider.GetRequiredService<DemoWorkflowDatabaseSeeder>();
-    await seeder.InitializeAsync(CancellationToken.None);
-
-    // Apply EF Core migrations for the unified DemoDbContext (creates schema if
-    // fresh, applies pending migrations if existing).
+    // Apply EF Core migrations for DemoDbContext (conversations, agent definitions).
     var dbFactory = scope.ServiceProvider
         .GetRequiredService<IDbContextFactory<DemoDbContext>>();
     await using var db = await dbFactory.CreateDbContextAsync(CancellationToken.None);
     await db.Database.MigrateAsync(CancellationToken.None);
+
+    // Apply EF Core migrations for DemoWorkflowDbContext (workflow tables).
+    var workflowDbFactory = scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<DemoWorkflowDbContext>>();
+    await using var workflowDb = await workflowDbFactory.CreateDbContextAsync(CancellationToken.None);
+    await workflowDb.Database.MigrateAsync(CancellationToken.None);
+
+    // Run the workflow seeder (adds columns that may not be in migrations yet,
+    // e.g. BudgetFriendly, OnePotMeal, Vegan on dojo_workspaces).
+    var seeder = scope.ServiceProvider.GetRequiredService<DemoWorkflowDatabaseSeeder>();
+    await seeder.InitializeAsync(CancellationToken.None);
 
     // Seed baseline agent definitions (idempotent — existing agents are preserved).
     await using var agentScope = await dbFactory.CreateDbContextAsync(CancellationToken.None);
@@ -411,6 +401,7 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 var agentEndpoints = app.MapAgentBlazorEndpoints();
 app.MapDemoLogEndpoints();
+app.MapDefaultEndpoints();
 
 if (demoSecurityOptions.RateLimiting.Enabled)
 {
