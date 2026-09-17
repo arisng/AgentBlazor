@@ -213,6 +213,13 @@ builder.Services.AddSingleton<DemoWorkflowDatabaseSeeder>();
 builder.Services.AddSingleton<DatabaseBackedAgentRegistry>();
 builder.Services.AddSingleton<AgentBlazor.Agents.IAgentRegistry>(sp =>
     sp.GetRequiredService<DatabaseBackedAgentRegistry>());
+// Alias the async seam onto the SAME instance. AddAgentBlazor's own registration cannot
+// cover this: it resolves IAgentRegistry, which this line has already replaced. Without
+// this alias the render path would keep resolving the thread-pool shim and the database
+// read would still block the renderer -- the very deadlock this store must avoid.
+// Both interfaces must stay on one instance or the render path reads a stale cache.
+builder.Services.AddSingleton<AgentBlazor.Agents.IAsyncAgentRegistry>(sp =>
+    sp.GetRequiredService<DatabaseBackedAgentRegistry>());
 
 builder.Services.AddAgentBlazor(options =>
 {
@@ -374,6 +381,13 @@ await using (var scope = app.Services.CreateAsyncScope())
     // Seed baseline agent definitions (idempotent — existing agents are preserved).
     await using var agentScope = await dbFactory.CreateDbContextAsync(CancellationToken.None);
     await SeedAgentDefinitionsAsync(agentScope, sharedAgentInstructions, CancellationToken.None);
+
+    // Warm the registry cache now that migrations + agent seeding have run, so no later
+    // read has to touch the database from a render thread. Must come after the seeding
+    // above, or the baseline agents would be missing from the cache until the next refresh.
+    await scope.ServiceProvider
+        .GetRequiredService<DatabaseBackedAgentRegistry>()
+        .InitializeAsync(CancellationToken.None);
 }
 
 // Configure the HTTP request pipeline.

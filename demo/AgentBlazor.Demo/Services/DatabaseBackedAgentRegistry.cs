@@ -15,14 +15,22 @@ namespace AgentBlazor.Demo.Services;
 /// the <see cref="IAgentRuntimeCustomizer"/> seam.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Demonstrates the "replace" dynamic-registration path: registered with
 /// <c>AddSingleton&lt;IAgentRegistry&gt;(...)</c> BEFORE <c>AddAgentBlazor</c>, so the
 /// built-in <c>InMemoryAgentRegistry</c> snapshot is skipped and this store is the
 /// single source of truth for all agents. Uses <c>IDbContextFactory&lt;DemoDbContext&gt;</c>
 /// so the singleton registry never captures a scoped context. Registered as a
 /// singleton — resolve it from DI wherever agents are mutated (the Agent Builder page).
+/// </para>
+/// <para>
+/// Implements <see cref="IAsyncAgentRegistry"/> so the Blazor render path can read the
+/// agent list without blocking the renderer's synchronization context. The synchronous
+/// members are retained unchanged for non-render callers; they load over EF Core
+/// synchronously, which is only safe off the renderer thread.
+/// </para>
 /// </remarks>
-public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
+public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
 {
     /// <summary>Metadata key that persists the runtime-customizer persona for an agent.</summary>
     public const string PersonaKey = "agent_builder.persona";
@@ -33,6 +41,7 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
     private readonly IDbContextFactory<DemoDbContext> _dbFactory;
     private readonly ConcurrentDictionary<string, AgentRegistration> _cache =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
     private volatile bool _loaded;
 
     public DatabaseBackedAgentRegistry(IDbContextFactory<DemoDbContext> dbFactory)
@@ -51,10 +60,30 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         return _cache.Values.ToArray();
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyCollection<AgentRegistration>> GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        return _cache.Values.ToArray();
+    }
+
     public bool TryGet(string name, out AgentRegistration registration)
     {
         EnsureLoaded();
         return _cache.TryGetValue(name, out registration!);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryGetAsync(
+        string name,
+        Func<AgentRegistration, bool> onFound,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onFound);
+
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        return _cache.TryGetValue(name, out var registration) && onFound(registration);
     }
 
     public void AddOrUpdate(AgentRegistration registration)
@@ -85,6 +114,41 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         _cache[registration.Name] = registration;
     }
 
+    /// <inheritdoc />
+    public async Task AddOrUpdateAsync(
+        AgentRegistration registration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+
+        // Persist, then update the cache so the change is visible immediately.
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var now = DateTime.UtcNow;
+        var lookup = registration.Name.ToLower();
+        var entity = await db.AgentDefinitions
+            .FirstOrDefaultAsync(e => e.Name.ToLower() == lookup, cancellationToken)
+            .ConfigureAwait(false);
+        if (entity is null)
+        {
+            entity = new DemoAgentDefinitionEntity
+            {
+                Id = Guid.NewGuid(),
+                Name = registration.Name,
+                CreatedAtUtc = now
+            };
+            db.AgentDefinitions.Add(entity);
+        }
+
+        ApplyRegistration(entity, registration);
+        entity.UpdatedAtUtc = now;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _cache[registration.Name] = registration;
+    }
+
     /// <summary>
     /// Deletes an agent by name (out-of-band — <see cref="IAgentRegistry"/> has no
     /// remove method) and evicts the cache. Returns <see langword="true"/> if an
@@ -108,16 +172,86 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
     }
 
     /// <summary>
+    /// Asynchronous counterpart to <see cref="RemoveAgent"/>. The Agent Builder page is a
+    /// render-thread caller, where the synchronous EF Core delete would deadlock.
+    /// </summary>
+    /// <param name="name">The agent name to delete.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> if an agent was removed.</returns>
+    public async Task<bool> RemoveAgentAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var lookup = name.ToLower();
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var entity = await db.AgentDefinitions
+            .FirstOrDefaultAsync(e => e.Name.ToLower() == lookup, cancellationToken)
+            .ConfigureAwait(false);
+        if (entity is null)
+        {
+            return false;
+        }
+
+        db.AgentDefinitions.Remove(entity);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return _cache.TryRemove(name, out _);
+    }
+
+    /// <summary>
     /// Re-hydrates the in-memory cache from the database. Called by the database seeder
     /// after it writes baseline agents on first boot.
     /// </summary>
     public void RefreshFromDatabase() => RefreshCache();
 
+    /// <summary>
+    /// Hydrates the cache once at startup, after EF Core migrations and agent seeding have
+    /// run. This is the only place the registry loads from the database; every later read
+    /// is served from <see cref="_cache"/>.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
+        => EnsureLoadedAsync(cancellationToken);
+
     private void EnsureLoaded()
     {
-        if (!_loaded)
+        if (_loaded)
         {
-            RefreshCache();
+            return;
+        }
+
+        // Reaching here means a synchronous member ran before InitializeAsync, which would
+        // put an EF Core query on the Blazor renderer thread -- the deadlock this type
+        // exists to avoid. That is a wiring bug (the startup hydrate is missing or ordered
+        // before migrations), so fail loudly instead of silently blocking.
+        throw new InvalidOperationException(
+            $"{nameof(DatabaseBackedAgentRegistry)} was used before {nameof(InitializeAsync)} " +
+            "completed. The synchronous registry members serve a warm cache only.");
+    }
+
+    private async Task EnsureLoadedAsync(CancellationToken cancellationToken)
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        // Single hydrated cache shared by every circuit, so concurrent first reads must be
+        // serialized; without this each racing caller would re-query on its own thread.
+        await _loadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_loaded)
+            {
+                await RefreshCacheAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _loadLock.Release();
         }
     }
 
@@ -129,6 +263,26 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         {
             _cache[entity.Name] = ToRegistration(entity);
         }
+        _loaded = true;
+    }
+
+    /// <summary>Rehydrates the cache. Callers must already hold <see cref="_loadLock"/>.</summary>
+    private async Task RefreshCacheAsync(CancellationToken cancellationToken)
+    {
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var entities = await db.AgentDefinitions
+            .AsNoTracking()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        _cache.Clear();
+        foreach (var entity in entities)
+        {
+            _cache[entity.Name] = ToRegistration(entity);
+        }
+
         _loaded = true;
     }
 

@@ -8,7 +8,6 @@
 @using MudBlazor
 @implements IDisposable
 @inject DemoSessionBrowserService SessionService
-@inject IAgentRegistry AgentRegistry
 @inject IAgentChatSessionEvents SessionEvents
 @inject NavigationManager NavigationManager
 
@@ -39,7 +38,7 @@
                                    Variant="Variant.Filled"
                                    Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="ShowNewPicker">
+                                   OnClick="ShowNewPickerAsync">
                             New
                         </MudButton>
                         <MudIconButton Icon="@Icons.Material.Filled.Refresh"
@@ -185,7 +184,7 @@
                                        Variant="Variant.Filled"
                                        Color="Color.Primary"
                                        Disabled="@string.IsNullOrWhiteSpace(_newAgentName)"
-                                       OnClick="StartNewChat">
+                                       OnClick="StartNewChatAsync">
                                 Start chat
                             </MudButton>
                             <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary" OnClick="CancelNew">
@@ -310,7 +309,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        _agentOptions = SessionService.GetAvailableAgents();
+        _agentOptions = await SessionService.GetAvailableAgentsAsync();
         _newAgentName ??= _agentOptions.FirstOrDefault()?.Name;
         TrySelectFromQuery();
     }
@@ -353,9 +352,9 @@
         NavigationManager.NavigateTo(uri, replace: true);
     }
 
-    private void ShowNewPicker()
+    private async Task ShowNewPickerAsync()
     {
-        _agentOptions ??= SessionService.GetAvailableAgents();
+        _agentOptions ??= await SessionService.GetAvailableAgentsAsync();
         _newAgentName ??= _agentOptions.FirstOrDefault()?.Name;
         _showNewPicker = true;
     }
@@ -365,7 +364,7 @@
         _showNewPicker = false;
     }
 
-    private void StartNewChat()
+    private async Task StartNewChatAsync()
     {
         if (string.IsNullOrWhiteSpace(_newAgentName))
         {
@@ -373,8 +372,8 @@
         }
 
         var agent = _newAgentName.Trim();
-        var baseId = SessionService.BuildNewBaseSessionId(agent);
-        _newDraft = new NewChatDraft(baseId, agent, SessionService.GetRouteForAgent(agent));
+        var baseId = await SessionService.BuildNewBaseSessionIdAsync(agent);
+        _newDraft = new NewChatDraft(baseId, agent, await SessionService.GetRouteForAgentAsync(agent));
         _selected = null;
         _showNewPicker = false;
 

@@ -153,10 +153,10 @@
     [Inject]
     private IServiceProvider ServiceProvider { get; set; } = default!;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         DiscoverToolOptions();
-        Refresh();
+        await RefreshAsync();
     }
 
     /// <summary>
@@ -189,9 +189,9 @@
         _toolOptions = tools;
     }
 
-    private void Refresh()
+    private async Task RefreshAsync()
     {
-        _agents = Registry.GetAll()
+        _agents = (await Registry.GetAllAsync())
             .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -243,7 +243,7 @@
 
     private void Chat(AgentRegistration agent) => _selectedAgent = agent.Name;
 
-    private void SaveAsync()
+    private async Task SaveAsync()
     {
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var routes = Split(_routePrefixes);
@@ -274,21 +274,21 @@
             Metadata = metadata
         };
 
-        Registry.AddOrUpdate(registration);
+        await Registry.AddOrUpdateAsync(registration);
 
         _selectedAgent ??= registration.Name;
-        Refresh();
+        await RefreshAsync();
         ResetForm();
     }
 
-    private void DeleteAsync(AgentRegistration agent)
+    private async Task DeleteAsync(AgentRegistration agent)
     {
-        Registry.RemoveAgent(agent.Name);
+        await Registry.RemoveAgentAsync(agent.Name);
         if (_selectedAgent == agent.Name)
         {
             _selectedAgent = null;
         }
 
-        Refresh();
+        await RefreshAsync();
     }
 }

@@ -12,12 +12,12 @@ public sealed class DemoSessionBrowserService
     private static readonly string[] RouteKeys = ["route", "routes", "route_prefix", "route_prefixes"];
 
     private readonly IConversationStore _store;
-    private readonly IAgentRegistry _agents;
+    private readonly IAsyncAgentRegistry _agents;
     private readonly IDemoConversationUsageQuery _usageQuery;
 
     public DemoSessionBrowserService(
         IConversationStore store,
-        IAgentRegistry agents,
+        IAsyncAgentRegistry agents,
         IDemoConversationUsageQuery usageQuery)
     {
         _store = store;
@@ -126,22 +126,29 @@ public sealed class DemoSessionBrowserService
     /// Source of truth is <see cref="IAgentRegistry"/> (complete); the route
     /// falls back from the scenario catalog to registry route prefixes.
     /// </summary>
-    public IReadOnlyList<AgentPickerOption> GetAvailableAgents()
-        => _agents.GetAll()
-            .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(a => new AgentPickerOption(
-                a.Name,
-                a.Description,
-                ResolveRouteForAgent(a.Name) ?? ResolveRouteFromRegistry(a.Name)))
-            .ToList();
+    public async Task<IReadOnlyList<AgentPickerOption>> GetAvailableAgentsAsync(
+        CancellationToken ct = default)
+    {
+        var options = new List<AgentPickerOption>();
+        foreach (var agent in (await _agents.GetAllAsync(ct))
+                     .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            options.Add(new AgentPickerOption(
+                agent.Name,
+                agent.Description,
+                ResolveRouteForAgent(agent.Name) ?? await ResolveRouteFromRegistryAsync(agent.Name, ct)));
+        }
+
+        return options;
+    }
 
     /// <summary>
     /// Best route for an agent: scenario catalog first, then registry
     /// route prefixes, then the sessions page itself.
     /// </summary>
-    public string GetRouteForAgent(string agentName)
+    public async Task<string> GetRouteForAgentAsync(string agentName, CancellationToken ct = default)
         => ResolveRouteForAgent(agentName)
-            ?? ResolveRouteFromRegistry(agentName)
+            ?? await ResolveRouteFromRegistryAsync(agentName, ct)
             ?? "/demo/sessions";
 
     /// <summary>
@@ -149,9 +156,9 @@ public sealed class DemoSessionBrowserService
     /// <c>demo:{guid}:{route}</c>. Never pre-suffix <c>::agent::</c> — the
     /// surface appends it via <c>DefaultAgentName</c>.
     /// </summary>
-    public string BuildNewBaseSessionId(string agentName)
+    public async Task<string> BuildNewBaseSessionIdAsync(string agentName, CancellationToken ct = default)
     {
-        var route = GetRouteForAgent(agentName).Split('?', 2)[0].Trim();
+        var route = (await GetRouteForAgentAsync(agentName, ct)).Split('?', 2)[0].Trim();
         if (!route.StartsWith('/'))
         {
             route = "/demo/sessions";
@@ -166,9 +173,16 @@ public sealed class DemoSessionBrowserService
         return $"demo:{Guid.NewGuid():N}:{route}";
     }
 
-    private string? ResolveRouteFromRegistry(string agentName)
+    private async Task<string?> ResolveRouteFromRegistryAsync(string agentName, CancellationToken ct)
     {
-        if (!_agents.TryGet(agentName, out var registration))
+        AgentRegistration? registration = null;
+        await _agents.TryGetAsync(agentName, r =>
+        {
+            registration = r;
+            return true;
+        }, ct);
+
+        if (registration is null)
         {
             return null;
         }
