@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentBlazor.Demo.Data;
 
 /// <summary>
-/// Unified SQLite-backed DbContext for all Demo persistence: conversation sessions,
+/// Unified SQL Server-backed DbContext for all Demo persistence: conversation sessions,
 /// turns, and agent definitions. Replaces the previous split
 /// <c>DemoConversationDbContext</c> + <c>DemoAgentDbContext</c> with a single context
 /// and code-first migrations.
@@ -31,9 +31,6 @@ public sealed class DemoDbContext(DbContextOptions<DemoDbContext> options)
         modelBuilder.Entity<AgentDefinitionEntity>().UseTpcMappingStrategy();
 
         // ── Conversation Sessions ───────────────────────────────────────
-        // SQLite+TPC workaround: client-side int Id generation.
-        // For SQL Server/PostgreSQL, use standard UseAutoincrement() instead.
-        modelBuilder.ConfigureSqliteIdentity<DemoConversationSessionEntity>();
         var session = modelBuilder.Entity<DemoConversationSessionEntity>();
         session.ToTable("demo_conversation_sessions");
         session.HasIndex(static x => x.SessionId).IsUnique();
@@ -41,11 +38,10 @@ public sealed class DemoDbContext(DbContextOptions<DemoDbContext> options)
         session.HasIndex(static x => x.LastActivityAtUtc);
         session.Property(static x => x.SessionId).IsRequired();
         session.Property(static x => x.UserId).HasMaxLength(256);
-        session.Property(static x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-        session.Property(static x => x.LastActivityAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        session.Property(static x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+        session.Property(static x => x.LastActivityAtUtc).HasDefaultValueSql("GETUTCDATE()");
 
         // ── Conversation Turns ──────────────────────────────────────────
-        modelBuilder.ConfigureSqliteIdentity<DemoConversationTurnEntity>();
         var turn = modelBuilder.Entity<DemoConversationTurnEntity>();
         turn.ToTable("demo_conversation_turns");
         turn.HasIndex(static x => x.SessionId);
@@ -54,11 +50,11 @@ public sealed class DemoDbContext(DbContextOptions<DemoDbContext> options)
         turn.Property(static x => x.UserMessage).IsRequired();
         turn.Property(static x => x.AgentResponse).IsRequired();
 
-        // SQLite has no decimal type — store cost columns as REAL for numeric queries.
-        turn.Property(static x => x.EstimatedCost).HasConversion<double>();
-        turn.Property(static x => x.InputTokenCostPerMillion).HasConversion<double>();
-        turn.Property(static x => x.OutputTokenCostPerMillion).HasConversion<double>();
-        turn.Property(static x => x.CachedInputTokenCostPerMillion).HasConversion<double>();
+        // SQL Server decimal precision for cost columns.
+        turn.Property(static x => x.EstimatedCost).HasPrecision(18, 4);
+        turn.Property(static x => x.InputTokenCostPerMillion).HasPrecision(18, 4);
+        turn.Property(static x => x.OutputTokenCostPerMillion).HasPrecision(18, 4);
+        turn.Property(static x => x.CachedInputTokenCostPerMillion).HasPrecision(18, 4);
         turn.Property(static x => x.EstimatedCostCurrency).HasMaxLength(8);
 
         // FK (SessionId → Session nav) and cascade — discovered by convention.
@@ -70,14 +66,14 @@ public sealed class DemoDbContext(DbContextOptions<DemoDbContext> options)
         agent.HasIndex(static x => x.TenantId);
         agent.Property(static x => x.Name).IsRequired().HasMaxLength(256);
         agent.Property(static x => x.Description).HasMaxLength(512);
-        agent.Property(static x => x.AllowedComponentsJson).HasColumnType("text");
-        agent.Property(static x => x.AllowedActionsJson).HasColumnType("text");
-        agent.Property(static x => x.AllowedCapabilityActionsJson).HasColumnType("text");
-        agent.Property(static x => x.AllowedDataSchemasJson).HasColumnType("text");
-        agent.Property(static x => x.MetadataJson).HasColumnType("text");
+        agent.Property(static x => x.AllowedComponentsJson);
+        agent.Property(static x => x.AllowedActionsJson);
+        agent.Property(static x => x.AllowedCapabilityActionsJson);
+        agent.Property(static x => x.AllowedDataSchemasJson);
+        agent.Property(static x => x.MetadataJson);
 
         agent.Property(static x => x.TenantId).HasMaxLength(128);
-        agent.Property(static x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-        agent.Property(static x => x.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        agent.Property(static x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+        agent.Property(static x => x.UpdatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
     }
 }

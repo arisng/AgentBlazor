@@ -9,7 +9,7 @@ namespace AgentBlazor.Demo.Services;
 
 /// <summary>
 /// Database-backed <see cref="IAgentRegistry"/> for the demo — the store behind the
-/// Agent Builder showcase. Persists agent definitions in SQLite via EF Core and
+/// Agent Builder showcase. Persists agent definitions in SQL Server via EF Core and
 /// hydrates them back into <see cref="AgentRegistration"/> on read. Also persists the
 /// per-agent persona / enabled-tool customization so the Agent Builder integrates with
 /// the <see cref="IAgentRuntimeCustomizer"/> seam.
@@ -38,7 +38,7 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
     public DatabaseBackedAgentRegistry(IDbContextFactory<DemoDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
-        // Deliberately do NOT query the database here. The SQLite schema is created by
+        // Deliberately do NOT query the database here. The SQL Server schema is created by
         // EF Core migrations at startup, which runs AFTER this singleton is first
         // constructed (it is resolved by AddAgentBlazor during app.Build). An eager
         // read here throws "no such table: demo_agent_definitions". Instead we load

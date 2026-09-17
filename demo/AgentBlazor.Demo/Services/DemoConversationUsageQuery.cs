@@ -45,7 +45,7 @@ public sealed record SessionUsageTotals(
     string? EstimatedCostCurrency);
 
 /// <summary>
-/// SQLite-backed <see cref="IDemoConversationUsageQuery"/> over the conversation database.
+/// SQL Server-backed <see cref="IDemoConversationUsageQuery"/> over the conversation database.
 /// </summary>
 internal sealed class DemoConversationUsageQuery(IDbContextFactory<DemoDbContext> dbFactory)
     : IDemoConversationUsageQuery

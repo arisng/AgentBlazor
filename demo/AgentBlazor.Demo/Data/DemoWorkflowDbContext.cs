@@ -21,8 +21,8 @@ internal sealed class DemoWorkflowDbContext(DbContextOptions<DemoWorkflowDbConte
         dojoWorkspace.Property(static x => x.SessionKey).IsRequired();
         dojoWorkspace.Property(static x => x.Title).IsRequired();
         dojoWorkspace.Property(static x => x.Difficulty).IsRequired();
-        dojoWorkspace.Property(static x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-        dojoWorkspace.Property(static x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        dojoWorkspace.Property(static x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+        dojoWorkspace.Property(static x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
 
         var dojoIngredient = modelBuilder.Entity<DojoIngredientEntity>();
         dojoIngredient.ToTable("dojo_ingredients");
@@ -61,8 +61,8 @@ internal sealed class DemoWorkflowDbContext(DbContextOptions<DemoWorkflowDbConte
         fileWorkflowFile.Property(static x => x.SessionKey).IsRequired();
         fileWorkflowFile.Property(static x => x.FileName).IsRequired();
         fileWorkflowFile.Property(static x => x.UploadMode).IsRequired();
-        fileWorkflowFile.Property(static x => x.AddedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-        fileWorkflowFile.Property(static x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        fileWorkflowFile.Property(static x => x.AddedUtc).HasDefaultValueSql("GETUTCDATE()");
+        fileWorkflowFile.Property(static x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
 
         var fileWorkflowEvent = modelBuilder.Entity<DemoFileWorkflowEventEntity>();
         fileWorkflowEvent.ToTable("demo_file_workflow_events");
@@ -88,7 +88,7 @@ internal sealed class DemoWorkflowDbContext(DbContextOptions<DemoWorkflowDbConte
         fileWorkflowJob.Property(static x => x.UploadMode).IsRequired();
         fileWorkflowJob.Property(static x => x.Status).IsRequired();
         fileWorkflowJob.Property(static x => x.Message).IsRequired();
-        fileWorkflowJob.Property(static x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-        fileWorkflowJob.Property(static x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        fileWorkflowJob.Property(static x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+        fileWorkflowJob.Property(static x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
     }
 }

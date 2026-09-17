@@ -13,7 +13,7 @@
     <MudText Typo="Typo.h4" Class="mb-2">Agent Builder</MudText>
     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
         Demonstrates the database-backed <Code>IAgentRegistry</Code> (replace path): agents are
-        persisted in SQLite and resolved at runtime from the store — the dynamic counterpart to
+        persisted in SQL Server and resolved at runtime from the store — the dynamic counterpart to
         the static <Code>AddAgent</Code>/<Code>AddWorkflow</Code> startup declarations. Build a
         new agent, edit its persona + tool set, and chat with it live.
     </MudText>
@@ -75,7 +75,7 @@
             <MudPaper Elevation="0" Class="pa-4 mb-4">
                 <MudText Typo="Typo.h6" Class="mb-2">Persisted agents (IAgentRegistry.GetAll)</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
-                    Source of truth is the SQLite store backing <Code>DatabaseBackedAgentRegistry</Code>.
+                    Source of truth is the SQL Server store backing <Code>DatabaseBackedAgentRegistry</Code>.
                 </MudText>
                 @foreach (var agent in _agents)
                 {

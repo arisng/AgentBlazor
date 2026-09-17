@@ -11,10 +11,10 @@ namespace AgentBlazor.Demo.Configuration;
 /// <list type="bullet">
 /// <item><c>JsonFile</c> (default) — durable, survives process restarts; conversation
 /// history is written to <see cref="FilePath"/>.</item>
-/// <item><c>EFCore</c> — durable SQLite-backed store through the unified
+/// <item><c>EFCore</c> — durable SQL Server-backed store through the unified
 /// <see cref="AgentBlazor.Demo.Data.DemoDbContext"/>, demonstrating a custom
 /// EF Core <c>IConversationStore</c> implementation (the production-database pattern).
-/// The connection string is configured via <c>DemoDatabase:ConnectionString</c>.</item>
+/// The connection string is injected by the Aspire AppHost as <c>ConnectionStrings:demo-db</c>.</item>
 /// <item><c>InMemory</c> — ephemeral, reset on process restart (classic demo default).</item>
 /// </list>
 /// </summary>
