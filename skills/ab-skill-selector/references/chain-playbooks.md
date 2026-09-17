@@ -200,7 +200,7 @@ builder to my app", "persist agent definitions to SQL Server".
 **Why this order**: the builder skill owns the end-to-end feature (store,
 registry, authoring surface); entity design validates the
 `AgentDefinitionEntity` subclass and migrations; registration confirms the
-`IAgentRegistry` replacement and route-prefix locking; context assembly wires
+`IAsyncAgentRegistry` replacement (aliased to both interfaces, same instance) and route-prefix locking; context assembly wires
 the runtime customizer so authored instructions actually reach the agent.
 
 **Handoff notes**:

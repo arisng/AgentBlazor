@@ -64,7 +64,7 @@ actually sent."
 **Prompt:** "I want to add an agent builder so my users can author custom
 agents and persist them to SQL Server."
 **Expected:** Selects `ab-agent-builder` as the owning skill (store-backed
-`IAgentRegistry`, `AgentDefinitionEntity` subclass, authoring surface), and
+`IAsyncAgentRegistry`, `AgentDefinitionEntity` subclass, authoring surface), and
 loads its `SKILL.md` before acting. Does not re-derive the feature from
 `ab-agent-registration` alone.
 

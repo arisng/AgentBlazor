@@ -62,7 +62,7 @@ Conversation history is managed automatically by the package — persisted via `
 
 ## Agent Builder × customizer integration
 
-When a consumer app lets users **build agents at runtime** (a database-backed `IAgentRegistry`), compose that with the `IAgentRuntimeCustomizer` seam so a just-built agent immediately honors its persona + tool set:
+When a consumer app lets users **build agents at runtime** (a database-backed `IAsyncAgentRegistry`), compose that with the `IAgentRuntimeCustomizer` seam so a just-built agent immediately honors its persona + tool set:
 
 **Entity design pattern.** [`AgentDefinitionEntity`](../ab-entity-design/SKILL.md#agentdefinitionentity) is an **abstract** base class in `AgentBlazor.Core.Persistence`. It holds:
 
@@ -79,7 +79,7 @@ When a consumer app lets users **build agents at runtime** (a database-backed `I
 Consumer apps **inherit** from this base to add their own columns (e.g.
 `TenantId`, soft-delete, audit fields). The library never directly queries
 consumer entity subtypes — it works through
-the base type and the `IAgentRegistry` / `IAgentRuntimeCustomizer` seams.
+the base type and the `IAsyncAgentRegistry` / `IAgentRuntimeCustomizer` seams.
 
 1. **Persist persona + enabled tools in `Metadata`.** On the concrete entity
    subclass, carry persona + enabled tools in `AgentRegistration.Metadata`

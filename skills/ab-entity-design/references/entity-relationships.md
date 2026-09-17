@@ -97,7 +97,7 @@ Core entity model is tenant-agnostic. `TenantInfo` is a consumer extension conce
 ║  └──────────────────────────────────────────────────────────┘                ║
 ║                                                                              ║
 ║  Standalone entity — no FK to ConversationSessionEntity.                     ║
-║  Maps to AgentRegistration on read for IAgentRegistry.TryGet/GetAll.         ║
+║  Maps to AgentRegistration on read for IAsyncAgentRegistry.                  ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -220,13 +220,13 @@ The raw circuit identifier (`sessionId` parameter above) is stored in `BaseSessi
 
 ### AgentDefinitionEntity: Standalone Registry Store
 
-**Decision:** `AgentDefinitionEntity` is a standalone entity (no FK to `ConversationSessionEntity`) that backs a database-driven `IAgentRegistry`. It lives in the consumer's `DbContext`, not the library's `ConversationDbContext`.
+**Decision:** `AgentDefinitionEntity` is a standalone entity (no FK to `ConversationSessionEntity`) that backs a database-driven `IAsyncAgentRegistry`. It lives in the consumer's `DbContext`, not the library's `ConversationDbContext`.
 
 **Why standalone:**
 
 1. **Different lifecycle.** Agent definitions change via the Agent Builder UI (add/edit/delete). Conversation sessions accumulate passively as users chat. Coupling them via FK would create artificial deletion cascades and shared migration timelines.
 
-2. **Different query patterns.** `IAgentRegistry.TryGet(name)` is a simple key lookup on `Name`. `IConversationStore` operations are session-scoped with incremental turn persistence. The access patterns don't overlap.
+2. **Different query patterns.** `IAsyncAgentRegistry.TryGetAsync(name)` is a simple key lookup on `Name`. `IConversationStore` operations are session-scoped with incremental turn persistence. The access patterns don't overlap.
 
 3. **Optional for most apps.** Most apps use static `AddAgent`/`AddWorkflow` and never need this entity. Making it standalone means apps that don't use a DB-backed registry pay no schema cost.
 

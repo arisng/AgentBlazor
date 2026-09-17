@@ -1,7 +1,7 @@
 # SQL Server Store — Full Implementation
 
 Copy-paste implementation of the store behind an agent builder: entity,
-`DbContext`, migrations, seeding, the store-backed `IAgentRegistry`, and the
+`DbContext`, migrations, seeding, the store-backed `IAsyncAgentRegistry`, and the
 `Program.cs` registration order. Adapted from the Demo's SQLite
 `DatabaseBackedAgentRegistry` to SQL Server. Provider portability rules
 (collation, retry, JSON columns) are owned by
@@ -172,13 +172,21 @@ using Microsoft.EntityFrameworkCore;
 namespace MyApp.Services;
 
 /// <summary>
-/// Database-backed <see cref="IAgentRegistry"/> — the store behind the agent
+/// Database-backed <see cref="IAsyncAgentRegistry"/> — the store behind the agent
 /// builder. Registered BEFORE <c>AddAgentBlazor</c> so the built-in
 /// InMemoryAgentRegistry snapshot is skipped (replace path). Uses
 /// <c>IDbContextFactory&lt;AgentDbContext&gt;</c> so the singleton never
 /// captures a scoped context.
+///
+/// <para>
+/// The async overrides are the load-bearing part: <see cref="AgentChatSurface"/>
+/// awaits <c>GetAllAsync()</c> from <c>OnInitializedAsync</c> on the Blazor Server
+/// renderer thread, where a synchronous EF query would deadlock the whole server.
+/// The synchronous members exist only to satisfy the base interface and refuse to
+/// touch the database before hydration has happened.
+/// </para>
 /// </summary>
-public sealed class SqlServerAgentRegistry : IAgentRegistry
+public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
 {
     /// <summary>Metadata key persisting the runtime-customizer persona.</summary>
     public const string PersonaKey = "agent_builder.persona";
@@ -189,6 +197,7 @@ public sealed class SqlServerAgentRegistry : IAgentRegistry
     private readonly IDbContextFactory<AgentDbContext> _dbFactory;
     private readonly ConcurrentDictionary<string, AgentRegistration> _cache =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
     private volatile bool _loaded;
 
     public SqlServerAgentRegistry(IDbContextFactory<AgentDbContext> dbFactory)
@@ -205,10 +214,31 @@ public sealed class SqlServerAgentRegistry : IAgentRegistry
         return _cache.Values.ToArray();
     }
 
+    public async Task<IReadOnlyCollection<AgentRegistration>> GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        return _cache.Values.ToArray();
+    }
+
     public bool TryGet(string name, out AgentRegistration registration)
     {
         EnsureLoaded();
         return _cache.TryGetValue(name, out registration!);
+    }
+
+    public async Task<bool> TryGetAsync(
+        string name,
+        Func<AgentRegistration, bool> onFound,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onFound);
+
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+
+        // Keeps the O(1) keyed probe. Falling back to a scan of GetAllAsync
+        // would turn this per-turn lookup into a linear walk.
+        return _cache.TryGetValue(name, out var registration) && onFound(registration!);
     }
 
     public void AddOrUpdate(AgentRegistration registration)
@@ -239,10 +269,44 @@ public sealed class SqlServerAgentRegistry : IAgentRegistry
         _cache[registration.Name] = registration;
     }
 
+    public async Task AddOrUpdateAsync(
+        AgentRegistration registration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var now = DateTime.UtcNow;
+        var entity = await db.AgentDefinitions
+            .FirstOrDefaultAsync(e => e.Name == registration.Name, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            entity = new AgentDefinitionEntity
+            {
+                Id = Guid.NewGuid(),
+                Name = registration.Name,
+                CreatedAtUtc = now
+            };
+            db.AgentDefinitions.Add(entity);
+        }
+
+        ApplyRegistration(entity, registration);
+        entity.UpdatedAtUtc = now;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _cache[registration.Name] = registration;
+    }
+
     /// <summary>
-    /// Deletes an agent by name (out-of-band — <see cref="IAgentRegistry"/> has
-    /// no remove method) and evicts the cache. Returns <see langword="true"/>
-    /// if an agent was removed.
+    /// Deletes an agent by name (out-of-band — neither interface has a remove
+    /// method) and evicts the cache. Returns <see langword="true"/> if an agent
+    /// was removed.
     /// </summary>
     public bool RemoveAgent(string name)
     {
@@ -260,14 +324,69 @@ public sealed class SqlServerAgentRegistry : IAgentRegistry
         return _cache.TryRemove(name, out _);
     }
 
+    /// <summary>Asynchronous counterpart of <see cref="RemoveAgent"/>; use this from UI code.</summary>
+    public async Task<bool> RemoveAgentAsync(string name, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var entity = await db.AgentDefinitions
+            .FirstOrDefaultAsync(e => e.Name == name, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            return false;
+        }
+
+        db.AgentDefinitions.Remove(entity);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return _cache.TryRemove(name, out _);
+    }
+
     /// <summary>Re-hydrates the in-memory cache from the database.</summary>
     public void RefreshFromDatabase() => RefreshCache();
 
+    /// <summary>Asynchronous counterpart of <see cref="RefreshFromDatabase"/>.</summary>
+    public Task RefreshFromDatabaseAsync(CancellationToken cancellationToken = default)
+        => RefreshCacheAsync(cancellationToken);
+
+    /// <summary>
+    /// The synchronous path must never reach EF from a renderer thread. Hydration is
+    /// the async path's job, so an unhydrated synchronous read fails loudly instead of
+    /// blocking the server.
+    /// </summary>
     private void EnsureLoaded()
     {
         if (!_loaded)
         {
-            RefreshCache();
+            throw new InvalidOperationException(
+                "The registry has not been hydrated. Call GetAllAsync/AddOrUpdateAsync " +
+                "(or the startup Initialize) before reading the registry synchronously.");
+        }
+    }
+
+    private async Task EnsureLoadedAsync(CancellationToken cancellationToken)
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        await _loadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_loaded)
+            {
+                await RefreshCacheAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _loadLock.Release();
         }
     }
 
@@ -276,6 +395,25 @@ public sealed class SqlServerAgentRegistry : IAgentRegistry
         _cache.Clear();
         using var db = _dbFactory.CreateDbContext();
         foreach (var entity in db.AgentDefinitions.AsNoTracking().ToList())
+        {
+            _cache[entity.Name] = ToRegistration(entity);
+        }
+        _loaded = true;
+    }
+
+    private async Task RefreshCacheAsync(CancellationToken cancellationToken)
+    {
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var entities = await db.AgentDefinitions
+            .AsNoTracking()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        _cache.Clear();
+        foreach (var entity in entities)
         {
             _cache[entity.Name] = ToRegistration(entity);
         }
@@ -484,17 +622,26 @@ static IEnumerable<AgentRegistration> BuildSeeds(string sharedInstructions)
 
 Order is critical — the registry must be registered **before**
 `AddAgentBlazor` (its `TryAddSingleton<IAgentRegistry>` seam skips the default
-only when a registry already exists):
+only when a registry already exists), and it must be aliased to **both**
+interfaces against the **same instance**:
 
 ```csharp
 // 1. DbContext factory (before the registry that consumes it).
 builder.Services.AddDbContextFactory<AgentDbContext>(options =>
     options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure()));
 
-// 2. Concrete registry first (so pages + customizer can resolve it), then as
-//    IAgentRegistry BEFORE AddAgentBlazor so it replaces the in-memory default.
+// 2. Concrete registry first (so pages + customizer can resolve it), then aliased
+//    to BOTH interfaces BEFORE AddAgentBlazor. Two things depend on this:
+//      - IAgentRegistry so it replaces the in-memory default.
+//      - IAsyncAgentRegistry so AgentChatSurface's awaited read hits THIS instance.
+//    AddAgentBlazor's own TryAddSingleton<IAsyncAgentRegistry> runs too late (the
+//    interfaces are already registered) and could only wrap whatever IAgentRegistry
+//    resolves to — it cannot know about your concrete type. If the two interfaces
+//    resolved to different instances, the render path would read a stale agent list.
 builder.Services.AddSingleton<SqlServerAgentRegistry>();
 builder.Services.AddSingleton<AgentBlazor.Agents.IAgentRegistry>(sp =>
+    sp.GetRequiredService<SqlServerAgentRegistry>());
+builder.Services.AddSingleton<AgentBlazor.Agents.IAsyncAgentRegistry>(sp =>
     sp.GetRequiredService<SqlServerAgentRegistry>());
 
 // 3. AddAgentBlazor — must come AFTER the registry registration.
@@ -513,16 +660,24 @@ builder.Services.AddAgentBlazor(options =>
 
 var app = builder.Build();
 
-// 4. Migrate + seed after Build, before the pipeline runs.
+// 4. Migrate + seed after Build, before the pipeline runs. Everything here is
+//    awaited from a startup scope, so no boot-time EF call touches a renderer thread.
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AgentDbContext>>();
     await using var db = await dbFactory.CreateDbContextAsync();
     await db.Database.MigrateAsync();
     await SeedAgentDefinitionsAsync(db, sharedInstructions, CancellationToken.None);
-    scope.ServiceProvider.GetRequiredService<SqlServerAgentRegistry>().RefreshFromDatabase();
+
+    // Hydrate once, here, on a non-renderer thread. After this the synchronous
+    // members are usable; before it they throw rather than deadlock.
+    await scope.ServiceProvider
+        .GetRequiredService<SqlServerAgentRegistry>()
+        .RefreshFromDatabaseAsync();
 }
 ```
+
+> **Hydrate at startup or not at all.** `SqlServerAgentRegistry` deliberately makes its synchronous members throw until the cache is loaded. That converts the original failure mode — a silent server-wide deadlock — into a loud `InvalidOperationException` at the offending call site. If you prefer lazy hydration instead, drop the startup call and let `GetAllAsync()` populate the cache on first read; either way the first read must be the awaited one.
 
 The customizer resolves from the concrete registry (see
 `ab-context-assembly` → "Agent Builder × customizer integration"):

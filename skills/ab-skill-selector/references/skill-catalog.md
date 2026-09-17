@@ -34,14 +34,15 @@ multiple areas and you need each skill's boundaries.
 - **Scope**: Build an "agent builder" feature — users author custom agents
   on-demand, persisted to SQL Server. Covers the `AgentDefinitionEntity`
   subclass + DbContext (TPC, unique CI name index), the store-backed
-  `IAgentRegistry` replacement (`SqlServerAgentRegistry` with lazy load,
-  `AddOrUpdate`/`RemoveAgent`/`RefreshFromDatabase`/`TryGetCustomization`),
-  idempotent seeding, and the store-backed `IAgentRegistry` as the authoring
-  surface (the UI calls `GetAll`/`AddOrUpdate`/`RemoveAgent` directly) with
+  `IAsyncAgentRegistry` replacement (`SqlServerAgentRegistry` with lazy load,
+  `AddOrUpdateAsync`/`RemoveAgentAsync`/`RefreshFromDatabaseAsync`/
+  `TryGetCustomization`), idempotent seeding, and the store-backed
+  `IAsyncAgentRegistry` as the authoring surface (the UI calls
+  `GetAllAsync`/`AddOrUpdateAsync`/`RemoveAgentAsync` directly) with
   `UpdatedAtUtc` concurrency and capability/tool discovery seams.
 - **Signals**: agent builder, author custom agents, runtime agent authoring,
   user-defined agents, store-backed registry, SQL Server agent definitions,
-  `AgentDefinitionEntity`, `SqlServerAgentRegistry`, `IAgentRegistry` replace.
+  `AgentDefinitionEntity`, `SqlServerAgentRegistry`, `IAsyncAgentRegistry` replace.
 - **Boundaries**: does NOT cover static registration wiring
   (`ab-agent-registration`), entity/migration design (`ab-entity-design`), or
   prompt/context assembly (`ab-context-assembly`) — it orchestrates them.
@@ -58,11 +59,13 @@ multiple areas and you need each skill's boundaries.
   `WithRoutePrefixes`, `WithAllowedComponents`, `WithAllowedActions`,
   `WithAllowedCapabilityActions`, `WithDataSchemas`, `WithInstructions`,
   `WithToolsFromAssembly`, `ConfigureBuilder`, `AgentBlazorBuilder`) or
-  dynamically at runtime via a custom `IAgentRegistry` (`InMemoryAgentRegistry`,
-  per-tenant / store-backed / runtime agent sets, `AddOrUpdate`).
+  dynamically at runtime via a custom `IAsyncAgentRegistry`
+  (`InMemoryAgentRegistry`, per-tenant / store-backed / runtime agent sets,
+  `AddOrUpdateAsync`, the `SyncAgentRegistryAsyncAdapter` fallback).
 - **Signals**: agent names/descriptions/instructions, route bindings, component
   access, tool access, data schemas, dynamic agents, per-tenant agents,
-  store-backed agents, replacing `IAgentRegistry`.
+  store-backed agents, replacing `IAgentRegistry`, renderer-thread deadlock
+  from a synchronous registry read.
 - **Boundaries**: does NOT cover authoring capability classes
   (`ab-capability-authoring`), tool definitions (`ab-tool-authoring`), or
   prompt prose (`ab-prompt-engineering`) — it wires them onto agents.
@@ -112,7 +115,7 @@ multiple areas and you need each skill's boundaries.
   parameter constraints (`LockAgentToCurrentRoute`, `EnableAgentHandoff`,
   `RequireHandoffApproval`, `ShowAgentSelector`, `@key` strategy) for
   correct browser hydration. Consumer-side data service pattern over
-  `IConversationStore` + `IAgentRegistry`, legacy session handling
+  `IConversationStore` + `IAsyncAgentRegistry`, legacy session handling
   (`SplitSessionKey`), token usage display, and the new-chat draft
   lifecycle (mint → chat → promote → resume). UI-implementation agnostic.
 - **Signals**: session browser, master-detail, session list, session picker,

@@ -50,7 +50,7 @@ The widget variant (`AgentChatWidget`) passes `SessionId` down to its internal `
 
 The Demo SessionBrowser (`/demo/sessions`) implements New-chat as a **draft lifecycle**:
 
-1. **Picker** — list all agents from `IAgentRegistry.GetAll()` (complete source of truth; scenario catalogs are curated subsets). Show `Name` + `Description` + route chip (catalog route first, then registry `route_prefixes`).
+1. **Picker** — list all agents from `IAsyncAgentRegistry.GetAllAsync()` (complete source of truth; scenario catalogs are curated subsets). Show `Name` + `Description` + route chip (catalog route first, then registry `route_prefixes`). Never call the synchronous `GetAll()` from a render path — a store-backed registry blocks on I/O inside it and deadlocks the Blazor Server renderer.
 2. **Draft** — on Start, mint `demo:{Guid:N}:{route}` as the base `SessionId` and render `AgentChatSurface` with `DefaultAgentName=<picked>` + `LockAgentToCurrentRoute="false"`, no `LockedAgentName`, `@key="new:{baseId}"`. The timeline is empty because `GetHistoryAsync` returns `null` — this is expected birth state, not an error.
 3. **Promote** — on `SessionEvents.SessionUpdated`, reload the list and match by `BaseSessionId`. The first persisted turn promotes the draft to a real `SessionBrowserEntry`; switch selection to it and rewrite the `?session=` deep link to the full `SessionKey`.
 4. **Resume** — pass the stored base id as `SessionId` with `DefaultAgentName=<stored agent>`, `@key=<SessionKey>`. Never pass the full `base::agent::name` key as `SessionId` (it would double-suffix); never use `LockedAgentName` on a cross-route page (it requests a route lock the page cannot satisfy — see the route-prefix rule in `SKILL.md`).

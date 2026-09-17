@@ -22,7 +22,7 @@ contribution) are not in the plugin and not covered here.
 | # | Skill | Purpose |
 |---|-------|---------|
 | 1 | `ab-agent-registration` | Register agents/workflows, route prefixes, allowed components/actions, data schemas |
-| 2 | `ab-agent-builder` | Runtime agent authoring (agent builder): SQL Server-backed definitions, store-backed `IAgentRegistry` as the authoring surface |
+| 2 | `ab-agent-builder` | Runtime agent authoring (agent builder): SQL Server-backed definitions, store-backed `IAsyncAgentRegistry` as the authoring surface |
 | 3 | `ab-capability-authoring` | Author `[AgentCapability]`/`[AgentAction]`/`[AgentParam]` classes, `CapabilityResult`, approvals, outputs |
 | 4 | `ab-tool-authoring` | Service tools, MCP servers, tool parameters, per-agent tool filtering |
 | 5 | `ab-context-assembly` | System-prompt construction, runtime context injection, prompt tracing, runtime adapter |

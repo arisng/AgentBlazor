@@ -162,7 +162,7 @@ public abstract class ConversationTurnEntity
 
 ### AgentDefinitionEntity
 
-Consumer apps that back a dynamic `IAgentRegistry` with a database (see `ab-agent-registration` "Entity Persistence") inherit from the library base entity. The canonical base shape is `AgentDefinitionEntity`:
+Consumer apps that back a dynamic `IAsyncAgentRegistry` with a database (see `ab-agent-registration` "Entity Persistence") inherit from the library base entity. The canonical base shape is `AgentDefinitionEntity`:
 
 ```csharp
 // Library base: src/AgentBlazor.Core/Persistence/AgentDefinitionEntity.cs
@@ -231,7 +231,7 @@ public abstract class AgentDefinitionEntity
 
 **Key design decisions:**
 
-> **AgentBlazor feature:** `AgentDefinitionEntity` maps to dynamic agent registration via `AgentRegistrationBuilder`. `Name` is the lookup key for `IAgentRegistry.TryGet()`. Persona and enabled tools are carried in `Metadata` (via `MetadataJson`) and feed `IAgentRuntimeCustomizer` for per-agent system prompt and tool selection customization. See `ab-agent-registration` for entity-to-registration mapping and `ab-context-assembly` for the customizer integration.
+> **AgentBlazor feature:** `AgentDefinitionEntity` maps to dynamic agent registration via `AgentRegistrationBuilder`. `Name` is the lookup key for `IAgentRegistry.TryGet()` and its awaited twin `IAsyncAgentRegistry.TryGetAsync()`. Persona and enabled tools are carried in `Metadata` (via `MetadataJson`) and feed `IAgentRuntimeCustomizer` for per-agent system prompt and tool selection customization. See `ab-agent-registration` for entity-to-registration mapping and `ab-context-assembly` for the customizer integration.
 
 | Decision | Rationale |
 |---|---|
@@ -383,7 +383,7 @@ public sealed class DemoConversationTurnEntity : ConversationTurnEntity { }
 | **Audit columns** | Add `CreatedBy` / `UpdatedBy` columns | Override `SaveChangesAsync` to populate. See `cross-cutting-concerns.md`. |
 | **Circuit grouping** | Add `BaseSessionId` / `AgentName` to session subclass | For `IsolateConversationsByAgent` ON. See `session-identity-entities.md`. |
 | **SQLite workarounds** | Add client-side GUID generation in consumer DbContext | Provider-specific; never in library. E.g., `ConfigureSqliteIdentity<T>()` extension with `ValueGenerator<Guid>`. |
-| **Agent builder** | Subclass `AgentDefinitionEntity`, add the store-backed `IAgentRegistry` (the authoring surface) | Full SQL Server implementation (unique CI name index, JSON columns, seeding). See `ab-agent-builder`. |
+| **Agent builder** | Subclass `AgentDefinitionEntity`, add the store-backed `IAsyncAgentRegistry` (the authoring surface) | Full SQL Server implementation (unique CI name index, JSON columns, seeding). See `ab-agent-builder`. |
 
 > **Important:** The `Turns` navigation on `ConversationSessionEntity` uses the base `ConversationTurnEntity` type. Do NOT shadow it with `new` in derived session entities — that creates a separate backing field which breaks EF Core `Include` under TPC mapping.
 

@@ -14,16 +14,18 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
 ### Agent Builder — database-backed dynamic registry
 - **Status**: implemented
 - **What it demonstrates**: building + registering agents **at runtime** against a
-  database-backed `IAgentRegistry` (replace path) — create/edit/delete agents, edit
+  database-backed `IAsyncAgentRegistry` (replace path) — create/edit/delete agents, edit
   persona + enabled tool set, chat with a just-built agent. The dynamic counterpart
   to static `AddAgent`/`AddWorkflow`.
 - **Where**: `Program.cs` → `AddSingleton<DatabaseBackedAgentRegistry>()` +
-  `AddSingleton<IAgentRegistry>(...)` BEFORE `AddAgentBlazor`; page
+  `AddSingleton<IAgentRegistry>(...)` + `AddSingleton<IAsyncAgentRegistry>(...)`
+  (all three on the same instance) BEFORE `AddAgentBlazor`; page
   `Components/Pages/Demo/AgentBuilder.razor` (`/demo/agent-builder`); services
   `DatabaseBackedAgentRegistry.cs`; entity
   `Data/DemoAgentDefinitionEntity.cs` (inherits from `AgentBlazor.Core.Persistence.AgentDefinitionEntity`).
 - **Audit evidence**: page route `@page "/demo/agent-builder"` in `routes[]`;
-  `DatabaseBackedAgentRegistry` implements `IAgentRegistry`; `DemoDbContext`.
+  `DatabaseBackedAgentRegistry` implements `IAsyncAgentRegistry`;
+  `dynamicRegistry.asyncAliasRegistered = true`; `DemoDbContext`.
 - **ab\* skill**: `ab-agent-registration` (Dynamic Agent Registration),
   `ab-context-assembly` (customizer integration), `ab-entity-design`.
 
@@ -154,7 +156,7 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
   `Components/Layout/DemoLayout.razor` (widget suppressed on `/demo/sessions`).
 - **Audit evidence**: `SessionBrowser.razor` hosts `AgentChatSurface` with
   `DefaultAgentName` (no `LockedAgentName`); `DemoSessionBrowserService` calls
-  `GetActiveSessionsAsync` + `GetHistoryAsync` + `IAgentRegistry.GetAll()`;
+  `GetActiveSessionsAsync` + `GetHistoryAsync` + `IAsyncAgentRegistry.GetAllAsync()`;
   `DemoLayout` gates `ShowAssistantWidget` on `IsSessionBrowserRoute`.
 - **ab\* skill**: `ab-chat-session-management`.
 

@@ -208,7 +208,7 @@ Use a **custom `IAgentRegistry`** when any of these holds:
 - Agent definitions must **persist and load from a database/config** instead of being re-declared in code on every boot.
 - You need **live `AddOrUpdate`** that the runtime observes without a restart.
 
-### The seam: `IAgentRegistry`
+### The seam: `IAgentRegistry` and `IAsyncAgentRegistry`
 
 `IAgentRegistry` is the runtime lookup the whole execution path consults:
 
@@ -221,14 +221,40 @@ public interface IAgentRegistry
 }
 ```
 
+`IAsyncAgentRegistry` derives from it and adds three async members:
+
+```csharp
+public interface IAsyncAgentRegistry : IAgentRegistry
+{
+    Task<IReadOnlyCollection<AgentRegistration>> GetAllAsync(CancellationToken ct = default);
+    Task<bool> TryGetAsync(string name, Func<AgentRegistration, bool> onFound, CancellationToken ct = default);
+    Task AddOrUpdateAsync(AgentRegistration registration, CancellationToken ct = default);
+}
+```
+
+The sync interface is unchanged, so all three async members have **default implementations** — existing implementations keep compiling without edits. Override them when your registry does I/O.
+
+> **Why `TryGetAsync` takes a callback instead of an `out` parameter.** C# forbids combining `out` with `async`, and a `Task<AgentRegistration?>` would collapse "not found" into "null" — losing the `bool` failure signal that `TryGet` preserves today. The callback keeps the exact failure semantics: not-found is `false`, never a null a caller could mistake for a populated result. The callback's return value becomes the method's return value.
+
+> **Do not inherit the defaults in an I/O-backed registry.** `GetAllAsync` defaults to `Task.FromResult(GetAll())`, and `AddOrUpdateAsync` defaults to `Task.Run(() => AddOrUpdate(registration))`. Neither makes the work asynchronous — they only change *which thread blocks*. An I/O-backed implementor that inherits a default keeps the deadlock it was supposed to remove.
+
 `AddAgentBlazor` registers the default with `TryAddSingleton<IAgentRegistry>(...)`. **`TryAdd*` means it only registers if nothing is already registered** — so if your app registers its own `IAgentRegistry` **before** calling `AddAgentBlazor`, your implementation wins and the in-memory snapshot is skipped entirely.
 
 Consumers of the seam:
 
 - `ChatClientRuntimeAdapter.ResolveAgentRegistration()` — resolves the agent per turn via `_agentRegistry.TryGet(...)`, validates route locks, and falls back to `GetAll()` for the implicit first-agent.
-- `AgentChatSurface` — renders the agent selector from `AgentRegistry.GetAll()`.
+- `AgentChatSurface` — renders the agent selector by **awaiting `AgentRegistry.GetAllAsync()`** in `OnInitializedAsync`.
 
-Your replacement only needs to satisfy the three-method contract and return `AgentRegistration` objects the runtime understands.
+**Why the surface must read asynchronously:** on Blazor Server the read runs on the renderer's single-threaded synchronization context. A registry that hydrates over HTTP or EF blocks inside `GetAll()`, and its own continuation is then queued onto the very thread it is blocking — a deadlock that wedges the **entire server**, not just one circuit.
+
+Consumers resolve `IAsyncAgentRegistry`, not `IAgentRegistry`. The render path therefore needs an `IAsyncAgentRegistry` registration in DI. Two cases:
+
+| What your app registers | What happens |
+|---|---|
+| Your registry implements `IAsyncAgentRegistry` | Register **both** interfaces against the **same instance** (see Step 3). |
+| Your registry implements only `IAgentRegistry` | `AddAgentBlazor` wraps it in `SyncAgentRegistryAsyncAdapter`, which offloads each sync call to the thread pool. Your app keeps working — but the block is only relocated off the renderer thread, not removed. |
+
+> **Your replacement only needs to satisfy the contract** and return `AgentRegistration` objects the runtime understands.
 
 ### Step 1 — Choose replace vs. additive
 
@@ -257,7 +283,7 @@ Resolve the tenant from the accessor and return that tenant's agents. Cache per 
 using AgentBlazor.Agents;
 using AgentBlazor.Core.Data;
 
-public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
+public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
 {
     private readonly TenantContextAccessor _tenants;
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, AgentRegistration>> _byTenant =
@@ -272,10 +298,32 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         return CacheFor(tenantId).Values.ToArray();
     }
 
+    public async Task<IReadOnlyCollection<AgentRegistration>> GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = ResolveTenantId();
+        await EnsureTenantLoadedAsync(tenantId, cancellationToken);
+        return CacheFor(tenantId).Values.ToArray();
+    }
+
     public bool TryGet(string name, out AgentRegistration registration)
     {
         var tenantId = ResolveTenantId();
         return CacheFor(tenantId).TryGetValue(name, out registration!);
+    }
+
+    public async Task<bool> TryGetAsync(
+        string name,
+        Func<AgentRegistration, bool> onFound,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onFound);
+
+        var tenantId = ResolveTenantId();
+        await EnsureTenantLoadedAsync(tenantId, cancellationToken);
+
+        return CacheFor(tenantId).TryGetValue(name, out var registration)
+            && onFound(registration!);
     }
 
     public void AddOrUpdate(AgentRegistration registration)
@@ -284,6 +332,13 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
         var tenantId = ResolveTenantId();
         CacheFor(tenantId)[registration.Name] = registration;
         // For persistence: also upsert the row/record for (tenantId, Name).
+    }
+
+    public Task AddOrUpdateAsync(AgentRegistration registration, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        AddOrUpdate(registration);
+        return SaveAsync(registration, cancellationToken);   // your EF write, natively async
     }
 
     private string ResolveTenantId()
@@ -296,28 +351,38 @@ public sealed class DatabaseBackedAgentRegistry : IAgentRegistry
 }
 ```
 
-> **Prefill on demand, not at boot.** For store-backed registries, hydrate a tenant's cache lazily on first lookup (from your DB) rather than querying everything at startup. For a non-tenant store-backed registry, prefill `AddOrUpdate` for each persisted definition. When seeding a DB on first boot, mirror `AddWorkflow`'s `AllowedCapabilityActions` (e.g. `"supplier_compliance.show_at_risk_suppliers"`) — derive them from the public `[AgentCapability]`/`[AgentAction]` attributes, since `AgentCapabilityConventions` is internal.
+Note the shape of the overrides: `TryGetAsync` keeps the keyed O(1) probe and only *awaits* the hydration first; it never falls back to scanning `GetAllAsync`, which would turn a dictionary lookup into a linear scan on the per-turn path.
 
-> **Deletion is out-of-band.** `IAgentRegistry` has only `AddOrUpdate` — there is **no `Remove`/`Delete`** on the interface. A builder experience should expose `RemoveAgent(name)` on the **concrete** store/service and call it from the UI; the runtime only needs `TryGet`/`GetAll`/`AddOrUpdate`. Evict the in-memory cache on delete so `GetAll()` reflects the removal.
+> **Prefill on demand, not at boot.** For store-backed registries, hydrate a tenant's cache lazily on first lookup (from your DB) rather than querying everything at startup. If you *do* hydrate at startup, do it once from a `CreateAsyncScope()` in `Program.cs` and `await` it — the point is that no boot-time query ever runs on a renderer thread. For a non-tenant store-backed registry, prefill `AddOrUpdate` for each persisted definition. When seeding a DB on first boot, mirror `AddWorkflow`'s `AllowedCapabilityActions` (e.g. `"supplier_compliance.show_at_risk_suppliers"`) — derive them from the public `[AgentCapability]`/`[AgentAction]` attributes, since `AgentCapabilityConventions` is internal.
+
+> **Make the synchronous members structurally unable to reach I/O.** The async overrides are the contract, but nothing stops a future change (or a component you forgot to convert) from calling `GetAll()` on the renderer thread. The cheapest durable guard is to make the sync path *throw* until hydration has happened: throw `InvalidOperationException` from `GetAll()`/`TryGet()` when the cache has not been loaded yet, and have `GetAllAsync()` be the only member that populates it. A stray synchronous call then fails loudly in development instead of silently deadlocking in production.
+
+> **Deletion is out-of-band.** Neither interface has a `Remove`/`Delete` member. A builder experience should expose `RemoveAgent(name)` on the **concrete** store/service and call it from the UI; the runtime only needs `TryGet`/`GetAll`/`AddOrUpdate`.
 
 > **Fallback agents.** `ResolveImplicitFallbackAgent` picks the first agent alphabetically from `GetAll()`. If a tenant can have **zero** agents, decide whether `GetAll()` should return one synthetic fallback (so the chat surface still shows an assistant) or leave an explicit empty state.
 
 ### Step 3 — Register it BEFORE `AddAgentBlazor`
 
+Register **both** interfaces against the **same instance**:
+
 ```csharp
 builder.Services.AddSingleton<TenantContextAccessor>();
-builder.Services.AddSingleton<IAgentRegistry, DatabaseBackedAgentRegistry>();
+builder.Services.AddSingleton<DatabaseBackedAgentRegistry>();
+builder.Services.AddSingleton<IAgentRegistry>(sp => sp.GetRequiredService<DatabaseBackedAgentRegistry>());
+builder.Services.AddSingleton<IAsyncAgentRegistry>(sp => sp.GetRequiredService<DatabaseBackedAgentRegistry>());
 builder.Services.AddAgentBlazor(options => { /* uses your registry at runtime */ });
 ```
 
 Order is critical: `AddAgentBlazor` must not have already registered the default. Registering after it is a no-op (your type is ignored silently).
 
+> **Same-instance is not optional, and `AddAgentBlazor` cannot do it for you.** The library's `TryAddSingleton<IAsyncAgentRegistry>` runs too late to see a registry you registered, and it can only wrap whatever `IAgentRegistry` resolves to. If the two interfaces resolve to *different* instances, the render path reads a stale agent list relative to the turn path — a bug that shows up as "the selector is missing an agent I just created". Resolve the concrete singleton through the container as above rather than registering the type twice.
+
 ### Step 4 — Live updates + agent-builder integration (optional)
 
-`AddOrUpdate` is the mechanism for runtime changes. Call it on your registry directly where mutations happen (e.g. a control-plane endpoint, an admin service, a feature-flag callback, or an **Agent Builder** page):
+`AddOrUpdateAsync` is the mechanism for runtime changes. Call it on your registry directly where mutations happen (e.g. a control-plane endpoint, an admin service, a feature-flag callback, or an **Agent Builder** page):
 
 ```csharp
-registry.AddOrUpdate(new AgentRegistration
+await registry.AddOrUpdateAsync(new AgentRegistration
 {
     Name = "Campaign Agent",
     Instructions = "...",

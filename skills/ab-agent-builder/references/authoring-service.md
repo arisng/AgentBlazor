@@ -1,10 +1,10 @@
-# Authoring Surface — the Consumer-Owned IAgentRegistry Implementation
+# Authoring Surface — the Consumer-Owned IAsyncAgentRegistry Implementation
 
 The operations a UI calls to build agents. **There is no separate authoring
-service interface** — the consumer app's concrete `IAgentRegistry`
+service interface** — the consumer app's concrete `IAsyncAgentRegistry`
 implementation (e.g. the Demo's `DatabaseBackedAgentRegistry`) IS the
 authoring surface. The UI resolves it from DI and calls it directly; the
-library seam (`IAgentRegistry`) is the only contract. Any UI (MudBlazor,
+library seam (`IAgentRegistry` / `IAsyncAgentRegistry`) is the only contract. Any UI (MudBlazor,
 Telerik, plain HTML, an admin API) can call these operations; the chat
 surface itself is covered by `ab-mud-components` / `ab-ui-integration`.
 
@@ -23,8 +23,8 @@ surface itself is covered by `ab-mud-components` / `ab-ui-integration`.
 
 ## 1. The pattern
 
-Implement `IAgentRegistry` with a store-backed concrete class (Demo:
-`DatabaseBackedAgentRegistry`). The library members are the read/write
+Implement `IAsyncAgentRegistry` with a store-backed concrete class (Demo:
+`DatabaseBackedAgentRegistry`). The base library members are the read/write
 surface:
 
 ```csharp
@@ -34,24 +34,37 @@ public interface IAgentRegistry
     bool TryGet(string name, out AgentRegistration registration);
     void AddOrUpdate(AgentRegistration registration);
 }
+
+public interface IAsyncAgentRegistry : IAgentRegistry
+{
+    Task<IReadOnlyCollection<AgentRegistration>> GetAllAsync(CancellationToken ct = default);
+    Task<bool> TryGetAsync(string name, Func<AgentRegistration, bool> onFound, CancellationToken ct = default);
+    Task AddOrUpdateAsync(AgentRegistration registration, CancellationToken ct = default);
+}
 ```
+
+Declare the concrete type against **`IAsyncAgentRegistry`** — not the sync
+interface — if it queries a database at all.
 
 The concrete class adds the out-of-band members the UI needs (the library
 interface has no remove/customization methods):
 
-- `RemoveAgent(name)` — delete + cache eviction; returns `false` if unknown.
+- `RemoveAgent(name)` / `RemoveAgentAsync(name)` — delete + cache eviction; returns `false` if unknown.
 - `TryGetCustomization(name)` / `SetCustomization(name, persona, tools)` —
   the customization seam (see `ab-context-assembly`). `SetCustomization` is a
   convenience for a customization-only update path (e.g. a persona editor
   that does not touch the definition).
-- `RefreshFromDatabase()` — re-hydrate the cache (used by the seeder).
+- `RefreshFromDatabase()` / `RefreshFromDatabaseAsync()` — re-hydrate the cache (used by the seeder).
 
-Register it as a singleton **before** `AddAgentBlazor` so the built-in
+Register the concrete type as a singleton **before** `AddAgentBlazor` so the built-in
 `InMemoryAgentRegistry` snapshot is skipped and the store is the single
-source of truth. Use `IDbContextFactory<TDbContext>` so the singleton never
-captures a scoped context. The UI resolves `IAgentRegistry` from DI and
-calls `GetAll()` / `AddOrUpdate()` / `RemoveAgent()` directly — no wrapper
+source of truth, then alias it to **both** `IAgentRegistry` and
+`IAsyncAgentRegistry` against the same instance. Use `IDbContextFactory<TDbContext>` so the singleton never
+captures a scoped context. The UI resolves `IAsyncAgentRegistry` from DI and
+calls `GetAllAsync()` / `AddOrUpdateAsync()` / `RemoveAgentAsync()` directly — no wrapper
 interface.
+
+> **Why async matters here.** The authoring UI's own page can call the sync members safely (it runs in an event handler, not during render), but `AgentChatSurface` reads the registry from `OnInitializedAsync`. If the page and the surface resolve *different* instances, the selector shows a stale list; if the surface's instance queries EF synchronously, the whole server deadlocks. One instance, both interfaces, async members overridden.
 
 ## 2. Single-write contract
 

@@ -103,11 +103,14 @@ The detail panel renders one of three states based on the current selection:
 
 ### Step 3 — Agent picker (for new chat)
 
-The picker lists all registered agents from `IAgentRegistry.GetAll()`. Show `Name` +
+The picker lists all registered agents from `IAsyncAgentRegistry.GetAllAsync()`. Show `Name` +
 `Description` + route chip (catalog route first, then registry `route_prefixes`).
 
-**Source of truth**: `IAgentRegistry` is the complete agent catalog. If you also have a
+**Source of truth**: `IAsyncAgentRegistry` is the complete agent catalog. If you also have a
 scenario catalog, use it for route resolution but not for the agent list.
+
+**Never read the registry through its synchronous members from a render path** — a store-backed
+registry blocks on I/O inside `GetAll()` and deadlocks the Blazor Server renderer.
 
 **UX flow**: Pick agent → preview description + route → click "Start chat" → mint draft
 session ID → render `AgentChatSurface`.

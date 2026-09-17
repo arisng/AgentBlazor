@@ -91,7 +91,12 @@ The core chat component — timeline, input, agent state indicators. Embed in pa
 - **Waiting for approval** — agent hit a `RequiresApproval` action
 - **Clarification needed** — agent needs user input
 
-**Injected Services:** `IAgentRegistry`, `IAgentRuntimeAdapter`, `IAgentDeferredActionEvents`, `IConversationStore`, `IAgentComponentRegistry`, `IAgentChatSessionEvents`, `IJSRuntime`, `NavigationManager`, `IAgentActionRenderRegistry`, `IAdaptiveSuggestionService`, `IProactiveInsightService`, `IOptions<AgentBlazorOptions>`, `IServiceProvider`, `IAgentExecutionScopeAccessor`
+**Injected Services:** `IAsyncAgentRegistry`, `IAgentRuntimeAdapter`, `IAgentDeferredActionEvents`, `IConversationStore`, `IAgentComponentRegistry`, `IAgentChatSessionEvents`, `IJSRuntime`, `NavigationManager`, `IAgentActionRenderRegistry`, `IAdaptiveSuggestionService`, `IProactiveInsightService`, `IOptions<AgentBlazorOptions>`, `IServiceProvider`, `IAgentExecutionScopeAccessor`
+
+> The surface reads the registry through `IAsyncAgentRegistry.GetAllAsync()` in
+> `OnInitializedAsync`. Never call the synchronous members from a render path — a
+> store-backed registry blocks on I/O inside `GetAll()` and deadlocks the Blazor Server
+> renderer.
 
 ---
 

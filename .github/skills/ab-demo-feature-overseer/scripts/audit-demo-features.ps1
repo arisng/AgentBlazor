@@ -73,7 +73,7 @@ $report = [ordered]@{
 
 # --- Agents & workflows: now sourced from Program.cs seed function -----------
 # Agent definitions are seeded directly in Program.cs via SeedAgentDefinitionsAsync
-# (the DB-backed IAgentRegistry is authoritative). Program.cs only calls AddCapability
+# (the DB-backed IAsyncAgentRegistry is authoritative). Program.cs only calls AddCapability
 # for [AgentAction] discovery. So agents/workflows/agentRegistrations are parsed from
 # Program.cs. Evidence is cross-checked by the dynamicRegistry probe below.
 $programCs = Join-Path $DemoRoot 'Program.cs'
@@ -242,13 +242,16 @@ foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs'
 }
 $report.runtimeCustomization = $runtimeCustomization
 
-# --- Dynamic agent registry (database-backed IAgentRegistry, replace path) -----
-# The Agent Builder showcases a custom IAgentRegistry registered BEFORE AddAgentBlazor.
+# --- Dynamic agent registry (database-backed IAsyncAgentRegistry, replace path) -
+# The Agent Builder showcases a custom IAsyncAgentRegistry registered BEFORE AddAgentBlazor.
 # The static AddAgent/AddWorkflow regex above still finds the ConfigureBuilder
 # registrations (kept for capabilities/schemas/tools/customizer); this probe confirms
 # the custom registry + its store are wired and that the builder page exists.
+# A registry counts when it implements either the async seam (preferred, render-safe)
+# or the synchronous one (legacy).
 $dynamicRegistry = [ordered]@{
     registryRegistered  = [regex]::IsMatch($programText, 'AddSingleton<(?:AgentBlazor\.Agents\.)?IAgentRegistry>')
+    asyncAliasRegistered = [regex]::IsMatch($programText, 'AddSingleton<(?:AgentBlazor\.Agents\.)?IAsyncAgentRegistry>')
     registryType        = @()
     storeContext        = @()
     seeder              = $false
@@ -256,7 +259,7 @@ $dynamicRegistry = [ordered]@{
 }
 foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | Sort-Object -Property Name)) {
     $text = Get-Content $file.FullName -Raw
-    if ($text -match 'class (\w+)\s*:\s*IAgentRegistry') {
+    if ($text -match 'class (\w+)\s*:\s*(?:IAsyncAgentRegistry|IAgentRegistry)') {
         $dynamicRegistry.registryType += $file.BaseName
     }
     if ($text -match 'DemoDbContext') {

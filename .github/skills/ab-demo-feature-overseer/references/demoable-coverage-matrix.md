@@ -37,7 +37,7 @@ via Agent Builder; Agent Builder dynamic-registry showcase wired)._
 |---|---|---|---|
 | Standalone agent registration | ✅ | `agentRegistrations[3]` → Workflow Hub, Supplier Analyst, Workflow Orchestrator | `ab-agent-registration` |
 | Workflow-capability agent registration | ✅ | `agentRegistrations[9]`, `workflows[9]` | `ab-agent-registration` |
-| **Dynamic agent registration (DB-backed `IAgentRegistry`, replace)** | ✅ | `DatabaseBackedAgentRegistry : IAgentRegistry` + `AddSingleton<IAgentRegistry>` before `AddAgentBlazor`; page `/demo/agent-builder`; entity `DemoAgentDefinitionEntity` + unified `DemoDbContext` | `ab-agent-registration`, `ab-entity-design` |
+| **Dynamic agent registration (DB-backed `IAsyncAgentRegistry`, replace)** | ✅ | `DatabaseBackedAgentRegistry : IAsyncAgentRegistry` + `AddSingleton<IAgentRegistry>` + `AddSingleton<IAsyncAgentRegistry>` (same instance → `dynamicRegistry.asyncAliasRegistered=true`) before `AddAgentBlazor`; page `/demo/agent-builder`; entity `DemoAgentDefinitionEntity` + unified `DemoDbContext` | `ab-agent-registration`, `ab-entity-design` |
 | Route prefixes per agent | ✅ | `agentRegistrations[].routePrefixes` | `ab-agent-registration` |
 | Allowed components per agent | ✅ | `agentRegistrations[].allowedComponents` | `ab-agent-registration` |
 | Shared instructions file | ✅ | `agent-instructions.txt` + `hasSharedInstructions=true` (12 of 12 seeds) | `ab-context-assembly` |
@@ -46,7 +46,7 @@ via Agent Builder; Agent Builder dynamic-registry showcase wired)._
 | Service **tools** (`AddTool`) | ⛔ | All demo tools moved to `[AgentCapability]` class (`DemoAssemblyCapabilities`); zero `AddTool()` calls in Program.cs | `ab-tool-authoring` |
 | **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-authoring` |
 | Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `DatabaseBackedAgentRegistry`; persona + tool set managed via Agent Builder; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-authoring` |
-| Agent **selector** in chat | 🔶 | per-route `DefaultAgentName` lock on workflow surfaces; full registry picker proven on `/demo/sessions` New-chat (`MudSelect` over `IAgentRegistry.GetAll()`), not on workflow pages | `ab-in-chat-features` |
+| Agent **selector** in chat | 🔶 | per-route `DefaultAgentName` lock on workflow surfaces; full registry picker proven on `/demo/sessions` New-chat (`MudSelect` over `IAsyncAgentRegistry.GetAllAsync()`), not on workflow pages | `ab-in-chat-features` |
 
 ## 2. Capabilities & actions
 

@@ -4,21 +4,32 @@
 
 ## Agent Picker Data Source
 
-### Source of truth: `IAgentRegistry`
+### Source of truth: `IAsyncAgentRegistry`
 
-List all registered agents from `IAgentRegistry.GetAll()`. This is the complete catalog.
+List all registered agents from `IAsyncAgentRegistry.GetAllAsync()`. This is the complete catalog.
 If you also have a scenario catalog (curated subset), use it for **route resolution**
 but not for the agent list.
 
+> **Never call the synchronous `GetAll()` from a component render path.** On Blazor Server a
+> store-backed registry blocks on I/O inside `GetAll()`; its continuation queues back to the
+> single-threaded renderer sync context and deadlocks the whole server. Read asynchronously.
+
 ```csharp
-public IReadOnlyList<AgentPickerOption> GetAvailableAgents()
-    => _agents.GetAll()
-        .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
-        .Select(a => new AgentPickerOption(
-            a.Name,
-            a.Description,
-            ResolveRouteForAgent(a.Name) ?? ResolveRouteFromRegistry(a.Name)))
-        .ToList();
+public async Task<IReadOnlyList<AgentPickerOption>> GetAvailableAgentsAsync(
+    CancellationToken ct = default)
+{
+    var options = new List<AgentPickerOption>();
+    foreach (var agent in (await _agents.GetAllAsync(ct))
+                 .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase))
+    {
+        options.Add(new AgentPickerOption(
+            agent.Name,
+            agent.Description,
+            ResolveRouteForAgent(agent.Name) ?? await ResolveRouteFromRegistryAsync(agent.Name, ct)));
+    }
+
+    return options;
+}
 ```
 
 ### Route resolution priority
@@ -28,9 +39,18 @@ public IReadOnlyList<AgentPickerOption> GetAvailableAgents()
 3. **Fallback** — the browser page's own route
 
 ```csharp
-private string? ResolveRouteFromRegistry(string agentName)
+private async Task<string?> ResolveRouteFromRegistryAsync(
+    string agentName,
+    CancellationToken ct)
 {
-    if (!_agents.TryGet(agentName, out var registration))
+    AgentRegistration? registration = null;
+    await _agents.TryGetAsync(agentName, r =>
+    {
+        registration = r;
+        return true;
+    }, ct);
+
+    if (registration is null)
         return null;
 
     foreach (var key in new[] { "route", "routes", "route_prefix", "route_prefixes" })

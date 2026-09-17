@@ -23,7 +23,7 @@ referenced skill to reason correctly about its wiring.
 | Shared instructions file           | `agent-instructions.txt` → `Program.cs` | `ab-context-assembly` | `sharedInstructions` → seed function |
 | Per-agent data schemas             | `Program.cs` + seeds | `ab-agent-registration`                | `AddDataSchema`, `dataSchemas:` in `BuildSeeds()` |
 | Runtime customization (per-agent persona + tool filtering) | `Program.cs`, `Services/DemoAgentCustomizer.cs`, `Services/DatabaseBackedAgentRegistry.cs` | `ab-context-assembly`, `ab-tool-authoring` | `AddRuntimeCustomizer`, `IAgentRuntimeCustomizer` |
-| Agent Builder (database-backed dynamic registry + persona/tool edit + chat) | `Program.cs`, `Services/DatabaseBackedAgentRegistry.cs`, `Data/DemoAgentDefinitionEntity.cs`, `Data/DemoDbContext.cs`, `Components/Pages/Demo/AgentBuilder.razor` | `ab-agent-registration`, `ab-context-assembly`, `ab-entity-design` | `DatabaseBackedAgentRegistry`, `IAgentRegistry`, `DemoDbContext`, `/demo/agent-builder` |
+| Agent Builder (database-backed dynamic registry + persona/tool edit + chat) | `Program.cs`, `Services/DatabaseBackedAgentRegistry.cs`, `Data/DemoAgentDefinitionEntity.cs`, `Data/DemoDbContext.cs`, `Components/Pages/Demo/AgentBuilder.razor` | `ab-agent-registration`, `ab-context-assembly`, `ab-entity-design` | `DatabaseBackedAgentRegistry`, `IAsyncAgentRegistry`, `DemoDbContext`, `/demo/agent-builder` |
 
 ## Capabilities & actions
 

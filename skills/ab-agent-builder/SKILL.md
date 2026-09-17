@@ -9,12 +9,12 @@ metadata:
 
 Lets end users **author, edit, and delete agents at runtime**, persisted to
 **SQL Server** via EF Core, and served through a **store-backed
-`IAgentRegistry`** composed with the **`IAgentRuntimeCustomizer`** seam.
+`IAsyncAgentRegistry`** composed with the **`IAgentRuntimeCustomizer`** seam.
 
 This skill is an **orchestrator**: it sequences seams owned by other skills
 (`ab-agent-registration`, `ab-entity-design`, `ab-context-assembly`) and adds
 the pieces none of them own — the SQL Server store and the
-consumer-owned authoring surface (the store-backed `IAgentRegistry`
+consumer-owned authoring surface (the store-backed `IAsyncAgentRegistry`
 implementation). It does **not** re-document those seams; load the
 owning skill when a step points to it.
 
@@ -24,8 +24,9 @@ owning skill when a step points to it.
 SQL Server (AgentDefinitionEntity)
         │  EF Core (TPC, unique CI Name index)
         ▼
-Store-backed IAgentRegistry  ── replace path, registered BEFORE AddAgentBlazor
-        │  TryGet / GetAll / AddOrUpdate (+ RemoveAgent on the concrete type)
+Store-backed IAsyncAgentRegistry  ── replace path, registered BEFORE AddAgentBlazor
+        │  GetAllAsync / TryGetAsync / AddOrUpdateAsync
+        │  (+ RemoveAgent on the concrete type)
         ▼
 Runtime (ChatClientRuntimeAdapter resolves per turn)
         │  IAgentRuntimeCustomizer (optional — keyed by registration.Name)
@@ -80,14 +81,18 @@ for collation/retry/`MigrationsAssembly` rules and the `DemoDbContext` quirks
 (TPC identity, decimal, `datetime2`, `SYSUTCDATETIME()`, `nvarchar(max)` JSON).
 Full copy-paste implementation: [references/sql-server-store.md](references/sql-server-store.md).
 
-### Step 3 — Store-backed `IAgentRegistry`
+### Step 3 — Store-backed `IAsyncAgentRegistry`
 
-Implement the three-method contract (`GetAll`/`TryGet`/`AddOrUpdate`) with a
-lazy-hydrated in-memory cache over EF Core, and register it **BEFORE**
+Implement the async contract (`GetAllAsync`/`TryGetAsync`/`AddOrUpdateAsync`)
+with a lazy-hydrated in-memory cache over EF Core, and register it **BEFORE**
 `AddAgentBlazor` (the `TryAddSingleton` seam means your type wins and the
-in-memory snapshot is skipped). Use `IDbContextFactory<TContext>` so the
+in-memory snapshot is skipped). Register it against **both**
+`IAsyncAgentRegistry` and `IAgentRegistry`, aliased to the same singleton
+instance — the component surface resolves the async interface, other library
+seams resolve the synchronous one, and a split registration would hand them
+two different caches. Use `IDbContextFactory<TContext>` so the
 singleton never captures a scoped context. Deletion is **out-of-band** —
-expose `RemoveAgent(name)` on the concrete type and evict the cache. See
+expose `RemoveAgentAsync(name)` on the concrete type and evict the cache. See
 `ab-agent-registration` → "Dynamic Agent Registration" for the replace-vs-
 additive decision and the full seam contract.
 
@@ -150,9 +155,9 @@ normalization details: `ab-tool-authoring`.
 
 ### Step 7 — Authoring surface
 
-The consumer-owned `IAgentRegistry` implementation IS the authoring surface
-— the UI resolves it from DI and calls `GetAll()` / `AddOrUpdate()` /
-`RemoveAgent()` directly (no separate service interface; the Demo's
+The consumer-owned `IAsyncAgentRegistry` implementation IS the authoring surface
+— the UI resolves it from DI and calls `GetAllAsync()` / `AddOrUpdateAsync()` /
+`RemoveAgentAsync()` directly (no separate service interface; the Demo's
 `DatabaseBackedAgentRegistry` grounds this). Add out-of-band members
 (`RemoveAgent`, `TryGetCustomization`/`SetCustomization`) on the concrete
 class. Validation rules, error semantics, and concurrency:
@@ -178,11 +183,11 @@ copy-paste page code-behind (tool picker, save, edit, delete):
   `AllowedCapabilityActions` there (the store maps
   `AllowedCapabilityActionsJson` → it on hydration).
 - **Surface snapshot.** `AgentChatSurface` snapshots the agent list in
-  `OnInitialized` — a new agent won't appear in a mounted surface's selector
-  until it is re-created/refreshed (route resolution is live, the selector is
-  not). Mount a fresh surface per chat, or advise a refresh.
-- **Deletion is out-of-band.** `IAgentRegistry` has no `Remove` — expose
-  `RemoveAgent` on the concrete store and evict the cache.
+  `OnInitializedAsync` — a new agent won't appear in a mounted surface's
+  selector until it is re-created/refreshed (route resolution is live, the
+  selector is not). Mount a fresh surface per chat, or advise a refresh.
+- **Deletion is out-of-band.** Neither registry interface has a `Remove` —
+  expose `RemoveAgentAsync` on the concrete store and evict the cache.
 - **Case-insensitive names.** Use a case-insensitive collation/index on
   `Name`, not `ToLower()` predicates (SQLite demo differs; SQL Server CI
   collation makes `ToLower()` redundant).
@@ -197,7 +202,7 @@ copy-paste page code-behind (tool picker, save, edit, delete):
 ## Related skills
 
 - [`ab-agent-registration`](../ab-agent-registration/SKILL.md) — the
-  `IAgentRegistry` seam, replace path, seeding, object-initializer constraint
+  `IAsyncAgentRegistry` seam, replace path, seeding, object-initializer constraint
 - [`ab-entity-design`](../ab-entity-design/SKILL.md) — `AgentDefinitionEntity`
   canonical shape, provider portability, migrations
 - [`ab-context-assembly`](../ab-context-assembly/SKILL.md) — Agent Builder ×
