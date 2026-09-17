@@ -16,7 +16,7 @@
 @using System.Text.Json
 @using Microsoft.Extensions.Options
 @using Microsoft.JSInterop
-@inject IAgentRegistry AgentRegistry
+@inject IAsyncAgentRegistry AgentRegistry
 @inject IAgentRuntimeAdapter RuntimeAdapter
 @inject IAgentDeferredActionEvents DeferredActionEvents
 @inject IConversationStore ConversationStore
@@ -651,22 +651,22 @@
 
     private string? _themeStyle => Theme?.GetStyleString();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         DeferredActionEvents.DeferredActionCompleted += HandleDeferredActionCompleted;
         if (SessionEvents is not null)
             SessionEvents.SessionUpdated += HandleSessionUpdated;
 
         _agentNames.AddRange(
-            AgentRegistry.GetAll()
+            (await AgentRegistry.GetAllAsync())
                 .Select(static agent => agent.Name)
                 .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase));
-        ApplyAgentSelectionPolicy();
+        await ApplyAgentSelectionPolicyAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        ApplyAgentSelectionPolicy();
+        await ApplyAgentSelectionPolicyAsync();
         await HydrateTimelineFromHistoryAsync();
         await TryResumeActiveRunAsync();
     }
@@ -1873,7 +1873,7 @@
         return context.Count > 0 ? context : null;
     }
 
-    private void ApplyAgentSelectionPolicy()
+    private async Task ApplyAgentSelectionPolicyAsync()
     {
         if (_agentNames.Count == 0)
         {
@@ -1891,7 +1891,7 @@
 
         if (LockAgentToCurrentRoute)
         {
-            var resolved = ResolveRouteLockedAgentName();
+            var resolved = await ResolveRouteLockedAgentNameAsync();
             if (!string.IsNullOrWhiteSpace(resolved))
             {
                 _selectedAgent = resolved;
@@ -1913,7 +1913,7 @@
         }
     }
 
-    private string? ResolveRouteLockedAgentName()
+    private async Task<string?> ResolveRouteLockedAgentNameAsync()
     {
         var currentRoute = GetCurrentRoute();
         if (string.IsNullOrWhiteSpace(currentRoute))
@@ -1924,7 +1924,7 @@
         AgentRegistration? bestMatch = null;
         var bestScore = -1;
 
-        foreach (var registration in AgentRegistry.GetAll())
+        foreach (var registration in await AgentRegistry.GetAllAsync())
         {
             foreach (var routePattern in EnumerateRoutePatterns(registration))
             {
@@ -2427,7 +2427,7 @@
                 return true;
             }
 
-            targetRoute = ResolvePrimaryRouteForAgent(targetAgent);
+            targetRoute = await ResolvePrimaryRouteForAgentAsync(targetAgent);
             if (string.IsNullOrWhiteSpace(targetRoute))
             {
                 _timeline.Add(ChatTimelineItem.Activity(
@@ -2588,9 +2588,9 @@
         _timeline.Add(ChatTimelineItem.Activity($"Handed off from {fromAgent} to {toAgent}."));
     }
 
-    private string? ResolvePrimaryRouteForAgent(string agentName)
+    private async Task<string?> ResolvePrimaryRouteForAgentAsync(string agentName)
     {
-        var registration = AgentRegistry.GetAll().FirstOrDefault(a =>
+        var registration = (await AgentRegistry.GetAllAsync()).FirstOrDefault(a =>
             string.Equals(a.Name, agentName, StringComparison.OrdinalIgnoreCase));
         if (registration is null)
         {
