@@ -1,11 +1,12 @@
 namespace AgentBlazor.Demo.Services;
 
 using AgentBlazor.Agents;
+using AgentBlazor.Core.Runtime.Agents;
+using AgentBlazor.Core.Runtime.Conversation;
 using AgentBlazor.Core.Runtime.Interfaces;
 
 public sealed class DemoSessionBrowserService
 {
-    private const string AgentSeparator = "::agent::";
     private const int MaxSessionsToScan = 100;
     private const int MaxSessionsToReturn = 20;
     private static readonly string[] RouteKeys = ["route", "routes", "route_prefix", "route_prefixes"];
@@ -26,35 +27,29 @@ public sealed class DemoSessionBrowserService
 
     public async Task<IReadOnlyList<SessionBrowserEntry>> GetRecentSessionsAsync(CancellationToken ct = default)
     {
-        var sessionIds = await _store.GetActiveSessionsAsync(ct);
-        var results = new List<SessionBrowserEntry>();
+        var summaries = (await _store.GetSessionSummariesAsync(maxCount: MaxSessionsToScan, ct))
+            .Take(MaxSessionsToReturn)
+            .ToList();
+        var results = new List<SessionBrowserEntry>(summaries.Count);
 
-        foreach (var sessionId in sessionIds.Take(MaxSessionsToScan))
+        foreach (var summary in summaries)
         {
-            var history = await _store.GetHistoryAsync(sessionId, ct);
-            if (history is null || history.Turns.Count == 0)
-            {
-                continue;
-            }
+            var route = ExtractRoute(summary.BaseSessionId) ?? ResolveRouteForAgent(summary.AgentName);
+            var usage = await _usageQuery.GetSessionTotalsAsync(summary.SessionKey, ct);
 
-            var lastTurn = history.Turns.Last();
-            var (baseSessionId, agentName) = SplitSessionKey(sessionId);
-            var route = ExtractRoute(baseSessionId) ?? ResolveRouteForAgent(agentName);
-            var usage = await _usageQuery.GetSessionTotalsAsync(sessionId, ct);
+            var displayTitle = summary.GetDisplayTitle();
 
             results.Add(new SessionBrowserEntry
             {
-                // Full store key (includes ::agent:: suffix when isolation is on).
-                // This is what AgentChatSurface rehydrates via SessionId+LockedAgent.
-                SessionKey = sessionId,
-                SessionId = sessionId,
-                BaseSessionId = baseSessionId,
-                AgentName = agentName,
+                SessionKey = summary.SessionKey,
+                SessionId = summary.SessionKey,
+                BaseSessionId = summary.BaseSessionId,
+                AgentName = summary.AgentName,
                 Route = route,
-                TurnCount = history.Turns.Count,
-                LastMessage = BuildPreview(lastTurn.UserMessage, lastTurn.AgentResponse),
-                LastActivity = history.LastActivityAt,
-                CreatedAt = history.CreatedAt,
+                TurnCount = summary.TurnCount,
+                LastMessage = TruncatePreview(summary.LastMessage ?? displayTitle ?? "(empty)"),
+                LastActivity = summary.LastActivity,
+                CreatedAt = summary.CreatedAt,
                 PromptTokens = usage?.PromptTokens,
                 CompletionTokens = usage?.CompletionTokens,
                 CachedInputTokens = usage?.CachedInputTokens,
@@ -64,22 +59,19 @@ public sealed class DemoSessionBrowserService
             });
         }
 
-        return results
-            .OrderByDescending(s => s.LastActivity)
-            .Take(MaxSessionsToReturn)
-            .ToList();
+        return results;
     }
 
     internal static (string BaseSessionId, string? AgentName) SplitSessionKey(string sessionKey)
     {
-        var idx = sessionKey.IndexOf(AgentSeparator, StringComparison.OrdinalIgnoreCase);
+        var idx = sessionKey.IndexOf(AgentConversationScope.Separator, StringComparison.OrdinalIgnoreCase);
         if (idx < 0)
         {
             return (sessionKey, null);
         }
 
         var baseId = sessionKey.Substring(0, idx).Trim();
-        var agent = sessionKey.Substring(idx + AgentSeparator.Length).Trim();
+        var agent = sessionKey.Substring(idx + AgentConversationScope.Separator.Length).Trim();
         if (string.IsNullOrWhiteSpace(baseId))
         {
             baseId = sessionKey;
@@ -87,6 +79,9 @@ public sealed class DemoSessionBrowserService
 
         return (baseId, string.IsNullOrWhiteSpace(agent) ? null : agent);
     }
+
+    private static string TruncatePreview(string value)
+        => SessionSummary.TruncatePreview(value);
 
     private static string? ExtractRoute(string baseSessionId)
     {
@@ -198,30 +193,6 @@ public sealed class DemoSessionBrowserService
         return null;
     }
 
-    private static string BuildPreview(string userMessage, string agentResponse)
-    {
-        if (!string.IsNullOrWhiteSpace(userMessage))
-        {
-            return Truncate(userMessage.Trim(), 140);
-        }
-
-        if (!string.IsNullOrWhiteSpace(agentResponse))
-        {
-            return Truncate(agentResponse.Trim(), 140);
-        }
-
-        return "(empty)";
-    }
-
-    private static string Truncate(string value, int maxLength)
-    {
-        if (value.Length <= maxLength)
-        {
-            return value;
-        }
-
-        return value.Substring(0, maxLength - 1).TrimEnd() + "…";
-    }
 }
 
 public class SessionBrowserEntry

@@ -354,12 +354,48 @@ internal sealed class DemoConversationStore : IConversationStore, IDisposable
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<SessionSummary>> GetSessionSummariesAsync(
+        int? maxCount = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var cutoff = DateTime.UtcNow - _options.SessionTimeout;
+
+        var query = db.Sessions
+            .AsNoTracking()
+            .Where(s => s.LastActivityAtUtc >= cutoff && s.Turns.Any())
+            .OrderByDescending(s => s.LastActivityAtUtc)
+            .Select(s => new SessionSummary
+            {
+                SessionKey = s.SessionId,
+                Title = s.Title,
+                TurnCount = s.Turns.Count,
+                CreatedAt = s.CreatedAtUtc,
+                LastActivity = s.LastActivityAtUtc,
+                UserId = s.UserId,
+                LastMessage = s.Turns
+                    .OrderByDescending(t => t.TurnSequence)
+                    .Select(t => !string.IsNullOrWhiteSpace(t.UserMessage)
+                        ? t.UserMessage
+                        : t.AgentResponse)
+                    .FirstOrDefault()
+            });
+
+        query = maxCount is > 0
+            ? query.Take(maxCount.Value)
+            : query;
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
     private static ConversationHistory MapToHistory(DemoConversationSessionEntity session)
     {
         return new ConversationHistory
         {
             SessionId = session.SessionId,
             UserId = session.UserId,
+            Title = session.Title,
             CreatedAt = session.CreatedAtUtc,
             LastActivityAt = session.LastActivityAtUtc,
             Turns = session.Turns
