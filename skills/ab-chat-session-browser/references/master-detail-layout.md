@@ -54,43 +54,42 @@ internal static string? ExtractRoute(string baseSessionId)
 }
 ```
 
-### N+1 query mitigation
+### Session summary query
 
-`IConversationStore.GetHistoryAsync` is per-session. For N sessions, this is N store
-round-trips. Mitigate with a bounded scan + caching service:
+`IConversationStore.GetSessionSummariesAsync()` returns `SessionSummary` records
+with pre-projected metadata (turn count, last activity, title, last message preview)
+in a single query — no N+1 history fetches required.
 
 ```csharp
 public sealed class SessionBrowserService
 {
-    private const int MaxSessionsToScan = 100;
     private const int MaxSessionsToReturn = 20;
 
     public async Task<IReadOnlyList<SessionBrowserEntry>> GetRecentSessionsAsync(
         CancellationToken ct = default)
     {
-        var sessionIds = await _store.GetActiveSessionsAsync(ct);
+        var summaries = await _store.GetSessionSummariesAsync(
+            maxCount: MaxSessionsToReturn, ct);
+
         var results = new List<SessionBrowserEntry>();
 
-        foreach (var sessionId in sessionIds.Take(MaxSessionsToScan))
+        foreach (var summary in summaries)
         {
-            var history = await _store.GetHistoryAsync(sessionId, ct);
-            if (history is null || history.Turns.Count == 0)
-                continue;
-
-            var lastTurn = history.Turns.Last();
-            var (baseId, agentName) = SplitSessionKey(sessionId);
-            var route = ExtractRoute(baseId) ?? ResolveRouteForAgent(agentName);
-            var usage = await _usageQuery.GetSessionTotalsAsync(sessionId, ct);
+            var route = ExtractRoute(summary.BaseSessionId)
+                ?? ResolveRouteForAgent(summary.AgentName);
+            var usage = await _usageQuery.GetSessionTotalsAsync(
+                summary.SessionKey, ct);
 
             results.Add(new SessionBrowserEntry
             {
-                SessionKey = sessionId,
-                BaseSessionId = baseId,
-                AgentName = agentName,
+                SessionKey = summary.SessionKey,
+                BaseSessionId = summary.BaseSessionId,
+                AgentName = summary.AgentName,
                 Route = route,
-                TurnCount = history.Turns.Count,
-                LastMessage = BuildPreview(lastTurn.UserMessage, lastTurn.AgentResponse),
-                LastActivity = history.LastActivityAt,
+                TurnCount = summary.TurnCount,
+                LastMessage = summary.LastMessage
+                    ?? summary.GetDisplayTitle() ?? "(empty)",
+                LastActivity = summary.LastActivity,
                 PromptTokens = usage?.PromptTokens,
                 CompletionTokens = usage?.CompletionTokens,
                 CachedInputTokens = usage?.CachedInputTokens,
@@ -100,16 +99,26 @@ public sealed class SessionBrowserService
             });
         }
 
-        return results
-            .OrderByDescending(s => s.LastActivity)
-            .Take(MaxSessionsToReturn)
-            .ToList();
+        return results;
     }
 }
 ```
 
+**`SessionSummary` key properties**:
+- `SessionKey` — full store key (includes `::agent::` suffix when isolation is on)
+- `BaseSessionId` — parsed base without the agent suffix
+- `AgentName` — parsed from `::agent::` suffix (null for legacy keys)
+- `Title` — explicit title if set; consumers use `GetDisplayTitle(turns)` for fallback
+- `LastMessage` — truncated preview of the last turn's user message (null for EF Core)
+- `TurnCount`, `CreatedAt`, `LastActivity` — always populated
+
+**Default interface method**: If your `IConversationStore` implementation does not
+override `GetSessionSummariesAsync`, the default implementation falls back to
+`GetActiveSessionsAsync` + per-session `GetHistoryAsync` (N+1). Override it for
+efficient bulk projection.
+
 For larger session counts, consider:
-- **Batch loading**: Load sessions in pages (skip/take) instead of scanning all
+- **Batch loading**: Use `maxCount` to limit the initial scan
 - **Caching**: Cache the session list with a TTL and invalidate on `SessionUpdated`
 - **Background refresh**: Load the list on a background thread to avoid UI blocking
 

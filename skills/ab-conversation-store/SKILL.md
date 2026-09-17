@@ -1,6 +1,6 @@
 ---
 name: ab-conversation-store
-description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; implementing incremental persistence operations (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync) keyed by ConversationTurn.TurnId; wiring UseJsonFileConversationStore; or enabling action persistence via UseProLicense (SqliteActionHistoryStore) or implementing IActionHistoryStore. Consumer-side only; never edit package internals. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, TurnId, conversation persistence, incremental persistence, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, UseProLicense, agent action persistence, action history SQL."
+description: "Implement conversation history storage for AgentBlazor agents, and enable/persist agent action history to a database. Use when choosing between InMemoryConversationStore, JsonFileConversationStore, or a custom durable EF Core + SQL Server store; implementing incremental persistence (UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync) keyed by TurnId; fetching session summaries via GetSessionSummariesAsync / SessionSummary for session browser list panels; wiring UseJsonFileConversationStore; or enabling action persistence via UseProLicense or implementing IActionHistoryStore. Triggers: IConversationStore, UseConversationStore, UseJsonFileConversationStore, InMemoryConversationStore, JsonFileConversationStore, AppendTurnAsync, UpdateTurnAsync, DeleteTurnAsync, ReorderTurnsAsync, GetSessionSummariesAsync, SessionSummary, TurnId, conversation persistence, incremental persistence, session summaries, IActionHistoryStore, ActionHistoryEntry, SqliteActionHistoryStore, UseProLicense, agent action persistence."
 metadata:
     version: 0.4.1
 ---
@@ -229,6 +229,29 @@ The store API must **never trust a client-supplied UserId**. Resolve it server-s
 - Route-parameterized resources (`/conversations/{conversationId}*`) are **ownership-scoped**: the route id is validated to belong to the caller before any read/write.
 - `/user` and `/active` collections are **self-scoped**: they always filter by the caller's own id — the client cannot query another user's conversations.
 - Do not accept `UserId` on wire contracts (e.g., `AppendTurnRequest`); the caller id is the only identity source.
+
+## Session summaries (`GetSessionSummariesAsync`)
+
+`IConversationStore.GetSessionSummariesAsync` returns lightweight `SessionSummary`
+records — turn count, last activity timestamp, title, and last-message preview — in a
+single query. This eliminates N+1 history fetches when rendering session browser list
+panels:
+
+```csharp
+IReadOnlyList<SessionSummary> summaries = await store.GetSessionSummariesAsync(
+    userId, maxResults: 50, cancellationToken);
+```
+
+Each `SessionSummary` contains:
+- `SessionId` — the composed session key
+- `Title` — user-assigned or auto-derived title
+- `LastActivity` — timestamp of the most recent turn
+- `TurnCount` — total number of turns in the session
+- `LastMessagePreview` — truncated preview of the last message content
+
+The default interface method returns an empty list; custom stores should query their
+backing store efficiently (e.g. a single `GROUP BY` + `MAX` query over the turns
+collection) rather than loading full turn history.
 
 ## Turn usage & cost persistence (`ConversationTurn.Usage`)
 
