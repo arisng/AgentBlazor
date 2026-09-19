@@ -67,6 +67,12 @@
     align-items: center;
 }
 
+/* Same wrapper for the persisted-execution-plan chip. */
+.session-browser__plan-chip {
+    display: inline-flex;
+    align-items: center;
+}
+
 .session-browser__item-preview {
     display: block;
     margin-top: 0.2rem;

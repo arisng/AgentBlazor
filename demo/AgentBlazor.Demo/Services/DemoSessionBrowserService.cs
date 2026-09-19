@@ -13,16 +13,16 @@ public sealed class DemoSessionBrowserService
 
     private readonly IConversationStore _store;
     private readonly IAsyncAgentRegistry _agents;
-    private readonly IDemoConversationUsageQuery _usageQuery;
+    private readonly IDemoConversationTurnQuery _turnQuery;
 
     public DemoSessionBrowserService(
         IConversationStore store,
         IAsyncAgentRegistry agents,
-        IDemoConversationUsageQuery usageQuery)
+        IDemoConversationTurnQuery turnQuery)
     {
         _store = store;
         _agents = agents;
-        _usageQuery = usageQuery;
+        _turnQuery = turnQuery;
     }
 
     public async Task<IReadOnlyList<SessionBrowserEntry>> GetRecentSessionsAsync(CancellationToken ct = default)
@@ -32,10 +32,18 @@ public sealed class DemoSessionBrowserService
             .ToList();
         var results = new List<SessionBrowserEntry>(summaries.Count);
 
+        // ONE batched roundtrip for usage + plan across all returned sessions instead of
+        // two queries per session.
+        var details = await _turnQuery.GetSessionDetailsAsync(
+            summaries.Select(static s => s.SessionKey).ToList(), ct);
+        var detailsByKey = details.ToDictionary(static d => d.SessionKey);
+
         foreach (var summary in summaries)
         {
             var route = ExtractRoute(summary.BaseSessionId) ?? ResolveRouteForAgent(summary.AgentName);
-            var usage = await _usageQuery.GetSessionTotalsAsync(summary.SessionKey, ct);
+            var detail = detailsByKey.GetValueOrDefault(summary.SessionKey);
+            var usage = detail?.Usage;
+            var plan = detail?.Plan;
 
             var displayTitle = summary.GetDisplayTitle();
 
@@ -55,7 +63,10 @@ public sealed class DemoSessionBrowserService
                 CachedInputTokens = usage?.CachedInputTokens,
                 TotalTokens = usage?.TotalTokens,
                 EstimatedCost = usage?.EstimatedCost,
-                EstimatedCostCurrency = usage?.EstimatedCostCurrency
+                EstimatedCostCurrency = usage?.EstimatedCostCurrency,
+                TurnsWithPlan = plan?.TurnsWithPlan,
+                TotalPlanSteps = plan?.TotalSteps,
+                ApprovalRequiredSteps = plan?.ApprovalRequiredSteps
             });
         }
 
@@ -275,6 +286,18 @@ public class SessionBrowserEntry
 
     /// <summary>Currency of <see cref="EstimatedCost"/> (always <c>USD</c> in the Demo).</summary>
     public string? EstimatedCostCurrency { get; set; }
+
+    /// <summary>
+    /// Number of turns in this session whose execution plan was persisted to the
+    /// database. Null when the store backend is not EF Core.
+    /// </summary>
+    public int? TurnsWithPlan { get; set; }
+
+    /// <summary>Total execution steps across the session's persisted plans.</summary>
+    public int? TotalPlanSteps { get; set; }
+
+    /// <summary>Execution steps across the session's persisted plans that require approval.</summary>
+    public int? ApprovalRequiredSteps { get; set; }
 }
 
 public sealed record AgentPickerOption(string Name, string? Description, string? Route);

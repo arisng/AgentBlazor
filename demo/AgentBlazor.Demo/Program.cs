@@ -52,10 +52,10 @@ var demoConversationOptions = builder.Configuration
     .Get<DemoConversationOptions>()
     ?? new DemoConversationOptions();
 
-// Per-session usage rollups for the session browser. The Null query is the default
-// (JsonFile/InMemory stores have no usage columns); the EFCore branch below replaces
-// it with the SQL Server-backed query.
-builder.Services.AddSingleton<IDemoConversationUsageQuery, NullDemoConversationUsageQuery>();
+// Per-session conversation-turn rollups (usage + execution plans) for the session
+// browser. The Null query is the default (JsonFile/InMemory stores have no DB columns);
+// the EFCore branch below replaces it with the SQL Server-backed batch query.
+builder.Services.AddSingleton<IDemoConversationTurnQuery, NullDemoConversationTurnQuery>();
 
 // Unified EF Core DbContext — conversation sessions/turns + agent definitions in one
 // SQL Server database, managed by code-first migrations.
@@ -71,7 +71,7 @@ builder.Services.AddDbContextFactory<DemoDbContext>(options =>
 // IConversationStore implementation demonstrating the production-database pattern.
 if (string.Equals(demoConversationOptions.Store, "EFCore", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Services.AddSingleton<IDemoConversationUsageQuery, DemoConversationUsageQuery>();
+    builder.Services.AddSingleton<IDemoConversationTurnQuery, DemoConversationTurnQuery>();
     builder.Services.Configure<ConversationOptions>(conversationOptions =>
     {
         conversationOptions.MaxTurnsPerSession = demoConversationOptions.MaxTurnsPerSession;

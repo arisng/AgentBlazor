@@ -69,6 +69,14 @@
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
                                     @session.TurnCount turns
                                 </MudChip>
+                                @if (session.TurnsWithPlan is > 0)
+                                {
+                                    <span class="session-browser__plan-chip" title="@BuildPlanTooltip(session)">
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary">
+                                            @FormatPlanSummary(session)
+                                        </MudChip>
+                                    </span>
+                                }
                                 @if (session.TotalTokens is not null)
                                 {
                                     <span class="session-browser__usage-chip" title="@BuildUsageTooltip(session)">
@@ -209,6 +217,13 @@
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_selected.Route</MudChip>
                             }
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_selected.TurnCount turns</MudChip>
+                            @if (_selected.TurnsWithPlan is > 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary"
+                                         title="@BuildPlanTooltip(_selected)">
+                                    @FormatPlanSummary(_selected)
+                                </MudChip>
+                            }
                             @if (_selected.TotalTokens is not null)
                             {
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">
@@ -467,6 +482,35 @@
 
     private static string FormatCost(decimal cost, string? currency)
         => $"{cost:0.######} {currency ?? "USD"}";
+
+    /// <summary>
+    /// Compact persisted-plan summary for the session chips, e.g. "3 plans • 7 steps".
+    /// </summary>
+    private static string FormatPlanSummary(SessionBrowserEntry entry)
+    {
+        var turns = entry.TurnsWithPlan ?? 0;
+        var steps = entry.TotalPlanSteps ?? 0;
+        return $"{turns} plan{(turns == 1 ? "" : "s")} • {steps} step{(steps == 1 ? "" : "s")}";
+    }
+
+    /// <summary>
+    /// Full labelled plan breakdown shown on hover in the session list.
+    /// </summary>
+    private static string BuildPlanTooltip(SessionBrowserEntry entry)
+    {
+        var parts = new List<string>
+        {
+            $"{entry.TurnsWithPlan} turn(s) with a persisted execution plan",
+            $"{entry.TotalPlanSteps} execution step(s) total"
+        };
+
+        if (entry.ApprovalRequiredSteps is > 0)
+        {
+            parts.Add($"{entry.ApprovalRequiredSteps} approval-required step(s)");
+        }
+
+        return string.Join(" · ", parts);
+    }
 
     private async Task LoadAsync()
     {
