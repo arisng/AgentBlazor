@@ -47,7 +47,7 @@ and required a scope-bridging workaround. The new model eliminates the rewrite:
   contract), `Data/DemoDbContextFactory.cs` (design-time factory for migrations)
 - Token usage & cost: `src/AgentBlazor.Core/Runtime/Conversation/ConversationTurnUsage.cs`
   (library turn usage), `Services/DemoUsageCostCalculator.cs` (shared pricing),
-  `Services/DemoConversationUsageQuery.cs` (per-session rollups for the session browser)
+  `Services/DemoConversationTurnQuery.cs` (per-session usage + plan rollups, batched)
 - Library: `src/AgentBlazor.Core/Runtime/Interfaces/IConversationStore.cs` and
   `src/AgentBlazor.Core/Runtime/Conversation/` (`InMemoryConversationStore`,
   `JsonFileConversationStore`)
@@ -79,7 +79,7 @@ conversation database (EF Core store only):
 - **Surfacing** — `/demo/sessions` shows a per-session token breakdown (prompt /
   completion / cached / total chips in the detail header; a compact `in / out` split with
   a full hover breakdown in the list), plus the estimated cost — fed by
-  `DemoConversationUsageQuery` (a Null query when the store is not EF Core).
+  `DemoConversationTurnQuery` (a Null query when the store is not EF Core).
 
 Turns that never reach the model (short-circuited, no-agent, approval continuation) have
 no usage and no cost — an unpriced turn is not the same as a free one.
