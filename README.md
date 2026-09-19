@@ -1,22 +1,27 @@
 # AgentBlazor
 
-Last updated: 2026-05-28
+Last updated: 2026-09-19
 
 Add an agent chat surface and deterministic app actions to a Blazor app.
 
 AgentBlazor gives a Blazor route a chat surface, explicit capabilities, approval-gated actions, and deterministic UI execution without replacing the normal app UI.
 
-Try the hosted demo:
+## About this repository
 
-- https://demo.agentblazor.com/demo/workflows/support-inbox
+This is a private, independently maintained fork of AgentBlazor by **Aris Nguyen**.
+
+**Credits & origin.** The original AgentBlazor project was created by **[Ash Peterson](https://github.com/ashpeterson)** ([upstream repository](https://github.com/ashpeterson/AgentBlazor)). Ash Peterson retains copyright over the original work, which remains MIT-licensed. See [LICENSE](LICENSE) for the dual copyright notice and [DIVERGENCE.md](DIVERGENCE.md) for the history of this fork's changes. Upstream changes are pulled in on demand only; this fork no longer tracks upstream on a fixed schedule.
 
 ## Install
 
+This fork ships packages to a private NuGet feed rather than the public nuget.org gallery. Register the feed, then install:
+
 ```bash
-dotnet add package AgentBlazor
+# Register the private feed source (local path or URL), then:
+dotnet add package AgentBlazor --source agentblazor-local
 ```
 
-Use `0.2.5` or later. This release includes the CLI Windows MSBuild fallback and first-run API-key prompt, CLI v1 analyze package refresh, mobile chat input stability fix, corrected EF package shape, and tool-friendly schemas for `DateOnly`, `TimeOnly`, `DateTime`, `DateTimeOffset`, and `Guid` workflow parameters.
+Use `0.2.26-internal.2` or later. Fork builds carry an `-internal.N` suffix so they never collide with upstream public versions. For local-feed setup and the per-version folder layout, see [Private feed publishing](docs/internal/private-feed-publishing.md).
 
 The CLI is optional. Keep it out of the critical path unless you want scaffold help for an existing app.
 
@@ -96,7 +101,6 @@ Render one chat surface:
 - Home quickstart: `/`
 - Docs: `/docs`
 - Live demo: `/demo`
-- Hosted demo: https://demo.agentblazor.com/demo/workflows/support-inbox
 - Starter sample: `samples/AgentBlazor.Starter`
 - Starter sample route: `/ops-review`
 
@@ -140,10 +144,10 @@ dotnet run --project samples/AgentBlazor.Starter/AgentBlazor.Starter.csproj
 
 ## Optional EF Core Schema Exposure
 
-If your app uses EF Core, install `AgentBlazor.EntityFrameworkCore` to expose selected entity shapes as planning context:
+If your app uses EF Core, install `AgentBlazor.EntityFrameworkCore` (from the same private feed) to expose selected entity shapes as planning context:
 
 ```bash
-dotnet add package AgentBlazor.EntityFrameworkCore
+dotnet add package AgentBlazor.EntityFrameworkCore --source agentblazor-local
 ```
 
 This is schema-only. It helps an agent understand safe entity fields, but it does not execute queries, generate LINQ or SQL, scan every `DbSet`, or grant write access. Data access still goes through your typed `[AgentAction]` methods.
