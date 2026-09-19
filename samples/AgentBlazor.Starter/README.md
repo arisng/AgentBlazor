@@ -6,10 +6,6 @@ Use the public quickstart first:
 
 - [docs/quickstart.md](../../docs/quickstart.md)
 
-Hosted support-inbox demo:
-
-- https://demo.agentblazor.com/demo/workflows/support-inbox
-
 Then use this starter when you want to inspect a slightly fuller route-scoped workflow example with:
 
 - one workflow agent

@@ -2,8 +2,6 @@
 
 Use this guide if you are testing AgentBlazor before launch.
 
-Hosted demo: https://demo.agentblazor.com/demo/workflows/support-inbox
-
 ## Goal
 
 Prove four things:
@@ -20,7 +18,8 @@ Use a fresh app first. Do not start with an existing codebase.
 ```bash
 dotnet new blazor -o FreshAgentBlazor
 cd FreshAgentBlazor
-dotnet add package AgentBlazor
+# fork builds come from the private feed (see internal/private-feed-publishing.md)
+dotnet add package AgentBlazor --source agentblazor-local
 ```
 
 Then follow:
@@ -35,15 +34,11 @@ Use the support-inbox shape only:
 - one chat surface
 - one approval-gated action
 
-Compare against the hosted support-inbox demo if you want a known-running reference:
-
-- https://demo.agentblazor.com/demo/workflows/support-inbox
-
 ## Exact Checks
 
 Please report pass or fail for each of these:
 
-1. `dotnet add package AgentBlazor`
+1. `dotnet add package AgentBlazor --source agentblazor-local`
 2. `dotnet build`
 3. app starts with AgentBlazor assets loaded
 4. chat surface opens
@@ -73,8 +68,8 @@ The most useful report includes:
 
 Use one of these issue forms:
 
-- [Install friction](https://github.com/ashpeterson/AgentBlazor/issues/new?template=install-friction.yml)
-- [Beta feedback](https://github.com/ashpeterson/AgentBlazor/issues/new?template=beta-feedback.yml)
+- [Install friction](https://github.com/arisng/AgentBlazor/issues/new?template=install-friction.yml)
+- [Beta feedback](https://github.com/arisng/AgentBlazor/issues/new?template=beta-feedback.yml)
 
 Include:
 

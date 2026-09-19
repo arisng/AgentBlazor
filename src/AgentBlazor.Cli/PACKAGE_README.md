@@ -2,16 +2,16 @@
 
 Advanced scaffold and validation tool for wiring AgentBlazor into existing Blazor apps.
 
-Install:
+Install (this fork publishes to a private feed, not nuget.org):
 
 ```bash
-dotnet tool install --global AgentBlazor.Cli
+dotnet tool install --global AgentBlazor.Cli --add-source "%USERPROFILE%\.agentblazor-feed"
 ```
 
 If you prefer a pinned install:
 
 ```bash
-dotnet tool install --global AgentBlazor.Cli --version 0.2.22
+dotnet tool install --global AgentBlazor.Cli --version 0.2.26-internal.2 --add-source "%USERPROFILE%\.agentblazor-feed"
 ```
 
 Example:
@@ -81,23 +81,24 @@ The CLI is an advanced path. The default install story is still `dotnet add pack
 
 Docs:
 
-- Repository: https://github.com/ashpeterson/AgentBlazor
-- Advanced CLI guide: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/advanced/cli.md
-- 0.2.22 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.22.md
-- 0.2.21 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.21.md
-- 0.2.20 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.20.md
-- 0.2.19 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.19.md
-- 0.2.18 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.18.md
-- 0.2.17 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.17.md
-- 0.2.16 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.16.md
-- 0.2.15 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.15.md
-- 0.2.14 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.14.md
-- 0.2.13 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.13.md
-- 0.2.12 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.12.md
-- 0.2.11 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.11.md
-- 0.2.10 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.10.md
-- 0.2.5 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.5.md
-- 0.2.3 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.3.md
-- 0.2.2 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.2.md
-- 0.2.1 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.1.md
-- 0.2.0 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.0.md
+- Repository: https://github.com/arisng/AgentBlazor
+- Maintained by Aris Nguyen; original project created by Ash Peterson (https://github.com/ashpeterson/AgentBlazor)
+- Advanced CLI guide: https://github.com/arisng/AgentBlazor/blob/develop/docs/advanced/cli.md
+- 0.2.22 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.22.md
+- 0.2.21 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.21.md
+- 0.2.20 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.20.md
+- 0.2.19 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.19.md
+- 0.2.18 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.18.md
+- 0.2.17 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.17.md
+- 0.2.16 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.16.md
+- 0.2.15 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.15.md
+- 0.2.14 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.14.md
+- 0.2.13 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.13.md
+- 0.2.12 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.12.md
+- 0.2.11 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.11.md
+- 0.2.10 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.10.md
+- 0.2.5 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.5.md
+- 0.2.3 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.3.md
+- 0.2.2 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.2.md
+- 0.2.1 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.1.md
+- 0.2.0 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.0.md

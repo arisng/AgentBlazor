@@ -61,8 +61,8 @@ set OpenAI__Model=gpt-4o-mini
 
 For GitHub Actions:
 ```bash
-gh secret set OPENAI_API_KEY --repo ashpeterson/AgentBlazor
-gh variable set OPENAI_MODEL --repo ashpeterson/AgentBlazor --body gpt-4o-mini
+gh secret set OPENAI_API_KEY --repo arisng/AgentBlazor
+gh variable set OPENAI_MODEL --repo arisng/AgentBlazor --body gpt-4o-mini
 ```
 
 `OPENAI_API_KEY` must contain the API key value, not the model name. OpenAI keys normally start with `sk-`.

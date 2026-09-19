@@ -2,25 +2,19 @@
 
 Add an agent chat surface and deterministic app actions to a Blazor app.
 
-Hosted demo:
-
-- https://demo.agentblazor.com/demo/workflows/support-inbox
-
-Install:
+Install (this fork publishes to a private feed, not nuget.org):
 
 ```bash
-dotnet add package AgentBlazor
+dotnet add package AgentBlazor --source agentblazor-local
 ```
 
 If you prefer a pinned install, use:
 
 ```bash
-dotnet add package AgentBlazor --version 0.2.5
+dotnet add package AgentBlazor --version 0.2.26-internal.2 --source agentblazor-local
 ```
 
-Use `0.2.5` or later. This release includes the CLI Windows MSBuild fallback and first-run API-key prompt, CLI v1 analyze package refresh, mobile chat input stability fix, corrected EF package shape, and tool-friendly schemas for date-like workflow parameters.
-
-If `dotnet` still probes an old custom package source on your machine, remove or disable that source before testing the public NuGet install path.
+Always pass `--source agentblazor-local` (see docs/internal/private-feed-publishing.md) so fork builds are never resolved from the public nuget.org copy of the same package ID.
 
 Minimal setup:
 
@@ -125,16 +119,15 @@ The copy button uses `navigator.clipboard` with an `execCommand` fallback.
 
 Docs and demo:
 
-- Repository: https://github.com/ashpeterson/AgentBlazor
-- Hosted demo: https://demo.agentblazor.com/demo/workflows/support-inbox
-- Markdown showcase: https://demo.agentblazor.com/demo/markdown-showcase
-- Structured error reference: https://demo.agentblazor.com/demo/workflows/runtime-probe
-- Quickstart: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/quickstart.md
-- 0.2.5 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.5.md
-- 0.2.3 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.3.md
-- 0.2.2 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.2.md
-- 0.2.1 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.1.md
-- 0.2.0 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.0.md
-- Recoverable capability errors: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/capability-errors.md
-- Optional EF Core schema exposure: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/entity-framework.md
-- Starter sample: https://github.com/ashpeterson/AgentBlazor/tree/master/samples/AgentBlazor.Starter
+- Repository: https://github.com/arisng/AgentBlazor
+- Maintained by Aris Nguyen; original project created by Ash Peterson (https://github.com/ashpeterson/AgentBlazor)
+- Demo (run locally: `dotnet run --project demo/AgentBlazor.Demo`): `/demo/workflows/support-inbox`, `/demo/markdown-showcase`, `/demo/workflows/runtime-probe`
+- Quickstart: https://github.com/arisng/AgentBlazor/blob/develop/docs/quickstart.md
+- 0.2.5 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.5.md
+- 0.2.3 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.3.md
+- 0.2.2 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.2.md
+- 0.2.1 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.1.md
+- 0.2.0 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.0.md
+- Recoverable capability errors: https://github.com/arisng/AgentBlazor/blob/develop/docs/capability-errors.md
+- Optional EF Core schema exposure: https://github.com/arisng/AgentBlazor/blob/develop/docs/entity-framework.md
+- Starter sample: https://github.com/arisng/AgentBlazor/tree/develop/samples/AgentBlazor.Starter

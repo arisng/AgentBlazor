@@ -4,16 +4,16 @@ Optional Entity Framework Core integration for exposing read-safe entity schema 
 
 This package is schema-only. It does not execute queries, generate LINQ, generate SQL, scan every `DbSet`, or grant data mutation capability.
 
-Install:
+Install (this fork publishes to a private feed, not nuget.org):
 
 ```bash
-dotnet add package AgentBlazor.EntityFrameworkCore
+dotnet add package AgentBlazor.EntityFrameworkCore --source agentblazor-local
 ```
 
 Pinned install:
 
 ```bash
-dotnet add package AgentBlazor.EntityFrameworkCore --version 0.2.5
+dotnet add package AgentBlazor.EntityFrameworkCore --version 0.2.5 --source agentblazor-local
 ```
 
 Use `0.2.5` or later. This release includes the CLI Windows MSBuild fallback and first-run API-key prompt, CLI v1 analyze package refresh, mobile chat input stability fix, corrected EF package shape, and tool-friendly schemas for date-like workflow parameters.
@@ -53,4 +53,6 @@ options.ConfigureBuilder(agentBuilder =>
 
 Execution remains app-owned. Use normal `[AgentAction]` methods with EF projections, row limits, authorization, and tenant filtering. Do not pass model-generated SQL or LINQ into EF.
 
-Full docs: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/entity-framework.md
+Full docs: https://github.com/arisng/AgentBlazor/blob/develop/docs/entity-framework.md
+
+Fork maintained by Aris Nguyen; original project created by Ash Peterson (https://github.com/ashpeterson/AgentBlazor).

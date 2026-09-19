@@ -2,19 +2,15 @@
 
 Recommended low-cost host: Azure Container Apps Consumption, using a public GHCR image. This keeps the demo on a scale-to-zero container platform, avoids an Azure Container Registry monthly charge, supports WebSockets for Blazor Server, and supports managed TLS for a custom subdomain.
 
-Use `demo.agentblazor.com` for the live demo. Keep `agentblazor.com` free for the landing page.
-
-Live URL:
-
-- https://demo.agentblazor.com/demo/workflows/support-inbox
+This fork's demo runs on your own demo hostname (shown as `<demo-host>` throughout, e.g. `demo.<your-domain>`). Keep it on a subdomain, separate from any landing-page/apex domain.
 
 ## 1. Build The Image
 
 Run the `Demo Container` GitHub Actions workflow. It publishes:
 
 ```text
-ghcr.io/ashpeterson/agentblazor-demo:latest
-ghcr.io/ashpeterson/agentblazor-demo:<commit-sha>
+ghcr.io/arisng/agentblazor-demo:latest
+ghcr.io/arisng/agentblazor-demo:<commit-sha>
 ```
 
 If the package is private after the first run, make it public in GitHub Packages before deploying to Azure Container Apps.
@@ -32,7 +28,7 @@ Deploy:
 
 ```bash
 export OPENAI_API_KEY="<live-demo-openai-key>"
-export AGENTBLAZOR_DEMO_IMAGE="ghcr.io/ashpeterson/agentblazor-demo:latest"
+export AGENTBLAZOR_DEMO_IMAGE="ghcr.io/arisng/agentblazor-demo:latest"
 export DEMO_LOG_ACCESS_TOKEN="<long-random-token>"
 
 ./scripts/deploy/azure-container-apps-demo.sh
@@ -60,13 +56,13 @@ curl -I "https://<generated-hostname>"
 
 ## 3. Add The Domain
 
-Start with `demo.agentblazor.com`, not the apex domain.
+Start with a demo subdomain (e.g. `demo.<your-domain>`), not the apex domain.
 
 In the Azure portal:
 
 1. Open `agentblazor-demo`.
 2. Go to `Settings` -> `Custom domains`.
-3. Add `demo.agentblazor.com`.
+3. Add your demo subdomain.
 4. Choose `Managed certificate`.
 5. Add the DNS records Azure gives you at your domain registrar.
 
@@ -118,13 +114,13 @@ It does not record full prompt text, raw IP addresses, or raw user agents unless
 Open the browser log viewer from any machine by visiting the one-time login URL with the current access token:
 
 ```text
-https://demo.agentblazor.com/internal/demo-logs/login?token=<DEMO_LOG_ACCESS_TOKEN>
+https://<demo-host>/internal/demo-logs/login?token=<DEMO_LOG_ACCESS_TOKEN>
 ```
 
 That sets a secure HttpOnly cookie for 30 days and redirects to:
 
 ```text
-https://demo.agentblazor.com/internal/demo-logs/view
+https://<demo-host>/internal/demo-logs/view
 ```
 
 The viewer shows the traffic/chat summary, recent page traffic, recent chat turns, and download links.
@@ -133,21 +129,21 @@ Get the traffic and chat summary:
 
 ```bash
 curl -H "X-Demo-Log-Token: $DEMO_LOG_ACCESS_TOKEN" \
-  "https://demo.agentblazor.com/internal/demo-logs/summary"
+  "https://<demo-host>/internal/demo-logs/summary"
 ```
 
 Access recent chat log lines:
 
 ```bash
 curl -H "X-Demo-Log-Token: $DEMO_LOG_ACCESS_TOKEN" \
-  "https://demo.agentblazor.com/internal/demo-logs?lines=200"
+  "https://<demo-host>/internal/demo-logs?lines=200"
 ```
 
 Access recent traffic log lines:
 
 ```bash
 curl -H "X-Demo-Log-Token: $DEMO_LOG_ACCESS_TOKEN" \
-  "https://demo.agentblazor.com/internal/demo-logs/traffic?lines=200"
+  "https://<demo-host>/internal/demo-logs/traffic?lines=200"
 ```
 
 Download the current chat file:
@@ -155,7 +151,7 @@ Download the current chat file:
 ```bash
 curl -H "X-Demo-Log-Token: $DEMO_LOG_ACCESS_TOKEN" \
   -o agentblazor-demo-chat-requests.jsonl \
-  "https://demo.agentblazor.com/internal/demo-logs/download"
+  "https://<demo-host>/internal/demo-logs/download"
 ```
 
 Download the current traffic file:
@@ -163,7 +159,7 @@ Download the current traffic file:
 ```bash
 curl -H "X-Demo-Log-Token: $DEMO_LOG_ACCESS_TOKEN" \
   -o agentblazor-demo-traffic-requests.jsonl \
-  "https://demo.agentblazor.com/internal/demo-logs/traffic/download"
+  "https://<demo-host>/internal/demo-logs/traffic/download"
 ```
 
 The token cost estimate currently uses the configured `DemoTokenPricing__InputTokenCostPerMillion`, `DemoTokenPricing__OutputTokenCostPerMillion`, and `DemoTokenPricing__CachedInputTokenCostPerMillion` values. The defaults match `gpt-4o-mini` text pricing at `$0.15` per 1M input tokens, `$0.60` per 1M output tokens, and `$0.0075` per 1M cached input tokens.
@@ -176,7 +172,7 @@ Redeploy a known-good image tag:
 
 ```bash
 export OPENAI_API_KEY="<live-demo-openai-key>"
-export AGENTBLAZOR_DEMO_IMAGE="ghcr.io/ashpeterson/agentblazor-demo:<commit-sha>"
+export AGENTBLAZOR_DEMO_IMAGE="ghcr.io/arisng/agentblazor-demo:<commit-sha>"
 
 ./scripts/deploy/azure-container-apps-demo.sh
 ```

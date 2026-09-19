@@ -19,7 +19,7 @@ const { openAssistantChatSurface } = require(path.resolve(
 
 const repoRoot = path.resolve(__dirname, "../..");
 const outDir = path.resolve(process.argv[2] || path.join(repoRoot, "artifacts/video/structured-error-reference"));
-const baseUrl = process.env.AGENTBLAZOR_DEMO_URL || "https://demo.agentblazor.com";
+const baseUrl = process.env.AGENTBLAZOR_DEMO_URL || "http://localhost:5249";
 const prompt = "Run the structured error date range probe";
 
 fs.rmSync(outDir, { recursive: true, force: true });

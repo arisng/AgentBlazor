@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${OPENAI_API_KEY:?Set OPENAI_API_KEY before deploying.}"
-: "${AGENTBLAZOR_DEMO_IMAGE:?Set AGENTBLAZOR_DEMO_IMAGE, for example ghcr.io/ashpeterson/agentblazor-demo:latest.}"
+: "${AGENTBLAZOR_DEMO_IMAGE:?Set AGENTBLAZOR_DEMO_IMAGE, for example ghcr.io/arisng/agentblazor-demo:latest.}"
 
 RESOURCE_GROUP="${RESOURCE_GROUP:-agentblazor-demo-rg}"
 LOCATION="${LOCATION:-uksouth}"

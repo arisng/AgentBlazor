@@ -8,8 +8,7 @@ how to exercise it step-by-step, and what to observe.
 
 ## How to use this guide
 
-1. **Start the Demo** — `dotnet run --project demo/AgentBlazor.Demo` (or use the hosted
-   demo at `https://demo.agentblazor.com`).
+1. **Start the Demo** — `dotnet run --project demo/AgentBlazor.Demo`.
 2. **Pick a category** below and open its README for an overview.
 3. **Open a feature guide** and follow the steps in the Demo UI.
 4. **Observe** the expected behavior described in each guide.

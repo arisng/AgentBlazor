@@ -7,7 +7,7 @@
 > **Decision (2026-08-19):** the **GitHub Packages** approach was evaluated and **set aside**
 > in favor of a **shared OneDrive folder** as the distribution channel (see
 > `docs/internal/github-packages-sharing.md` for the PAT/roles flow, kept for reference).
-> Source repo stays a public fork (upstream PRs preserved); the `-internal.N` packages are
+> Source repo stays public (fork of the public upstream project); the `-internal.N` packages are
 > distributed via the shared OneDrive folder and staged locally on each consumer machine.
 
 - `docs/internal/github-packages-sharing.md` — the GitHub Packages flow (roles + PAT),
@@ -46,10 +46,10 @@ https://nuget.pkg.github.com/arisng/index.json
 > If publishing from a personal namespace, this owner stays the same as the repo owner.
 > For an **org** namespace, package visibility and membership are managed at org level.
 
-### Repo visibility posture (decision: public fork + private packages)
+### Repo visibility posture (decision: public repo + private packages)
 
-`arisng/AgentBlazor` is a **public fork** of `ashpeterson/AgentBlazor` and stays public so
-upstream pull requests remain possible. Therefore:
+`arisng/AgentBlazor` is a fork of `ashpeterson/AgentBlazor`, maintained independently by
+Aris Nguyen; the repo stays public. Therefore:
 
 - **Source is visible** — anyone can read the fork's internal changes.
 - The **compiled `-internal.N` packages** are what must stay private. Publish them to GitHub

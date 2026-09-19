@@ -2,16 +2,16 @@
 
 Browser-safe AgentBlazor chat components for Blazor WebAssembly and hosted WebAssembly apps.
 
-Install:
+Install (this fork publishes to a private feed, not nuget.org):
 
 ```bash
-dotnet add package AgentBlazor.Client
+dotnet add package AgentBlazor.Client --source agentblazor-local
 ```
 
 If you prefer a pinned install:
 
 ```bash
-dotnet add package AgentBlazor.Client --version 0.2.5
+dotnet add package AgentBlazor.Client --version 0.2.26-internal.2 --source agentblazor-local
 ```
 
 Server project:
@@ -33,10 +33,11 @@ The package also includes `AgentRemoteChatSurface`, `AgentRemoteChatPanel`, and 
 
 Docs:
 
-- Repository: https://github.com/ashpeterson/AgentBlazor
-- Quickstart: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/quickstart.md
-- 0.2.5 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.5.md
-- 0.2.3 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.3.md
-- 0.2.2 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.2.md
-- 0.2.1 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.1.md
-- 0.2.0 release notes: https://github.com/ashpeterson/AgentBlazor/blob/master/docs/releases/0.2.0.md
+- Repository: https://github.com/arisng/AgentBlazor
+- Maintained by Aris Nguyen; original project created by Ash Peterson (https://github.com/ashpeterson/AgentBlazor)
+- Quickstart: https://github.com/arisng/AgentBlazor/blob/develop/docs/quickstart.md
+- 0.2.5 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.5.md
+- 0.2.3 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.3.md
+- 0.2.2 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.2.md
+- 0.2.1 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.1.md
+- 0.2.0 release notes: https://github.com/arisng/AgentBlazor/blob/develop/docs/releases/0.2.0.md
