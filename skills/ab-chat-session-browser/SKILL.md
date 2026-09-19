@@ -2,7 +2,7 @@
 name: ab-chat-session-browser
 description: "Build a master-detail session browser page: session list panel, detail panel with resume or new-chat, agent picker for new conversations, deep-linking via query params, and AgentChatSurface parameter constraints for correct browser hydration. Use when composing a session browsing UI from IConversationStore data + IAgentRegistry agent list, wiring session selection to AgentChatSurface, implementing the new-chat draft lifecycle (mint → chat → promote), handling legacy sessions without ::agent:: suffix, or setting up @key strategy for surface instance isolation. UI-implementation agnostic. Triggers: session browser, master-detail, session list, session picker, browse past chats, resume session, new chat page, agent picker for sessions, session browser layout, session deep-link."
 metadata:
-  version: 0.1.0
+  version: 0.1.1
 ---
 
 # `ab-chat-session-browser` — Master-Detail Session Browser UI

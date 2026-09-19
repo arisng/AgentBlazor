@@ -123,9 +123,10 @@ Since no built-in session list component exists, build one using `IConversationS
 
 `IConversationStore` exposes turns only; token/cost rollups are a consumer concern:
 
-- Add a consumer query service over your store's DB (Demo: `IDemoConversationUsageQuery` /
-  `DemoConversationUsageQuery`) returning per-session totals (`PromptTokens`,
-  `CompletionTokens`, `CachedInputTokens`, `TotalTokens`, `EstimatedCost`, currency).
+- Add a consumer query service over your store's DB (Demo: `IDemoConversationTurnQuery` /
+  `DemoConversationTurnQuery`) returning per-session totals (`PromptTokens`,
+  `CompletionTokens`, `CachedInputTokens`, `TotalTokens`, `EstimatedCost`, currency)
+  — plus execution-plan rollups in the same batched query when the store persists plans.
 - Register a **Null implementation** when the store backend has no usage columns
   (JsonFile/InMemory) so the browser never branches on the backend — mirror the library's
   Null-store convention.

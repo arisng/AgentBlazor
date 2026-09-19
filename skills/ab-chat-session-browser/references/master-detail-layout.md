@@ -71,14 +71,19 @@ public sealed class SessionBrowserService
         var summaries = await _store.GetSessionSummariesAsync(
             maxCount: MaxSessionsToReturn, ct);
 
-        var results = new List<SessionBrowserEntry>();
+                // ONE batched query for usage + plan across all sessions instead of two
+                // queries per session (Demo: IDemoConversationTurnQuery).
+                var details = await _turnQuery.GetSessionDetailsAsync(
+                    summaries.Select(s => s.SessionKey).ToList(), ct);
+                var detailsByKey = details.ToDictionary(d => d.SessionKey);
 
-        foreach (var summary in summaries)
-        {
-            var route = ExtractRoute(summary.BaseSessionId)
-                ?? ResolveRouteForAgent(summary.AgentName);
-            var usage = await _usageQuery.GetSessionTotalsAsync(
-                summary.SessionKey, ct);
+                var results = new List<SessionBrowserEntry>();
+
+                foreach (var summary in summaries)
+                {
+                    var route = ExtractRoute(summary.BaseSessionId)
+                        ?? ResolveRouteForAgent(summary.AgentName);
+                    var usage = detailsByKey.GetValueOrDefault(summary.SessionKey)?.Usage;
 
             results.Add(new SessionBrowserEntry
             {
@@ -122,17 +127,27 @@ For larger session counts, consider:
 - **Caching**: Cache the session list with a TTL and invalidate on `SessionUpdated`
 - **Background refresh**: Load the list on a background thread to avoid UI blocking
 
-### Token usage query
+### Turn-data query (usage + plans)
 
 Token/cost rollups are a consumer concern — `IConversationStore` exposes turns only.
-Add a consumer query service over your store's DB:
+Add a consumer query service over your store's DB that returns per-session usage
+totals and execution-plan rollups in one batched call (Demo:
+`IDemoConversationTurnQuery` / `DemoConversationTurnQuery`):
 
 ```csharp
-public interface ISessionUsageQuery
+public interface ISessionTurnQuery
 {
-    Task<SessionUsageTotals?> GetSessionTotalsAsync(
+    Task<SessionTurnDetail?> GetSessionDetailAsync(
         string sessionKey, CancellationToken ct = default);
+
+    Task<IReadOnlyList<SessionTurnDetail>> GetSessionDetailsAsync(
+        IReadOnlyCollection<string> sessionKeys, CancellationToken ct = default);
 }
+
+public sealed record SessionTurnDetail(
+    string SessionKey,
+    SessionUsageTotals? Usage,
+    SessionExecutionPlanSummary? Plan);
 
 public sealed class SessionUsageTotals
 {
@@ -143,7 +158,18 @@ public sealed class SessionUsageTotals
     public decimal? EstimatedCost { get; init; }
     public string? EstimatedCostCurrency { get; init; }
 }
+
+public sealed class SessionExecutionPlanSummary
+{
+    public int TurnsWithPlan { get; init; }
+    public int TotalSteps { get; init; }
+    public int ApprovalRequiredSteps { get; init; }
+}
 ```
+
+Batch the whole page: resolve all sessions in one lookup, load all their turns in one
+query (usage columns + plan JSON), and aggregate in C# — two roundtrips regardless of
+session count, instead of two queries per session.
 
 Register a **Null implementation** when the store backend has no usage columns
 (InMemory/JsonFile) so the browser never branches on the backend.
