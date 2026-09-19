@@ -16,6 +16,8 @@ rules in `SKILL.md`.
 7. [Onboard an existing app](#7-onboard-an-existing-app)
 8. [Remote chat in Blazor WebAssembly](#8-remote-chat-in-blazor-webassembly)
 9. [Coexist with another UI library](#9-coexist-with-another-ui-library)
+10. [Build an agent builder feature](#10-build-an-agent-builder-feature)
+11. [Audit agent registration correctness](#11-audit-agent-registration-correctness)
 
 ---
 
@@ -210,3 +212,26 @@ the runtime customizer so authored instructions actually reach the agent.
   dropped/seeded.
 - → context assembly: the `IAgentRuntimeCustomizer` implementation and
   `AgentRuntimeCustomization` usage.
+
+## 11. Audit and assess an agent
+
+**Goal examples**: "Verify my agent setup is correct", "audit my agent
+registrations and report issues", "check that my workflow agents are wired
+correctly", "review my agent registration/authoring for correctness".
+
+**Chain**: `ab-agent-audit` → (per finding: `ab-agent-registration`,
+`ab-capability-authoring`, `ab-tool-authoring`, `ab-provider-config`,
+`ab-middleware-authoring`, `ab-agent-builder`, `ab-in-chat-features`,
+`ab-prompt-engineering`).
+
+**Why this order**: audit first to discover issues with `file:line` evidence
+across all aspects of an agent (identity, routes, components, actions,
+capability actions, data schemas, tools, capabilities, name-consistency,
+registry seam, provider/middleware, approvals); then fix each finding via the
+owning skill the finding names. The audit is verification, not
+implementation — it never re-authors the surface itself.
+
+**Handoff notes**:
+- → remediation: the findings report — severity, aspect, `file:line`
+  evidence, and the owning skill per finding. Fix highest-severity findings
+  first (Critical → High → Medium → Low → Info).

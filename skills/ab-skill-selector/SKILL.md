@@ -1,8 +1,8 @@
 ---
 name: ab-skill-selector
-description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, or verify an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, session browser master-detail page, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, runtime agent authoring (agent builder), UI-library coexistence, or CLI onboarding. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal."
+description: "Select the right consumer ab-* skill for an AgentBlazor goal, or chain multiple skills in the correct order. Use when a user asks to build, wire, debug, extend, verify, or audit an AgentBlazor feature and you must decide which skill(s) in skills/ apply — e.g. adding an approval-gated capability, wiring tools/MCP, chat persistence, session browsing, session browser master-detail page, prompt alignment, provider config, middleware, multi-tenant setup, remote chat, runtime agent authoring (agent builder), UI-library coexistence, CLI onboarding, or auditing/verifying agent registration correctness. Produces a selection plan (skill list, order, handoff notes), loads each skill's SKILL.md before acting, and abstains when no skill applies. Triggers: which skill, select a skill, choose a skill, chain skills, multi-skill goal, ab-* skill selection, AgentBlazor skill selection, AgentBlazor goal, audit agent setup, verify agent registration."
 metadata:
-  version: 0.2.1
+  version: 0.2.2
 ---
 
 # `ab-skill-selector` — Consumer Skill Selection & Chaining
@@ -12,7 +12,7 @@ spans several areas — **in what order** to chain them. It is the entry point
 for AgentBlazor consumer work: it never re-implements what the owning skills
 already know, it points to them and sequences their execution.
 
-**Scope**: This skill covers the 20 consumer-facing ab-* skills shipped in the
+**Scope**: This skill covers the 21 consumer-facing ab-* skills shipped in the
 AgentBlazor plugin (`skills/`), excluding this selector itself. Internal/contributor skills (testing, UAT,
 release, fork sync, roadmap triage, demo auditing, entity design,
 contribution) are not in the plugin and not covered here.
@@ -41,6 +41,7 @@ contribution) are not in the plugin and not covered here.
 | 18 | `ab-ui-integration` | Coexist with another UI library (Telerik, Radzen, Syncfusion, …) |
 | 19 | `ab-remote-chat` | WASM remote chat (`MapAgentBlazorRemoteChat`, `AgentBlazor.Client`) |
 | 20 | `ab-cli` | Onboard an existing app via CLI (analyze / scaffold / doctor / validate) |
+| 21 | `ab-agent-audit` | Audit/assess agent registration & authoring correctness; produce evidence-gated findings report |
 
 ## When to use
 
@@ -59,7 +60,7 @@ contribution) are not in the plugin and not covered here.
 1. **Parse the goal.** Identify the AgentBlazor surface areas involved:
    registration, capabilities/actions, tools/MCP, chat surface/composer,
    sessions, persistence, providers, middleware, prompts, components,
-   multitenancy, remote chat.
+   multitenancy, remote chat, audit/verify.
 2. **Classify.** One area → single-skill selection. Two or more → chain.
 3. **Select skills.** Match each area to its skill via the selection table
    below; read `references/skill-catalog.md` for full per-skill signals and
@@ -78,6 +79,9 @@ contribution) are not in the plugin and not covered here.
   `ab-chat-session-management` → `ab-chat-session-browser` → chat-surface skills.
 - **Author before align**: `ab-capability-authoring` / `ab-tool-authoring`
   before `ab-prompt-engineering` (prompts must match the registered surface).
+- **Verify after build**: `ab-agent-audit` runs after
+  registration/authoring to check correctness; fix findings via the owning
+  skill each finding names.
 - **Setup before debug**: `ab-provider-config` / `ab-context-assembly` before
   `ab-inspector`-driven debugging.
 
@@ -86,6 +90,7 @@ contribution) are not in the plugin and not covered here.
 | Goal area | Skill |
 |-----------|-------|
 | Register agents/workflows, route prefixes, allowed components/actions, data schemas, dynamic/per-tenant registries | `ab-agent-registration` |
+| Audit/assess agent registration & authoring correctness; produce an evidence-gated findings report | `ab-agent-audit` |
 | Runtime agent authoring (agent builder): create/edit/delete agents persisted to SQL Server, store-backed registry as the authoring surface | `ab-agent-builder` |
 | Onboard an existing app via CLI (analyze / scaffold / doctor / validate, `.agentblazor/AGENT.md`) | `ab-cli` |
 | Author `[AgentCapability]` / `[AgentAction]` / `[AgentParam]` classes, `CapabilityResult`, approvals, outputs, next actions | `ab-capability-authoring` |
@@ -134,5 +139,5 @@ contribution) are not in the plugin and not covered here.
 - One handoff note per phase: state what changed and what the next skill needs.
 - Keep the selection plan visible: state the skill list and order up front,
   then execute.
-- Consumer skills only: this plugin ships 20 skills. Do not reference skills
+- Consumer skills only: this plugin ships 21 skills. Do not reference skills
   outside the plugin (`.github/skills/`) as if they were available.

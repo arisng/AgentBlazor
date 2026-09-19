@@ -1,33 +1,59 @@
 # Skill Catalog — Consumer Selection Detail
 
-Full per-skill selection detail for the 20 consumer skills in `skills/`. Read
+Full per-skill selection detail for the 21 consumer skills in `skills/`. Read
 this when the compact table in `SKILL.md` is ambiguous, or when a goal touches
 multiple areas and you need each skill's boundaries.
 
 ## Contents
 
-1. [ab-agent-builder](#ab-agent-builder)
-2. [ab-agent-registration](#ab-agent-registration)
-3. [ab-capability-authoring](#ab-capability-authoring)
-4. [ab-chat-composer](#ab-chat-composer)
-5. [ab-chat-session-browser](#ab-chat-session-browser)
-6. [ab-chat-session-management](#ab-chat-session-management)
-7. [ab-cli](#ab-cli)
-8. [ab-context-assembly](#ab-context-assembly)
-9. [ab-conversation-store](#ab-conversation-store)
-10. [ab-entity-design](#ab-entity-design)
-11. [ab-in-chat-features](#ab-in-chat-features)
-12. [ab-inspector](#ab-inspector)
-13. [ab-middleware-authoring](#ab-middleware-authoring)
-14. [ab-mud-components](#ab-mud-components)
-15. [ab-multitenancy](#ab-multitenancy)
-16. [ab-prompt-engineering](#ab-prompt-engineering)
-17. [ab-provider-config](#ab-provider-config)
-18. [ab-remote-chat](#ab-remote-chat)
-19. [ab-tool-authoring](#ab-tool-authoring)
-20. [ab-ui-integration](#ab-ui-integration)
+1. [ab-agent-audit](#ab-agent-audit)
+2. [ab-agent-builder](#ab-agent-builder)
+3. [ab-agent-registration](#ab-agent-registration)
+4. [ab-capability-authoring](#ab-capability-authoring)
+5. [ab-chat-composer](#ab-chat-composer)
+6. [ab-chat-session-browser](#ab-chat-session-browser)
+7. [ab-chat-session-management](#ab-chat-session-management)
+8. [ab-cli](#ab-cli)
+9. [ab-context-assembly](#ab-context-assembly)
+10. [ab-conversation-store](#ab-conversation-store)
+11. [ab-entity-design](#ab-entity-design)
+12. [ab-in-chat-features](#ab-in-chat-features)
+13. [ab-inspector](#ab-inspector)
+14. [ab-middleware-authoring](#ab-middleware-authoring)
+15. [ab-mud-components](#ab-mud-components)
+16. [ab-multitenancy](#ab-multitenancy)
+17. [ab-prompt-engineering](#ab-prompt-engineering)
+18. [ab-provider-config](#ab-provider-config)
+19. [ab-remote-chat](#ab-remote-chat)
+20. [ab-tool-authoring](#ab-tool-authoring)
+21. [ab-ui-integration](#ab-ui-integration)
 
 ---
+
+## ab-agent-audit
+
+- **Scope**: Audit and assess an app's agents — registration, authoring, and
+  wiring correctness across all aspects — and produce a detailed,
+  evidence-gated analysis report. Covers static `AddAgent`/`AddWorkflow`
+  registrations, dynamic/custom `IAgentRegistry` (store-backed, per-tenant,
+  replace-vs-additive, dual-interface same-instance, async overrides,
+  seeding), capability authoring
+  (`[AgentCapability]`/`[AgentAction]`/`[AgentParam]`, `CapabilityResult`,
+  `ContextKey`, `RequiresApproval`, `AvailableWhen`), route prefixes and
+  surface-lock consistency, allowed components/actions/capability-actions/
+  data-schemas/tools, the name-consistency contract, provider config,
+  middleware order, and approval gating. Every finding cites `file:line`.
+- **Signals**: audit agent, assess agent, verify agent registration, agent
+  setup review, correctness report, agent audit, agent authoring review, check
+  agent config, "is my agent wired correctly", phantom action id, dead
+  replaced registry, route lock mismatch, name drift.
+- **Boundaries**: audit-only — produces the report; fixes happen via the
+  owning skill each finding names. Does NOT cover prompt prose quality
+  (`ab-prompt-engineering`), UI layout (`ab-mud-components`), session browsing,
+  or conversation stores (`ab-conversation-store`).
+- **Related**: `ab-agent-registration`, `ab-capability-authoring`,
+  `ab-tool-authoring`, `ab-provider-config`, `ab-middleware-authoring`,
+  `ab-agent-builder`, `ab-in-chat-features`, `ab-prompt-engineering`.
 
 ## ab-agent-builder
 
@@ -50,7 +76,8 @@ multiple areas and you need each skill's boundaries.
   `ab-ui-integration` for surfaces). Single-tenant only; tenancy is
   `ab-multitenancy`'s job.
 - **Related**: `ab-agent-registration`, `ab-entity-design`,
-  `ab-context-assembly`, `ab-capability-authoring`, `ab-tool-authoring`.
+  `ab-context-assembly`, `ab-capability-authoring`, `ab-tool-authoring`,
+  `ab-agent-audit` (audits the store-backed registry seam).
 
 ## ab-agent-registration
 
@@ -70,7 +97,8 @@ multiple areas and you need each skill's boundaries.
   (`ab-capability-authoring`), tool definitions (`ab-tool-authoring`), or
   prompt prose (`ab-prompt-engineering`) — it wires them onto agents.
 - **Related**: `ab-capability-authoring`, `ab-tool-authoring`,
-  `ab-context-assembly`, `ab-prompt-engineering`.
+  `ab-context-assembly`, `ab-prompt-engineering`, `ab-agent-audit`
+  (verifies the wiring this skill produces).
 
 ## ab-capability-authoring
 
@@ -87,7 +115,8 @@ multiple areas and you need each skill's boundaries.
   (`ab-agent-registration`), the approval UX in chat
   (`ab-in-chat-features`), or prompt alignment (`ab-prompt-engineering`).
 - **Related**: `ab-agent-registration`, `ab-in-chat-features`,
-  `ab-prompt-engineering`, `ab-tool-authoring`.
+  `ab-prompt-engineering`, `ab-tool-authoring`, `ab-agent-audit`
+  (audits the authored capability surface).
 
 ## ab-chat-composer
 
@@ -309,7 +338,8 @@ multiple areas and you need each skill's boundaries.
   authoring the surface is `ab-capability-authoring` / `ab-tool-authoring` /
   `ab-agent-registration`.
 - **Related**: `ab-capability-authoring`, `ab-tool-authoring`,
-  `ab-agent-registration`, `ab-context-assembly`.
+  `ab-agent-registration`, `ab-context-assembly`, `ab-agent-audit`
+  (cross-checks prompt claims against the registered surface).
 
 ## ab-provider-config
 
