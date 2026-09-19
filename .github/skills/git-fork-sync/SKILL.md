@@ -7,6 +7,8 @@ description: Sync a git fork or clone from its upstream repository and integrate
 
 Keep a fork in sync with upstream while preserving your own divergence. Repo-agnostic: works from any repo root.
 
+> **AgentBlazor repo policy:** this fork is maintained **independently**; upstream sync is an **on-demand operation only**, never a scheduled obligation. Run this skill (or a manual cherry-pick) only when a specific upstream change is genuinely wanted.
+
 ## Model
 
 - **Mirror branch** (`master` by default): a clean copy of `upstream/<branch>`. Never receives local commits. Its sync is always a fast-forward.

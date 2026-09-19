@@ -9,8 +9,8 @@ AgentBlazor is an **agentic component library for ASP.NET Core Blazor** that add
 - **AG-UI protocol** for agent-UI interaction
 - **Target**: Blazor .NET 10 web apps (multi-targets net8.0/net9.0/net10.0 for library projects)
 
-**Version**: `0.2.24-internal.1` (private build)
-**Fork**: `arisng/AgentBlazor` from upstream `ashpeterson/AgentBlazor` using mirror/merge model
+**Version**: `0.2.26-internal.2` (private build)
+**Maintainer**: Aris Nguyen — independent fork of `ashpeterson/AgentBlazor` (original author: Ash Peterson); upstream syncs are on-demand only
 
 ## Build & Test
 
@@ -59,20 +59,24 @@ dotnet test AgentBlazor.slnx --configuration Debug
 4. **Conversation store abstraction**: `IConversationStore` with in-memory, JSON file, and (paid) SQLite implementations; **incremental persistence** — `AppendTurnAsync` per turn plus targeted `UpdateTurnAsync` / `DeleteTurnAsync` / `ReorderTurnsAsync` keyed by `ConversationTurn.TurnId` (no full-history rewrite after agent turns)
 5. **Provider seam**: `ConfigureChatOptions(Action<ChatOptions>)` for provider-level option pinning
 
-## Fork Model
+## Origin & Maintenance Model
 
-This is a **fork** (`arisng/AgentBlazor`) from upstream (`ashpeterson/AgentBlazor`) using mirror/merge model:
+This repo is a **fork** (`arisng/AgentBlazor`) of `ashpeterson/AgentBlazor`, created by **Ash Peterson**, and is now **maintained independently by Aris Nguyen**. The original author is credited in [`LICENSE`](LICENSE) (dual copyright) and the [`README.md`](README.md) Origin & Credits section. Git history is never rewritten — upstream commits remain attributed to their original authors.
 
-- **`master`** — clean mirror of `upstream/master`. Never receives local commits.
-- **`develop`** — all divergence lives here. Merge the refreshed mirror in periodically.
+- **`develop`** — the mainline. All new work lands here. (Repo default branch should be `develop`.)
+- **`master`** — legacy mirror of `upstream/master`, **frozen** at the end of the mirror/merge period. It may go stale; it receives no periodic syncs.
+- **Upstream sync is on-demand only.** Use the `git-fork-sync` skill or manual cherry-picks when a specific upstream change is genuinely wanted — never as a scheduled obligation.
 
-**Key divergence points**:
+**Key fork work** (accumulated while the mirror model was active; now this fork's own feature set):
 - `ConfigureChatOptions` provider hook for gpt-5.6 reasoning_effort fix
 - Markdown rendering enhancement (Markdig sanitized pipeline)
+- Incremental conversation persistence (`UpdateTurnAsync` / `DeleteTurnAsync` / `ReorderTurnsAsync`)
+- Async agent registry seam (`IAsyncAgentRegistry`)
+- Runtime customization seam (`IAgentRuntimeCustomizer`)
 - Private-feed publishing scripts
-- Version suffix (`0.2.24-internal.1`)
+- Version suffix (`-internal.N`)
 
-See [`DIVERGENCE.md`](DIVERGENCE.md) for full divergence tracking.
+See [`DIVERGENCE.md`](DIVERGENCE.md) for the full historical divergence record.
 
 ## Existing Skills & Documentation
 
@@ -112,7 +116,7 @@ See [`DIVERGENCE.md`](DIVERGENCE.md) for full divergence tracking.
 | File | Why it matters |
 |------|----------------|
 | [`PROJECT.txt`](PROJECT.txt) | Original project vision and structure |
-| [`DIVERGENCE.md`](DIVERGENCE.md) | Fork divergence tracking and sync model |
+| [`DIVERGENCE.md`](DIVERGENCE.md) | Historical fork divergence record and upstream relationship |
 | [`README.md`](README.md) | Installation, setup, and minimal example |
 | `src/AgentBlazor.Core/Attributes/*.cs` | The attribute system that drives capability discovery |
 | `src/AgentBlazor.Hosting/AgentBlazorRegistrationOptions.cs` | Provider configuration surface |

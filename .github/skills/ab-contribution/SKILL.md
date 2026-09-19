@@ -28,20 +28,21 @@ description: "Contributor workflows for AgentBlazor. Use when setting up develop
    dotnet test AgentBlazor.sln --configuration Debug
    ```
 
-## Fork Model
+## Origin & Maintenance Model
 
-This is a **fork** (`arisng/AgentBlazor`) from upstream (`ashpeterson/AgentBlazor`) using mirror/merge model:
+This repo (`arisng/AgentBlazor`) is an **independent fork** of `ashpeterson/AgentBlazor` (original author: Ash Peterson), maintained by Aris Nguyen. The upstream author is credited in [`LICENSE`](LICENSE) and [`README.md`](README.md).
 
-- **`master`** — clean mirror of `upstream/master`. Never receives local commits.
-- **`develop`** — all divergence lives here. Merge the refreshed mirror in periodically.
+- **`develop`** — the mainline. All work lands here.
+- **`master`** — frozen legacy mirror of the old upstream; no periodic syncs.
+- **Upstream sync is on-demand only** — pull a specific upstream change via cherry-pick or `git-fork-sync` when genuinely wanted.
 
-**Important**: See [`DIVERGENCE.md`](DIVERGENCE.md) for tracked divergence points.
+**Important**: See [`DIVERGENCE.md`](DIVERGENCE.md) for the historical divergence record.
 
 ## Branching Strategy
 
 1. **Feature branches**: Create from `develop` for new features
 2. **Bug fixes**: Create from `develop` for bug fixes
-3. **Upstream sync**: Use `git-fork-sync` skill to sync with upstream
+3. **Upstream changes (optional)**: If a specific upstream commit is wanted, pull it on demand via the `git-fork-sync` skill or a manual cherry-pick
 
 ## Coding Standards
 

@@ -1,15 +1,14 @@
-# Divergence from Upstream
+# Upstream Relationship & Divergence Record
 
-This fork (`arisng/AgentBlazor`) is maintained from upstream
-(`ashpeterson/AgentBlazor`) using the mirror/merge model:
+This repo (`arisng/AgentBlazor`) is an **independent fork** of
+`ashpeterson/AgentBlazor` by Ash Peterson, now maintained by Aris Nguyen.
+The mirror/merge sync model ended in September 2026: upstream changes are pulled
+in **on demand only** (manual cherry-pick, or the `git-fork-sync` skill when a
+specific upstream change is wanted) — never as a scheduled obligation.
 
-- **`master`** — clean mirror of `upstream/master`. Never receives local commits.
-  Sync manually with the fork-sync skill (`-Mode Mirror`).
-- **`develop`** — this is where all divergence lives. Merge the refreshed
-  mirror in periodically (`-Mode Integrate`).
-
-Keep this list current: every deviation listed here is a permanent cost you pay
-on every sync. The smaller the surface, the cheaper the merge.
+The table below records the fork's divergence at the close of the mirror period.
+Keep it current: it doubles as the attribution record showing which work is
+fork-authored versus upstream-authored.
 
 ## Committed divergence (lives on `develop`)
 
@@ -47,9 +46,10 @@ on every sync. The smaller the surface, the cheaper the merge.
 |---|---|---|
 | `demo/AgentBlazor.Demo/appsettings.Development.json` | Contains a live OpenAI API key in `OpenAI:ApiKey` | **Never commit this file's local edits.** Stash it (`git stash push -- <file>`) before any sync, restore after. The key currently in the file has been exposed in a past session — rotate it in the OpenAI console and replace with a fresh value. |
 
-## How to add a new divergence
+## How to record new fork work
 
-1. Add a row to the table above with the file, reason, and sync impact.
-2. Keep the change isolated in its own module/commit so upstream merges stay clean.
-3. If the change is something upstream would accept, send it as a PR upstream
-   instead — permanent reduction of future merge conflicts.
+1. Add a row to the table above with the file, reason, and impact.
+2. Keep the change isolated in its own module/commit so on-demand upstream
+   cherry-picks stay easy in both directions.
+3. Minimizing merge cost is no longer a goal — upstream alignment ended with the
+   mirror model. Clean, well-attributed work is what matters now.
