@@ -1,7 +1,3 @@
-* @ashpeterson
-
-.github/workflows/* @ashpeterson
-src/* @ashpeterson
-demo/* @ashpeterson
-tests/* @ashpeterson
-docs/* @ashpeterson
+# Independently maintained by Aris Nguyen.
+# Original project by Ash Peterson: https://github.com/ashpeterson/AgentBlazor
+* @arisng
