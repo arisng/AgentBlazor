@@ -12,8 +12,8 @@ namespace AgentBlazor.IntegrationTests;
 
 /// <summary>
 /// End-to-end coverage for the Demo's per-turn token-usage persistence: the EF Core
-/// conversation store writes usage + estimated cost onto the turn row,
-/// and the usage query rolls totals up per session.
+/// conversation store writes usage + estimated cost onto the turn row, and the
+/// consolidated turn query rolls totals up per session.
 /// </summary>
 public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
 {
@@ -163,7 +163,8 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
         // A turn with no usage must not disturb the totals.
         await store.AppendTurnAsync("session-1", CreateTurn("e", "f"));
 
-        var totals = await new DemoConversationUsageQuery(DbFactory).GetSessionTotalsAsync("session-1");
+        var totals = (await new DemoConversationTurnQuery(DbFactory)
+            .GetSessionDetailAsync("session-1"))?.Usage;
 
         Assert.NotNull(totals);
         Assert.Equal(1_000_000L, totals.PromptTokens);
@@ -185,7 +186,8 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
         await store.AppendTurnAsync("session-1", CreateTurn("a", "b",
             new ConversationTurnUsage { InputTokens = 500, OutputTokens = 100 }));
 
-        var totals = await new DemoConversationUsageQuery(DbFactory).GetSessionTotalsAsync("session-1");
+        var totals = (await new DemoConversationTurnQuery(DbFactory)
+            .GetSessionDetailAsync("session-1"))?.Usage;
 
         Assert.NotNull(totals);
         // Zero (not null) so the browser can hide the cached chip without a separate check.
@@ -203,7 +205,8 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
         await store.AppendTurnAsync("session-2", CreateTurn("c", "d",
             new ConversationTurnUsage { InputTokens = 999_000 }));
 
-        var totals = await new DemoConversationUsageQuery(DbFactory).GetSessionTotalsAsync("session-1");
+        var totals = (await new DemoConversationTurnQuery(DbFactory)
+            .GetSessionDetailAsync("session-1"))?.Usage;
 
         Assert.NotNull(totals);
         Assert.Equal(1_000L, totals.PromptTokens);
@@ -216,18 +219,18 @@ public sealed class DemoConversationUsagePersistenceTests : IAsyncDisposable
         var store = CreateStore();
         await store.AppendTurnAsync("session-1", CreateTurn("a", "b"));
 
-        var query = new DemoConversationUsageQuery(DbFactory);
+        var query = new DemoConversationTurnQuery(DbFactory);
 
         // Null (not zero) so the UI can distinguish "no data" from "no usage".
-        Assert.Null(await query.GetSessionTotalsAsync("session-1"));
-        Assert.Null(await query.GetSessionTotalsAsync("missing-session"));
+        Assert.Null((await query.GetSessionDetailAsync("session-1"))?.Usage);
+        Assert.Null(await query.GetSessionDetailAsync("missing-session"));
     }
 
     [Fact]
-    public async Task NullUsageQuery_ReturnsNull()
+    public async Task NullTurnQuery_ReturnsNull()
     {
         // Used when the conversation store is JsonFile or InMemory.
-        Assert.Null(await new NullDemoConversationUsageQuery().GetSessionTotalsAsync("session-1"));
+        Assert.Null(await new NullDemoConversationTurnQuery().GetSessionDetailAsync("session-1"));
     }
 
     private IDbContextFactory<DemoDbContext> DbFactory =>
