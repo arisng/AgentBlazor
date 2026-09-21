@@ -28,10 +28,13 @@ Store-backed IAsyncAgentRegistry  ── replace path, registered BEFORE AddAgen
         │  GetAllAsync / TryGetAsync / AddOrUpdateAsync
         │  (+ RemoveAgent on the concrete type)
         ▼
-Runtime (ChatClientRuntimeAdapter resolves per turn)
-        │  IAgentRuntimeCustomizer (optional — keyed by registration.Name)
+Hydration (ToRegistration)  ── persona (user-managed instructions) merged into
+        │  AgentRegistration.Instructions; platform column stays platform-only
         ▼
-Per-agent custom persona + enabled tools applied to every turn
+Runtime (ChatClientRuntimeAdapter resolves per turn)
+        │  IAgentRuntimeCustomizer (optional — tools whitelist + user-scoped context)
+        ▼
+Per-agent enabled tools + user business context applied to every turn
 ```
 
 ## When to use
@@ -107,20 +110,31 @@ column. Skip rows whose
 `AddDataSchema`, `AddTool`, and `AddRuntimeCustomizer` in `ConfigureBuilder` —
 only the agent *lookup* is the store's job.
 
-### Step 5 — Runtime customizer integration
+### Step 5 — Persona hydration merge + runtime customizer integration
 
-Persist the custom persona + enabled tools in `Metadata` (keys
-`agent_builder.persona` / `agent_builder.enabled_tools`) and have a single
-`IAgentRuntimeCustomizer` resolve them per turn (keyed by
-`registration.Name`). `EnabledToolIds` is a **whitelist restriction** — the
-agent can call only the selected tools; `null`/empty means no filtering (all
-tools). **`AddRuntimeCustomizer` is OPTIONAL** — the library
-doc states "when none is registered, the adapter behaves exactly as before."
-Register it only when builder-authored persona/tools must affect runtime
-turns; without it, agents run with their registered instructions and all
-tools (persona/tools are persisted but inert). If you register one, the seam
-is **last-wins** (one customizer) — route all customization through the same
-customizer. See
+**Persona (user-managed instructions) merges at hydration.** `ToRegistration`
+composes `Instructions` = platform text (the `Instructions` column) + the
+`agent_builder.persona` metadata value (`platform\n\npersona`), mirroring the
+system-prompt ordering, and PRESERVES the metadata key (non-destructive). The
+platform column stays platform-only: the builder's Edit handler sources it from
+the entity (e.g. `GetPlatformInstructionsAsync`), never from the merged
+registration, so a save round-trip never duplicates the persona. Cache
+consistency: `AddOrUpdate`/`AddOrUpdateAsync` must cache the HYDRATED
+registration (`ToRegistration(entity)`), not the raw passed one, so a persona
+edit is visible on the next turn without a restart.
+
+**The customizer handles tools + user context only.** Persist the enabled
+tools in `Metadata` (key `agent_builder.enabled_tools`) and have a single
+`IAgentRuntimeCustomizer` resolve them per turn (keyed by `registration.Name`).
+`EnabledToolIds` is a **whitelist restriction** — the agent can call only the
+selected tools; `null`/empty means no filtering (all tools). The customizer may
+also inject user-scoped business context per turn via `UserContext` (computed
+from `request.GetEffectiveUserId()` — e.g. live ticket counts).
+**`AddRuntimeCustomizer` is OPTIONAL** — without it, agents run with all
+tools (the persisted whitelist is inert). The persona is NOT inert without it:
+it lives in `Instructions` and reaches the system prompt regardless. If you
+register one, the seam is **last-wins** (one customizer) — route all
+customization through the same customizer. See
 `ab-context-assembly` → "Agent Builder × customizer integration".
 
 ### Step 6 — Tool catalog for the picker (list + restrict)
@@ -192,10 +206,12 @@ copy-paste page code-behind (tool picker, save, edit, delete):
   `Name`, not `ToLower()` predicates (SQLite demo differs; SQL Server CI
   collation makes `ToLower()` redundant).
 - **Customizer is optional, last-wins when present.** `AddRuntimeCustomizer`
-  is optional — without it, agents run with registered instructions + all
-  tools (persisted persona/tools are inert, so the enabled-tools whitelist is
-  not enforced). When registered, it is last-wins:
+  is optional — without it, agents run with all tools (the persisted
+  enabled-tools whitelist is not enforced). When registered, it is last-wins:
   a single customizer must serve both the builder and any other customization.
+  The persona is NOT gated on the customizer: it merges into
+  `AgentRegistration.Instructions` at hydration and reaches the system prompt
+  regardless.
 - **Session isolation.** If each agent should keep its own history, set
   `IsolateConversationsByAgent` (or per-agent session ids) on the chat surface.
 

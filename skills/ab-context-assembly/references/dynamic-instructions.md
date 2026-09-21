@@ -168,7 +168,7 @@ builder.UseRuntimeAdapter(sp => new MyCustomRuntimeAdapter(
 
 > **⚠️ Correction (2026-09-10):** the decorator below does **NOT** modify the system prompt. `AgentTurnRequest.Context` entries are rendered into the **user message** as `- key: value` lines under a "Runtime context:" heading (`ChatClientRuntimeAdapter.BuildUserMessage`, `src/AgentBlazor.Core/Runtime/Adapters/ChatClientRuntimeAdapter.cs:3061-3066`) — not into `ChatOptions.Instructions`. `AgentTurnRequest` is a sealed record with **no** system-instruction or tool-list surface, and instruction/tool construction is internal to the adapter (`ResolveInstructions` :2043, `ResolveToolsAsync` :1065). As written, this decorator behaves identically to Approach 1 (context injection).
 >
-> **For true per-agent system-prompt and tool customization, use the supported seam:** `IAgentRuntimeCustomizer` / `AgentRuntimeCustomization` (registered via `AgentBlazorBuilder.AddRuntimeCustomizer<T>()`), which runs inside the adapter's instruction/tool projection. See `docs/internal/runtime-customization-seam-2026-09-10.md`. Replacing `IAgentRuntimeAdapter` wholesale remains a valid last resort but you take on the entire turn lifecycle (history, inspector, approvals, streaming).
+> **For true per-agent tool and user-context customization, use the supported seam:** `IAgentRuntimeCustomizer` / `AgentRuntimeCustomization` (registered via `AgentBlazorBuilder.AddRuntimeCustomizer<T>()`), which runs inside the adapter's tool projection and injects user-scoped context into the user message. See `docs/internal/runtime-customization-seam-2026-09-10.md`. The agent persona is NOT part of the seam — it is user-managed instructions merged into `AgentRegistration.Instructions` at store-backed registry hydration. Replacing `IAgentRuntimeAdapter` wholesale remains a valid last resort but you take on the entire turn lifecycle (history, inspector, approvals, streaming).
 
 Wrap the default adapter if you only need to modify instructions:
 
@@ -201,7 +201,7 @@ public class InstructionDecoratorAdapter(
 - You take responsibility for the entire turn lifecycle.
 - Must handle streaming, cancellation, and reconnection if you support those.
 - Testing surface is large.
-- **Prefer the `IAgentRuntimeCustomizer` seam** for per-agent instruction/tool customization; reserve full adapter replacement for cases the seam cannot express.
+- **Prefer the `IAgentRuntimeCustomizer` seam** for per-agent tool whitelisting and user-scoped context injection; reserve full adapter replacement for cases the seam cannot express. For per-agent persona, merge it into `AgentRegistration.Instructions` at registry hydration instead of using the seam.
 
 ---
 

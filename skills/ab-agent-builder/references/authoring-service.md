@@ -50,10 +50,9 @@ The concrete class adds the out-of-band members the UI needs (the library
 interface has no remove/customization methods):
 
 - `RemoveAgent(name)` / `RemoveAgentAsync(name)` — delete + cache eviction; returns `false` if unknown.
-- `TryGetCustomization(name)` / `SetCustomization(name, persona, tools)` —
-  the customization seam (see `ab-context-assembly`). `SetCustomization` is a
-  convenience for a customization-only update path (e.g. a persona editor
-  that does not touch the definition).
+- `TryGetCustomization(name)` — enabled-tools whitelist for the runtime customizer (see `ab-context-assembly`); the persona is NOT part of it (it merges into `Instructions` at hydration).
+- `SetCustomization(name, persona, tools)` — convenience for a customization-only update path (e.g. a persona editor that does not touch the definition); re-sources platform instructions from the entity column so the persona is never double-merged.
+- `GetPlatformInstructions(name)` / `GetPlatformInstructionsAsync(name)` — platform-managed instructions from the entity column (WITHOUT the merged persona); the builder's Edit handler sources the read-only platform field from here.
 - `RefreshFromDatabase()` / `RefreshFromDatabaseAsync()` — re-hydrate the cache (used by the seeder).
 
 Register the concrete type as a singleton **before** `AddAgentBlazor` so the built-in
@@ -140,8 +139,11 @@ Mapping to the store:
 - `Persona` + `EnabledToolIds` → carried in `Metadata` under the
   `agent_builder.persona` / `agent_builder.enabled_tools` keys, persisted via
   `MetadataJson` (the base entity has no dedicated columns for them).
-  This keeps `MetadataJson` ↔ `AgentRegistration.Metadata` a 1:1 round-trip —
-  the customizer and the edit form read them straight back from `Metadata`.
+  This keeps `MetadataJson` ↔ `AgentRegistration.Metadata` a 1:1 round-trip.
+  The persona is **user-managed instructions**: it merges into
+  `AgentRegistration.Instructions` at hydration (platform text first, then the
+  persona), so the edit form reads it from `Metadata` and the platform field
+  from the entity column — never from the merged `Instructions`.
 - `Metadata` → `MetadataJson`; `route_prefixes` is the key the runtime reads
   for route locking.
 
@@ -406,7 +408,9 @@ private void Chat(AgentRegistration agent) => _selectedAgent = agent.Name;
 /// Single-write save: build the FULL <see cref="AgentRegistration"/> — persona
 /// + enabled tools carried in Metadata under PersonaKey / EnabledToolsKey —
 /// and call <see cref="SqlServerAgentRegistry.AddOrUpdate"/> ONCE. Do NOT also
-/// call SetCustomization (see §2).
+/// call SetCustomization (see §2). The read-only platform-instructions field is
+/// sourced from the entity column (GetPlatformInstructions) so the persona is
+/// never duplicated on the next hydration.
 /// </summary>
 private void SaveAsync()
 {
@@ -417,8 +421,10 @@ private void SaveAsync()
         metadata["route_prefixes"] = string.Join(",", routes);
     }
 
-    // Persona + enabled tools are part of the runtime model — carry them in
+    // Persona (user-managed instructions) + enabled tools are carried in
     // Metadata so a single AddOrUpdate persists everything (no SetCustomization).
+    // Instructions holds the PLATFORM-managed text — the persona merges into it
+    // at hydration, so it must never be re-typed here.
     if (!string.IsNullOrWhiteSpace(_persona))
     {
         metadata[SqlServerAgentRegistry.PersonaKey] = _persona.Trim();

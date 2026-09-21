@@ -4,10 +4,11 @@ Maintained empirical audit of demoable features in `demo/AgentBlazor.Demo`. Stat
 evidence-gated — see `catalog-schema.md` for the taxonomy. Regenerate evidence with
 `.github/skills/ab-demo-feature-overseer/scripts/audit-demo-features.ps1` before editing.
 
-Last audited: 2026-09-15 (audit.json: 8 workflow agents, 3 standalone agents, sourced from seed data in `Program.cs`;
-8 capability classes, 41 agent actions, 10 approvals, 3 clarification sites,
+Last audited: 2026-09-20 (audit.json: 8 workflow agents, 3 standalone agents, sourced from seed data in `Program.cs`;
+9 capability classes, 44 agent actions, 10 approvals, 3 clarification sites,
 18 component page families, 29 routes, 9 launchpad scenarios; runtime
-customization seam wired via Agent Builder; **Agent Builder dynamic-registry showcase wired**)._
+customization seam wired via Agent Builder (tools + user context); **Agent Builder dynamic-registry showcase wired**;
+**user-scoped runtime context showcase wired** — `userContextShowcase.providerRegistered/memoryCacheWired/userPickerWired = true`)._
 
 ## Agents
 
@@ -16,7 +17,9 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
 - **What it demonstrates**: building + registering agents **at runtime** against a
   database-backed `IAsyncAgentRegistry` (replace path) — create/edit/delete agents, edit
   persona + enabled tool set, chat with a just-built agent. The dynamic counterpart
-  to static `AddAgent`/`AddWorkflow`.
+  to static `AddAgent`/`AddWorkflow`. Instructions are split: **platform-managed**
+  (read-only field, seeded at startup) vs **user-managed persona** (editable textarea,
+  merged into `AgentRegistration.Instructions` at hydration).
 - **Where**: `Program.cs` → `AddSingleton<DatabaseBackedAgentRegistry>()` +
   `AddSingleton<IAgentRegistry>(...)` + `AddSingleton<IAsyncAgentRegistry>(...)`
   (all three on the same instance) BEFORE `AddAgentBlazor`; page
@@ -25,9 +28,33 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
   `Data/DemoAgentDefinitionEntity.cs` (inherits from `AgentBlazor.Core.Persistence.AgentDefinitionEntity`).
 - **Audit evidence**: page route `@page "/demo/agent-builder"` in `routes[]`;
   `DatabaseBackedAgentRegistry` implements `IAsyncAgentRegistry`;
-  `dynamicRegistry.asyncAliasRegistered = true`; `DemoDbContext`.
+  `dynamicRegistry.asyncAliasRegistered = true`; `DemoDbContext`;
+  `userContextShowcase.userPickerWired = true` ("Chat as user" `MudSelect` → `AgentChatSurface UserId`).
 - **ab\* skill**: `ab-agent-registration` (Dynamic Agent Registration),
-  `ab-context-assembly` (customizer integration), `ab-entity-design`.
+  `ab-context-assembly` (hydration merge + customizer integration), `ab-entity-design`.
+
+### User-scoped runtime context (identity / activity / domain)
+- **Status**: implemented
+- **What it demonstrates**: per-turn user-scoped business context injected into the
+  agent's user message "Runtime context:" block via `AgentRuntimeCustomization.UserContext`.
+  Three layers: **identity** (`DemoUserDirectory`), **activity** (real persisted session
+  counts, cache-aside 30s `IMemoryCache`), **domain** (LIVE mutable business state from
+  the agent's scoped workflow service via `IProvideLiveUserContext.GetLiveUserContextAsync`
+  — values change as the agent executes actions). The Agent Builder page's "Chat as user"
+  picker drives `AgentChatSurface.UserId` → `AgentTurnRequest.UserId`.
+- **Where**: `Program.cs` → `AddMemoryCache()` +
+  `AddSingleton<IDemoUserContextProvider, DemoUserContextProvider>()`;
+  `Services/DemoUserContextProvider.cs`, `Services/DemoUserDirectory.cs`,
+  `Services/IDemoUserContextProvider.cs`, `Services/IProvideLiveUserContext.cs`;
+  4 workflow services implement the async live-context contract;
+  `Components/Pages/Demo/AgentBuilder.razor` (user picker).
+- **Audit evidence**: `userContextShowcase.providerRegistered = true`,
+  `memoryCacheWired = true`, `liveContextProviders = [DemoUserContextProvider,
+  ReleaseDossierWorkflowService, ResponseOrchestrationWorkflowService,
+  SupplierComplianceWorkflowService, SupportInboxWorkflowService]`,
+  `userPickerWired = true`.
+- **ab\* skill**: `ab-context-assembly` (customizer integration — async/bounded/
+  cache-aside/best-effort contract), `ab-tool-authoring` (logical-id tool filtering).
 
 ### Workflow-capability agents
 - **Status**: implemented (9)
@@ -106,17 +133,23 @@ customization seam wired via Agent Builder; **Agent Builder dynamic-registry sho
 
 ## Runtime customization
 
-### Per-agent instructions + tool filtering (`IAgentRuntimeCustomizer`)
+### Per-agent tool filtering + user context (`IAgentRuntimeCustomizer`)
 - **Status**: implemented
 - **What**: the `DemoAgentCustomizer` reads the `DatabaseBackedAgentRegistry` per turn
-  and returns `null` for unconfigured agents (standard agents unaffected). Persona and
-  tool set are managed via the Agent Builder page (`/demo/agent-builder`).
-- **Where**: `Program.cs` → `AddRuntimeCustomizer<DemoAgentCustomizer>`;
-  `Services/DemoAgentCustomizer.cs`, `Services/DatabaseBackedAgentRegistry.cs`.
+  (enabled-tools whitelist) plus user-scoped business context from
+  `DemoUserContextProvider` (identity + activity + live domain state from the scoped
+  workflow services), and returns `null` for unconfigured agents (standard agents
+  unaffected). Persona (user-managed instructions) is merged into
+  `AgentRegistration.Instructions` at registry hydration; the tool set and persona are
+  managed via the Agent Builder page (`/demo/agent-builder`).
+- **Where**: `Program.cs` → `AddRuntimeCustomizer<DemoAgentCustomizer>` +
+  `AddSingleton<IDemoUserContextProvider, DemoUserContextProvider>`;
+  `Services/DemoAgentCustomizer.cs`, `Services/DemoUserContextProvider.cs`,
+  `Services/DatabaseBackedAgentRegistry.cs`.
 - **Audit evidence**: `runtimeCustomization.customizerRegistered = true`,
   `customizerTypes = [DemoAgentCustomizer]`.
-- **ab\* skill**: `ab-context-assembly` (per-agent instructions), `ab-tool-authoring`
-  (logical-id tool filtering).
+- **ab\* skill**: `ab-context-assembly` (hydration merge + customizer integration),
+  `ab-tool-authoring` (logical-id tool filtering).
 
 ## Chat & conversation
 

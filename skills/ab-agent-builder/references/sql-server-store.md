@@ -10,14 +10,16 @@ it does not restate them.
 
 ## Contents
 
-1. [Packages](#1-packages)
-2. [Entity](#2-entity)
-3. [DbContext](#3-dbcontext)
-4. [DI registration](#4-di-registration)
-5. [Migrations](#5-migrations)
-6. [Store-backed registry](#6-store-backed-registry)
-7. [Idempotent seeding](#7-idempotent-seeding)
-8. [Program.cs registration order](#8-programcs-registration-order)
+- [SQL Server Store — Full Implementation](#sql-server-store--full-implementation)
+  - [Contents](#contents)
+  - [1. Packages](#1-packages)
+  - [2. Entity](#2-entity)
+  - [3. DbContext](#3-dbcontext)
+  - [4. DI registration](#4-di-registration)
+  - [5. Migrations](#5-migrations)
+  - [6. Store-backed registry](#6-store-backed-registry)
+  - [7. Idempotent seeding](#7-idempotent-seeding)
+  - [8. Program.cs registration order](#8-programcs-registration-order)
 
 ## 1. Packages
 
@@ -441,11 +443,23 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
         // are already in the metadata under PersonaKey / EnabledToolsKey.
         var metadata = AgentDefinitionEntity.DeserializeDictionary(entity.MetadataJson);
 
+        // Persona (user-managed instructions) merges into Instructions at hydration:
+        // platform instructions (the Instructions column) first, then the persona
+        // appended — mirroring the adapter's historical registered→customizer
+        // ordering. The Metadata key is PRESERVED (non-destructive) so direct
+        // readers of PersonaKey keep working.
+        var persona = metadata.TryGetValue(PersonaKey, out var p) ? p : null;
+        var merged = string.IsNullOrWhiteSpace(entity.Instructions)
+            ? persona
+            : string.IsNullOrWhiteSpace(persona)
+                ? entity.Instructions.Trim()
+                : $"{entity.Instructions.Trim()}\n\n{persona.Trim()}";
+
         return new AgentRegistration
         {
             Name = entity.Name,
             Description = entity.Description,
-            Instructions = entity.Instructions,
+            Instructions = merged,
             AllowedComponents = AgentDefinitionEntity.DeserializeSet(entity.AllowedComponentsJson),
             AllowedActions = AgentDefinitionEntity.DeserializeSet(entity.AllowedActionsJson),
             // AllowedCapabilityActions is set only at construction (object
@@ -458,8 +472,10 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
     }
 
     /// <summary>
-    /// Returns the persisted <see cref="AgentRuntimeCustomization"/> (persona +
-    /// enabled tools) for an agent, or <see langword="null"/> if none.
+    /// Returns the persisted <see cref="AgentRuntimeCustomization"/> (enabled-tools
+    /// whitelist only) for an agent, or <see langword="null"/> if none. The persona is
+    /// intentionally NOT part of the customization — it is user-managed instructions
+    /// merged into <c>AgentRegistration.Instructions</c> at hydration.
     /// </summary>
     public AgentRuntimeCustomization? TryGetCustomization(string agentName)
     {
@@ -468,7 +484,6 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
             return null;
         }
 
-        var persona = registration.Metadata.TryGetValue(PersonaKey, out var p) ? p : null;
         IReadOnlySet<string>? enabledTools = null;
         if (registration.Metadata.TryGetValue(EnabledToolsKey, out var toolsRaw))
         {
@@ -477,9 +492,9 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
                 StringComparer.OrdinalIgnoreCase);
         }
 
-        return persona is null && enabledTools is null
+        return enabledTools is null
             ? null
-            : new AgentRuntimeCustomization(persona, enabledTools);
+            : new AgentRuntimeCustomization(EnabledToolIds: enabledTools);
     }
 
     /// <summary>
@@ -507,6 +522,23 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
                 AllowedComponents = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 AllowedDataSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            };
+        }
+        else
+        {
+            // The cache holds the MERGED registration after hydration — re-source the
+            // platform-managed instructions from the entity column so the persona is
+            // never double-merged on the next hydration.
+            registration = new AgentRegistration
+            {
+                Name = registration.Name,
+                Description = registration.Description,
+                Instructions = GetPlatformInstructions(agentName),
+                AllowedComponents = registration.AllowedComponents,
+                AllowedActions = registration.AllowedActions,
+                AllowedCapabilityActions = registration.AllowedCapabilityActions,
+                AllowedDataSchemas = registration.AllowedDataSchemas,
+                Metadata = registration.Metadata
             };
         }
 
@@ -686,11 +718,13 @@ The customizer resolves from the concrete registry (see
 > `IAgentRuntimeCustomizer` doc states: "A single customizer may be registered
 > (last registration wins, mirroring UseRuntimeAdapter). When none is
 > registered, the adapter behaves exactly as before." Register it **only** when
-> builder-authored persona / enabled tools must affect runtime turns. Without
-> it, agents run with their registered `Instructions` and all tools — the
-> persisted persona/tools are inert (still round-tripped through
-> `MetadataJson`, just not applied). If you register one, it is last-wins: a
-> single customizer must serve both the builder and any other customization.
+> builder-authored **enabled tools** must be enforced per turn. Without it,
+> agents run with all tools — the persisted tool whitelist is inert (still
+> round-tripped through `MetadataJson`, just not applied). The **persona is NOT
+> gated on the customizer**: it merges into `AgentRegistration.Instructions` at
+> hydration and reaches the system prompt regardless. If you register one, it
+> is last-wins: a single customizer must serve both the builder and any other
+> customization.
 
 ```csharp
 using AgentBlazor.Agents;
@@ -700,30 +734,45 @@ using AgentBlazor.Core.Runtime.Customization;
 public sealed class AgentBuilderCustomizer : IAgentRuntimeCustomizer
 {
     private readonly SqlServerAgentRegistry _registry;
+    private readonly IDemoUserContextProvider _userContextProvider; // optional — user-scoped business context
 
-    public AgentBuilderCustomizer(SqlServerAgentRegistry registry)
+    public AgentBuilderCustomizer(
+        SqlServerAgentRegistry registry,
+        IDemoUserContextProvider userContextProvider)
     {
         _registry = registry;
+        _userContextProvider = userContextProvider;
     }
 
-    public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+    public async Task<AgentRuntimeCustomization?> GetCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken = default)
     {
-        _ = request;
-        _ = cancellationToken;
-        return Task.FromResult(_registry.TryGetCustomization(registration.Name));
+        var tools = _registry.TryGetCustomization(registration.Name); // tools only
+        var userContext = await _userContextProvider
+            .BuildAsync(request.GetEffectiveUserId(), registration.Name, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (tools is null && (userContext is null || userContext.Count == 0))
+        {
+            return null;
+        }
+
+        return new AgentRuntimeCustomization(
+            EnabledToolIds: tools?.EnabledToolIds,
+            UserContext: userContext);
     }
 }
 ```
 
-> **Persona framing.** The library's `AgentRuntimeCustomization` record names
-> its first parameter `Instructions` (it cannot be renamed by a consumer) —
-> treat it as the **custom persona**. The adapter appends it **after** the
-> agent's registered `Instructions` and **before** the auto-generated
-> READ-SAFE data-schema block (verified in `ChatClientRuntimeAdapter`); when
-> the agent has no registered instructions, the persona is used verbatim. Use
-> `Persona` in your own DTOs (see `references/authoring-service.md`) and map
-> it to `AgentRuntimeCustomization.Instructions` at the customizer boundary.
+> **Persona framing.** The persona is **user-managed instructions**: it is
+> merged into `AgentRegistration.Instructions` at registry hydration
+> (platform text first, then the persona, `platform\n\npersona`), so it reaches
+> the LLM system prompt without any runtime construction — the customizer never
+> carries it. `AgentRuntimeCustomization.Instructions` is deprecated
+> (`[Obsolete]`, retained for one version as a migration path for genuine
+> per-turn instruction injection); use `Persona` in your own DTOs (see
+> `references/authoring-service.md`) and let the hydration merge place it in
+> the system prompt.
 

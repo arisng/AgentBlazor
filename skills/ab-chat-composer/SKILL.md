@@ -53,7 +53,12 @@ Complete recipes — plain newline mode, runtime toggle, Ctrl/Cmd+Enter send, ha
 | `_content/AgentBlazor/AgentBlazor.min.js` | static web asset served by the package — the `window.AgentBlazor.chat` JS API | script reference, runtime diagnosis |
 | `_content/AgentBlazor/AgentBlazor.min.css` | static web asset — component styles | script reference |
 | `AgentBlazorAssetPaths.Css` / `.Js` | public constants (`AgentBlazor.Components` namespace) | host-page asset URLs |
-| `AgentChatSurface` / `AgentChatWidget` / `AgentChatPanel` | public components + their parameters (`Placeholder`, `Title`, ...) | component usage; `Placeholder` should be updated when Enter behavior changes |
+| `AgentChatSurface` / `AgentChatWidget` / `AgentChatPanel` | public components + their parameters (`Placeholder`, `Title`, `UserId`, ...) | component usage; `Placeholder` should be updated when Enter behavior changes |
+
+> **`UserId` parameter:** `AgentChatSurface` accepts an optional `UserId` (string?) — the
+> host-owned identity threaded into every `AgentTurnRequest`. It feeds
+> `GetEffectiveUserId()`, which the `IAgentRuntimeCustomizer` uses to scope per-user business
+> context. See `ab-context-assembly` → `references/user-context.md`.
 | `textarea.ab-chat-surface__input`, `.ab-chat-surface__submit`, `form.ab-chat-surface__controls` | observable DOM classes rendered by the components | consumer-side JS targeting |
 | `AgentBlazor.chat.*` (`attachEnterSubmit`, `detachEnterSubmit`, `setInputValue`, `getInputValue`) | runtime JS API exposed to the browser | understanding/enabling the workarounds |
 

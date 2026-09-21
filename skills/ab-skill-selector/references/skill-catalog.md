@@ -6,27 +6,29 @@ multiple areas and you need each skill's boundaries.
 
 ## Contents
 
-1. [ab-agent-audit](#ab-agent-audit)
-2. [ab-agent-builder](#ab-agent-builder)
-3. [ab-agent-registration](#ab-agent-registration)
-4. [ab-capability-authoring](#ab-capability-authoring)
-5. [ab-chat-composer](#ab-chat-composer)
-6. [ab-chat-session-browser](#ab-chat-session-browser)
-7. [ab-chat-session-management](#ab-chat-session-management)
-8. [ab-cli](#ab-cli)
-9. [ab-context-assembly](#ab-context-assembly)
-10. [ab-conversation-store](#ab-conversation-store)
-11. [ab-entity-design](#ab-entity-design)
-12. [ab-in-chat-features](#ab-in-chat-features)
-13. [ab-inspector](#ab-inspector)
-14. [ab-middleware-authoring](#ab-middleware-authoring)
-15. [ab-mud-components](#ab-mud-components)
-16. [ab-multitenancy](#ab-multitenancy)
-17. [ab-prompt-engineering](#ab-prompt-engineering)
-18. [ab-provider-config](#ab-provider-config)
-19. [ab-remote-chat](#ab-remote-chat)
-20. [ab-tool-authoring](#ab-tool-authoring)
-21. [ab-ui-integration](#ab-ui-integration)
+- [Skill Catalog — Consumer Selection Detail](#skill-catalog--consumer-selection-detail)
+  - [Contents](#contents)
+  - [ab-agent-audit](#ab-agent-audit)
+  - [ab-agent-builder](#ab-agent-builder)
+  - [ab-agent-registration](#ab-agent-registration)
+  - [ab-capability-authoring](#ab-capability-authoring)
+  - [ab-chat-composer](#ab-chat-composer)
+  - [ab-chat-session-browser](#ab-chat-session-browser)
+  - [ab-chat-session-management](#ab-chat-session-management)
+  - [ab-cli](#ab-cli)
+  - [ab-context-assembly](#ab-context-assembly)
+  - [ab-conversation-store](#ab-conversation-store)
+  - [ab-entity-design](#ab-entity-design)
+  - [ab-in-chat-features](#ab-in-chat-features)
+  - [ab-inspector](#ab-inspector)
+  - [ab-middleware-authoring](#ab-middleware-authoring)
+  - [ab-mud-components](#ab-mud-components)
+  - [ab-multitenancy](#ab-multitenancy)
+  - [ab-prompt-engineering](#ab-prompt-engineering)
+  - [ab-provider-config](#ab-provider-config)
+  - [ab-remote-chat](#ab-remote-chat)
+  - [ab-tool-authoring](#ab-tool-authoring)
+  - [ab-ui-integration](#ab-ui-integration)
 
 ---
 
@@ -193,18 +195,25 @@ multiple areas and you need each skill's boundaries.
 
 - **Scope**: How AgentBlazor assembles the full LLM context — system prompt
   construction, dynamic runtime context injection (`AgentRuntimeContextKeys`),
-  turn enrichment via middleware, prompt tracing (`EnablePromptTracing`),
+  **user-scoped runtime context** (`AgentRuntimeCustomization.UserContext`,
+  consumer-owned async provider, identity/activity/domain layers,
+  cache-aside/bounded/best-effort disciplines), turn enrichment via
+  middleware, prompt tracing (`EnablePromptTracing`),
   replacing the runtime adapter (`UseRuntimeAdapter`, `IAgentRuntimeAdapter`).
 - **Signals**: system prompt, instructions, `WithInstructions`,
-  `AgentRuntimeContextKeys`, context dictionary, prompt tracing,
+  `AgentRuntimeContextKeys`, context dictionary, **user context,
+  per-user context, user-scoped runtime context, user-scoped context,
+  `UserId` parameter, user identity in chat, per-user business data,
+  inject user data into turns**, prompt tracing,
   `PromptTracingOptions`, dynamic context, runtime context, prompt pipeline,
   `IAgentRuntimeAdapter`, `UseRuntimeAdapter`, `IAgentTurnMiddleware`,
   `AgentTurnContext`, context injection.
 - **Boundaries**: consumer-side only. Does NOT cover authoring middleware
   classes (`ab-middleware-authoring`) or aligning prompt prose with the
-  registered surface (`ab-prompt-engineering`).
+  registered surface (`ab-prompt-engineering`). The persona (user-managed
+  instructions) belongs to `ab-agent-builder`/`ab-entity-design`.
 - **Related**: `ab-prompt-engineering`, `ab-middleware-authoring`,
-  `ab-inspector`, `ab-agent-registration`.
+  `ab-inspector`, `ab-agent-registration`, `ab-chat-composer`.
 
 ## ab-conversation-store
 

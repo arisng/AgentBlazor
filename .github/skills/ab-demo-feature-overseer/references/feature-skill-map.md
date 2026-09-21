@@ -22,8 +22,9 @@ referenced skill to reason correctly about its wiring.
 | Route prefixes & allowed components| seeds in `Program.cs` | `ab-agent-registration`                | `routePrefixes:`, `components:` in seed data |
 | Shared instructions file           | `agent-instructions.txt` → `Program.cs` | `ab-context-assembly` | `sharedInstructions` → seed function |
 | Per-agent data schemas             | `Program.cs` + seeds | `ab-agent-registration`                | `AddDataSchema`, `dataSchemas:` in `BuildSeeds()` |
-| Runtime customization (per-agent persona + tool filtering) | `Program.cs`, `Services/DemoAgentCustomizer.cs`, `Services/DatabaseBackedAgentRegistry.cs` | `ab-context-assembly`, `ab-tool-authoring` | `AddRuntimeCustomizer`, `IAgentRuntimeCustomizer` |
-| Agent Builder (database-backed dynamic registry + persona/tool edit + chat) | `Program.cs`, `Services/DatabaseBackedAgentRegistry.cs`, `Data/DemoAgentDefinitionEntity.cs`, `Data/DemoDbContext.cs`, `Components/Pages/Demo/AgentBuilder.razor` | `ab-agent-registration`, `ab-context-assembly`, `ab-entity-design` | `DatabaseBackedAgentRegistry`, `IAsyncAgentRegistry`, `DemoDbContext`, `/demo/agent-builder` |
+| Runtime customization (tool whitelist + user context) | `Program.cs`, `Services/DemoAgentCustomizer.cs`, `Services/DemoUserContextProvider.cs`, `Services/DatabaseBackedAgentRegistry.cs` | `ab-context-assembly`, `ab-tool-authoring` | `AddRuntimeCustomizer`, `IAgentRuntimeCustomizer`, `IDemoUserContextProvider` |
+| User-scoped runtime context (identity/activity/domain) | `Services/DemoUserContextProvider.cs`, `Services/DemoUserDirectory.cs`, `Services/IProvideLiveUserContext.cs`, 4 workflow services, `AgentBuilder.razor` (user picker) | `ab-context-assembly` | `AddMemoryCache`, `IProvideLiveUserContext`, `UserId="@_chatUserId"` |
+| Agent Builder (database-backed dynamic registry + platform/user instructions + tool edit + chat) | `Program.cs`, `Services/DatabaseBackedAgentRegistry.cs`, `Data/DemoAgentDefinitionEntity.cs`, `Data/DemoDbContext.cs`, `Components/Pages/Demo/AgentBuilder.razor` | `ab-agent-registration`, `ab-context-assembly`, `ab-entity-design` | `DatabaseBackedAgentRegistry`, `IAsyncAgentRegistry`, `DemoDbContext`, `/demo/agent-builder` |
 
 ## Capabilities & actions
 

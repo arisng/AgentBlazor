@@ -24,10 +24,12 @@ case actually wired in the Demo project** — not just because the library suppo
 or because some parameter default is active. If the Demo never exercises the feature,
 mark it ⛔.
 
-_Evidence snapshot: 2026-09-15 (8 workflow agents, 3 standalone agents, 8 capability
-classes, 41 agent actions, 10 approvals, 3 clarification sites, 18 component families,
+_Evidence snapshot: 2026-09-20 (8 workflow agents, 3 standalone agents, 9 capability
+classes, 44 agent actions, 10 approvals, 3 clarification sites, 18 component families,
 29 routes, 9 scenarios, 2 middleware, 8 log endpoints; runtime customization seam wired
-via Agent Builder; Agent Builder dynamic-registry showcase wired)._
+via Agent Builder (tools + user context); Agent Builder dynamic-registry showcase wired;
+user-scoped runtime context showcase wired — identity/activity/domain layers via
+`DemoUserContextProvider` + `IProvideLiveUserContext`)._
 
 ---
 
@@ -45,7 +47,8 @@ via Agent Builder; Agent Builder dynamic-registry showcase wired)._
 | Allowed **actions** / capability actions (fine-grained) | ⛔ | no `WithAllowedActions` in Demo (runtime filtering via the customizer is a separate feature — see below) | `ab-agent-registration` |
 | Service **tools** (`AddTool`) | ⛔ | All demo tools moved to `[AgentCapability]` class (`DemoAssemblyCapabilities`); zero `AddTool()` calls in Program.cs | `ab-tool-authoring` |
 | **MCP** server tools (`UseMcpServer`) | ⛔ | no MCP wiring | `ab-tool-authoring` |
-| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `DatabaseBackedAgentRegistry`; persona + tool set managed via Agent Builder; `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-authoring` |
+| Runtime customization (`IAgentRuntimeCustomizer`) | ✅ | `AddRuntimeCustomizer<DemoAgentCustomizer>` + `DatabaseBackedAgentRegistry` (enabled-tools whitelist) + `DemoUserContextProvider` (user-scoped context); persona is user-managed instructions merged into `Instructions` at hydration (NOT part of the seam); `runtimeCustomization.customizerRegistered=true` | `ab-context-assembly`, `ab-tool-authoring` |
+| **User-scoped runtime context** (identity/activity/domain, async live reads) | ✅ | `AddSingleton<IDemoUserContextProvider, DemoUserContextProvider>` + `AddMemoryCache`; `DemoUserDirectory` (identity) + cache-aside session counts (activity) + `IProvideLiveUserContext.GetLiveUserContextAsync` on 4 workflow services (live domain state); AgentBuilder "Chat as user" picker → `AgentChatSurface.UserId`; `userContextShowcase.providerRegistered/memoryCacheWired/userPickerWired=true` | `ab-context-assembly` |
 | Agent **selector** in chat | 🔶 | per-route `DefaultAgentName` lock on workflow surfaces; full registry picker proven on `/demo/sessions` New-chat (`MudSelect` over `IAsyncAgentRegistry.GetAllAsync()`), not on workflow pages | `ab-in-chat-features` |
 
 ## 2. Capabilities & actions

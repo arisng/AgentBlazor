@@ -197,21 +197,23 @@ builder to my app", "persist agent definitions to SQL Server".
 
 **Chain**: `ab-agent-builder` → `ab-entity-design` (entity/migration review) →
 `ab-agent-registration` (registry replacement + route locking) →
-`ab-context-assembly` (customizer/instructions integration).
+`ab-context-assembly` (hydration merge + customizer integration).
 
 **Why this order**: the builder skill owns the end-to-end feature (store,
 registry, authoring surface); entity design validates the
 `AgentDefinitionEntity` subclass and migrations; registration confirms the
 `IAsyncAgentRegistry` replacement (aliased to both interfaces, same instance) and route-prefix locking; context assembly wires
-the runtime customizer so authored instructions actually reach the agent.
+the persona hydration merge (persona → `Instructions`) and the runtime
+customizer (enabled tools + user context) so authored content actually reaches
+the agent.
 
 **Handoff notes**:
 - → entity design: the entity subclass + DbContext + migration plan from the
   builder skill.
 - → registration: the store-backed registry and which static agents were
   dropped/seeded.
-- → context assembly: the `IAgentRuntimeCustomizer` implementation and
-  `AgentRuntimeCustomization` usage.
+- → context assembly: the `ToRegistration` persona merge and the
+  `IAgentRuntimeCustomizer`/`AgentRuntimeCustomization` (tools + user context) usage.
 
 ## 11. Audit and assess an agent
 

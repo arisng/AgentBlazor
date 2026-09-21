@@ -232,7 +232,7 @@ The raw circuit identifier (`sessionId` parameter above) is stored in `BaseSessi
 
 4. **JSON columns for collections.** `AllowedComponentsJson`, `AllowedActionsJson`, `AllowedCapabilityActionsJson`, and `AllowedDataSchemasJson` are stored as `nvarchar(max)` JSON strings. This avoids junction tables for a write-heavy builder flow where collections are small (< 20 items) and rarely queried by content. Upgrade to owned entity types (`ToJson()`) only if you need `WHERE JSON_VALUE(...)` queries.
 
-5. **Persona + enabled tools in `MetadataJson`.** These feed the `IAgentRuntimeCustomizer` seam on every turn. They are carried in `Metadata` under the `agent_builder.persona` / `agent_builder.enabled_tools` keys, mirroring `AgentRegistration.Metadata` 1:1 — no dual-write, and the customizer reads them from the hydrated registration.
+5. **Persona + enabled tools in `MetadataJson`.** The persona (user-managed instructions) merges into `AgentRegistration.Instructions` at hydration (platform text first, then the persona — non-destructive, the metadata key is preserved). The enabled tools feed the `IAgentRuntimeCustomizer` seam on every turn. Both are carried in `Metadata` under the `agent_builder.persona` / `agent_builder.enabled_tools` keys, mirroring `AgentRegistration.Metadata` 1:1 — no dual-write, and the customizer reads the enabled tools from the hydrated registration.
 
 ```sql
 -- Case-insensitive unique index on Name (CRITICAL — runtime does case-insensitive lookups)

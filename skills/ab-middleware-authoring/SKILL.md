@@ -202,6 +202,11 @@ When building a middleware that needs to query cost or budget stores, see the co
 
 ## Complete Example — Tenant Enrichment + Audit Middleware
 
+> **Boundary:** middleware is the **cross-cutting** seam (auth, tenant, rate limits — must run
+> regardless of agent). For **per-agent, per-user business context** (e.g. live ticket counts
+> for the current user), use the `IAgentRuntimeCustomizer`'s `UserContext` instead — see
+> `ab-context-assembly` → `references/user-context.md` §6.
+
 ```csharp
 // Middleware 1: Resolve tenant and inject into Items
 public sealed class TenantEnrichmentMiddleware : IAgentTurnMiddleware
