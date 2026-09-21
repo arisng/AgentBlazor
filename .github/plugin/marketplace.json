@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "AgentBlazor plugin marketplace — AI agent skills for ASP.NET Core Blazor",
-    "version": "0.2.31"
+    "version": "0.2.32"
   },
   "plugins": [
     {
       "name": "agentblazor-skills",
       "description": "21 consumer-facing ab-* skills for agent registration, agent builder (runtime agent authoring), capability authoring, conversation stores, entity design, multi-tenancy, chat surfaces, session browsing, MudBlazor components, middleware, prompt engineering, CLI tooling, and more",
-      "version": "0.2.31",
+      "version": "0.2.32",
       "source": "."
     }
   ]
