@@ -17,7 +17,7 @@ namespace AgentBlazor.Core.Tests;
 public class RuntimeCustomizerTests
 {
     [Fact]
-    public async Task Customizer_AppendsInstructions_AfterRegistration_BeforeDataSchema()
+    public async Task Customizer_ObsoleteInstructions_StillAppendedAfterRegistration_BeforeDataSchema()
     {
         var services = new ServiceCollection();
         services.AddSingleton<RecordingChatClient>();
@@ -28,7 +28,7 @@ public class RuntimeCustomizerTests
             ]));
             services.AddAgentBlazorServices()
                 .UseChatClientRuntimeAdapter()
-                .AddRuntimeCustomizer<StaticCustomizer>()
+                .AddRuntimeCustomizer<ObsoleteInstructionsCustomizer>()
                 .AddDataSchema(new AgentDataSchemaSet
                 {
                     Name = "support-data",
@@ -66,14 +66,14 @@ public class RuntimeCustomizerTests
         var schemaIndex = instructions.IndexOf("READ-SAFE DATA SCHEMAS", StringComparison.Ordinal);
 
         Assert.True(baseIndex >= 0, "registration instructions missing");
-        Assert.True(customIndex >= 0, "customizer instructions missing");
+        Assert.True(customIndex >= 0, "obsolete customizer instructions missing");
         Assert.True(schemaIndex >= 0, "data-schema safety block missing");
         Assert.True(baseIndex < customIndex, "customizer instructions must come after registration instructions");
         Assert.True(customIndex < schemaIndex, "data-schema block must come last");
     }
 
     [Fact]
-    public async Task Customizer_WithNoRegistrationInstructions_UsesCustomizerVerbatim()
+    public async Task Customizer_ObsoleteInstructions_UsedVerbatim_WhenNoRegistrationInstructions()
     {
         var services = new ServiceCollection();
         services.AddSingleton<RecordingChatClient>();
@@ -84,7 +84,7 @@ public class RuntimeCustomizerTests
             ]));
             services.AddAgentBlazorServices()
                 .UseChatClientRuntimeAdapter()
-                .AddRuntimeCustomizer<StaticCustomizer>()
+                .AddRuntimeCustomizer<ObsoleteInstructionsCustomizer>()
                 .AddAgent("support-agent");
 
         await using var provider = services.BuildServiceProvider();
@@ -98,6 +98,34 @@ public class RuntimeCustomizerTests
 
         var instructions = Assert.Single(chatClient.InstructionSnapshots);
         Assert.Contains("custom instructions", instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Customizer_UserContext_IsInjectedIntoUserMessage()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<RecordingChatClient>();
+        services.AddSingleton<IChatClient>(static sp => sp.GetRequiredService<RecordingChatClient>());
+        services.AddAgentBlazorServices()
+            .UseChatClientRuntimeAdapter()
+            .AddRuntimeCustomizer<UserContextCustomizer>()
+            .AddAgent("support-agent");
+
+        await using var provider = services.BuildServiceProvider();
+        var adapter = provider.GetRequiredService<IAgentRuntimeAdapter>();
+        var chatClient = provider.GetRequiredService<RecordingChatClient>();
+
+        _ = await adapter.RunTurnAsync(new AgentTurnRequest(
+            "hello",
+            AgentName: "support-agent",
+            SessionId: "s1"));
+
+        var userMessage = Assert.Single(chatClient.UserMessageSnapshots);
+        Assert.Contains("Runtime context:", userMessage, StringComparison.Ordinal);
+        Assert.Contains("support_inbox.open_tickets: 3", userMessage, StringComparison.Ordinal);
+        Assert.Contains("support_inbox.awaiting_reply: 2", userMessage, StringComparison.Ordinal);
+        // Null user-context values are skipped — never rendered.
+        Assert.DoesNotContain("demo.user.null_value", userMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -351,7 +379,6 @@ public class RuntimeCustomizerTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
-                Instructions: "custom instructions",
                 EnabledToolIds: new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
                         "customizer_workflow.do_alpha",
@@ -369,8 +396,44 @@ public class RuntimeCustomizerTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
-                Instructions: "custom instructions",
                 EnabledToolIds: null));
+        }
+    }
+
+    /// <summary>
+    /// Exercises the deprecated-but-functional <c>Instructions</c> member (migration path).
+    /// The agent persona must NOT use this — it is retained only for consumers who need
+    /// genuine per-turn instruction injection during the transition.
+    /// </summary>
+    private sealed class ObsoleteInstructionsCustomizer : IAgentRuntimeCustomizer
+    {
+#pragma warning disable CS0618 // Type or member is obsolete — exercising the compat shim
+        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+            AgentRegistration registration,
+            AgentTurnRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
+                Instructions: "custom instructions"));
+        }
+#pragma warning restore CS0618
+    }
+
+    /// <summary>Returns user-scoped business context (the re-framed seam's purpose).</summary>
+    private sealed class UserContextCustomizer : IAgentRuntimeCustomizer
+    {
+        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+            AgentRegistration registration,
+            AgentTurnRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
+                UserContext: new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["support_inbox.open_tickets"] = "3",
+                    ["support_inbox.awaiting_reply"] = "2",
+                    ["demo.user.null_value"] = null
+                }));
         }
     }
 
@@ -394,6 +457,8 @@ public class RuntimeCustomizerTests
 
         public List<List<string>> ToolSnapshots { get; } = [];
 
+        public List<string> UserMessageSnapshots { get; } = [];
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
@@ -404,6 +469,11 @@ public class RuntimeCustomizerTests
             InstructionSnapshots.Add(options?.Instructions ?? string.Empty);
             ToolSnapshots.Add(
                 [.. (options?.Tools?.Select(static tool => tool is AIFunction function ? function.Name : tool.GetType().Name) ?? [])]);
+            if (messages.LastOrDefault() is { } userMessage)
+            {
+                UserMessageSnapshots.Add(userMessage.Text ?? string.Empty);
+            }
+
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "recorded")));
         }
 
