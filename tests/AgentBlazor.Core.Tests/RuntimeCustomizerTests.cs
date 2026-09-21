@@ -373,7 +373,7 @@ public class RuntimeCustomizerTests
 
     private sealed class StaticCustomizer : IAgentRuntimeCustomizer
     {
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
@@ -390,7 +390,7 @@ public class RuntimeCustomizerTests
 
     private sealed class NullWhitelistCustomizer : IAgentRuntimeCustomizer
     {
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
@@ -408,7 +408,7 @@ public class RuntimeCustomizerTests
     private sealed class ObsoleteInstructionsCustomizer : IAgentRuntimeCustomizer
     {
 #pragma warning disable CS0618 // Type or member is obsolete — exercising the compat shim
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
@@ -422,7 +422,7 @@ public class RuntimeCustomizerTests
     /// <summary>Returns user-scoped business context (the re-framed seam's purpose).</summary>
     private sealed class UserContextCustomizer : IAgentRuntimeCustomizer
     {
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
@@ -441,7 +441,7 @@ public class RuntimeCustomizerTests
     {
         public int InvocationCount { get; private set; }
 
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
