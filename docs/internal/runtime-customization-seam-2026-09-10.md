@@ -181,6 +181,35 @@ Deliverable: **`docs/internal/research/260909-runtime-adapter-feasibility.md`** 
 - **Reserved tools:** generated-UI tools and legacy aliases are never stripped — this keeps in-chat rendering features intact; the prototype/limitations section should note the edge case where a filtered component primary's legacy alias may still project.
 - **No breaking changes** to the public surface expected: additive only (`IAgentRuntimeCustomizer`, `AgentRuntimeCustomization`, `AddRuntimeCustomizer`).
 
+## 8b. Re-frame addendum (2026-09-20) — persona is NOT part of the seam
+
+The seam shipped as designed above, then was re-framed after empirical audit
+against the AgentChat domain contract (`dprocess-dotnet-starter-kit` module
+CONTEXT.md). The **agent persona is user-managed instructions**: it is authored
+in the Agent Builder flow and merged into `AgentRegistration.Instructions` at
+store-backed registry hydration (`platform\n\npersona`), so it is maintained
+during authoring, not constructed at chat runtime. The seam now handles only:
+
+1. **Tool whitelist restriction** — `EnabledToolIds` (unchanged semantics).
+2. **User-scoped business context** — `UserContext`
+   (`IReadOnlyDictionary<string, string?>`), a 3rd positional parameter
+   injected into the turn's user message "Runtime context:" block
+   (channel-supplied `AgentTurnRequest.Context` keys win on collision; null
+   values skipped). Applied in both streaming and non-streaming paths.
+
+`AgentRuntimeCustomization.Instructions` is retained `[Obsolete]` (still
+functional) for one internal version as a migration path for consumers using
+the seam for genuine per-turn instruction injection. The interface is
+unchanged; the change is additive and non-breaking.
+
+**Persona hydration merge invariants (regression-tested):**
+- `ToRegistration` merges platform + persona; the `agent_builder.persona`
+  metadata key is PRESERVED (non-destructive — direct readers keep working).
+- `AddOrUpdate`/`AddOrUpdateAsync` cache the HYDRATED registration so a
+  persona edit is visible on the next turn without restart.
+- The builder's Edit handler sources platform instructions from the entity
+  column (never the merged registration) so saves never duplicate the persona.
+
 ## 9. Related Files
 
 - `.agent-handoffs/260909-tier2-runtime-adapter-feasibility.md` — the handoff
