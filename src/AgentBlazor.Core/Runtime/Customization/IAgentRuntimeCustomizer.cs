@@ -30,13 +30,13 @@ namespace AgentBlazor.Core.Runtime.Customization;
 public interface IAgentRuntimeCustomizer
 {
     /// <summary>
-    /// Computes the customization to apply for this agent turn, or <see langword="null"/> to
-    /// leave the turn unchanged.
+    /// Computes the per-turn agent runtime customization to apply for this agent turn, or
+    /// <see langword="null"/> to leave the turn unchanged.
     /// </summary>
     /// <param name="registration">The resolved agent registration for this turn.</param>
     /// <param name="request">The turn request. Never <see langword="null"/>.</param>
     /// <param name="cancellationToken">Cancellation token for the turn.</param>
-    Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+    Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken = default);

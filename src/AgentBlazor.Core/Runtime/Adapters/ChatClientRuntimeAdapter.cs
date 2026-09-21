@@ -131,9 +131,9 @@ public sealed class ChatClientRuntimeAdapter(
 
         traceBuilder.RecordEntry(request, registration.Name);
         var capabilityPolicy = ResolveAllowedCapabilityPolicy(registration);
-        var customization = await ResolveCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
-        var effectiveContext = MergeUserContext(request.Context, customization?.UserContext);
-        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, customization, cancellationToken).ConfigureAwait(false);
+        var agentRuntimeCustomization = await ResolveAgentRuntimeCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        var effectiveContext = MergeUserContext(request.Context, agentRuntimeCustomization?.UserContext);
+        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, agentRuntimeCustomization, cancellationToken).ConfigureAwait(false);
         if (projectedTools.Count == 0)
         {
             return await BuildNoAvailableActionsResponseAsync(
@@ -181,7 +181,7 @@ public sealed class ChatClientRuntimeAdapter(
                 return approvedResponse;
             }
 
-            var agent = await CreateAgentAsync(registration, request, turnState, customization, effectiveCancellationToken).ConfigureAwait(false);
+            var agent = await CreateAgentAsync(registration, request, turnState, agentRuntimeCustomization, effectiveCancellationToken).ConfigureAwait(false);
             CurrentTurnState.Value = turnState;
             var response = await agent.RunAsync(
                 new ChatMessage(ChatRole.User, BuildUserMessage(request, effectiveContext)),
@@ -343,9 +343,9 @@ public sealed class ChatClientRuntimeAdapter(
 
         traceBuilder.RecordEntry(request, registration.Name);
         var capabilityPolicy = ResolveAllowedCapabilityPolicy(registration);
-        var customization = await ResolveCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
-        var effectiveContext = MergeUserContext(request.Context, customization?.UserContext);
-        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, customization, cancellationToken).ConfigureAwait(false);
+        var agentRuntimeCustomization = await ResolveAgentRuntimeCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        var effectiveContext = MergeUserContext(request.Context, agentRuntimeCustomization?.UserContext);
+        var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, agentRuntimeCustomization, cancellationToken).ConfigureAwait(false);
         if (projectedTools.Count == 0)
         {
             var noActionsResponse = await BuildNoAvailableActionsResponseAsync(
@@ -420,7 +420,7 @@ public sealed class ChatClientRuntimeAdapter(
                 return approvedResponse;
             }
 
-            var agent = await CreateAgentAsync(registration, request, turnState, customization, effectiveCancellationToken).ConfigureAwait(false);
+            var agent = await CreateAgentAsync(registration, request, turnState, agentRuntimeCustomization, effectiveCancellationToken).ConfigureAwait(false);
             CurrentTurnState.Value = turnState;
             var usage = new UsageDetails();
             var hasUsage = false;
@@ -2172,7 +2172,7 @@ public sealed class ChatClientRuntimeAdapter(
         return builder.ToString().Trim();
     }
 
-    private async Task<AgentRuntimeCustomization?> ResolveCustomizationAsync(
+    private async Task<AgentRuntimeCustomization?> ResolveAgentRuntimeCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken)
@@ -2183,7 +2183,7 @@ public sealed class ChatClientRuntimeAdapter(
             return null;
         }
 
-        return await customizer.GetCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        return await customizer.GetRuntimeCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<AgentTurnResponse> BuildNoAgentResponseAsync(
