@@ -594,6 +594,9 @@
     public string? SessionId { get; set; }
 
     [Parameter]
+    public string? UserId { get; set; }
+
+    [Parameter]
     public bool EnableGeneratedUi { get; set; }
 
     [Parameter]
@@ -869,6 +872,7 @@
                 message,
                 _selectedAgent,
                 SessionId: EffectiveSessionId,
+                UserId: UserId,
                 Context: CreateRequestContext()));
             await ApplyTurnOutcomeAsync(message, turnOutcome, conversationTurnCountBefore);
             ClearPendingHandoffMetadata();
@@ -912,7 +916,7 @@
         {
             _suggestions = await SuggestionService.GetSuggestionsAsync(
                 EffectiveSessionId,
-                userId: null,
+                userId: UserId,
                 currentContext: _prompt);
         }
         catch
@@ -950,6 +954,7 @@
                 fullMessage,
                 _selectedAgent,
                 SessionId: EffectiveSessionId,
+                UserId: UserId,
                 Context: CreateRequestContext()));
             await ApplyTurnOutcomeAsync(fullMessage, turnOutcome, conversationTurnCountBefore);
             _scrollRequested = true;
@@ -1016,6 +1021,7 @@
                 approvalMessage,
                 _selectedAgent,
                 SessionId: EffectiveSessionId,
+                UserId: UserId,
                 Context: CreateRequestContext(approvalContext),
                 ApprovalContinuation: new AgentApprovalContinuation(approvalIds)));
             turnOutcome = EnrichApprovalOutcome(turnOutcome);
