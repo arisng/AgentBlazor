@@ -24,8 +24,9 @@
                 <MudText Typo="Typo.h6" Class="mb-2">Build a new agent</MudText>
                 <MudTextField T="string" Label="Agent name" Variant="Variant.Outlined" @bind-Value="_name" />
                 <MudTextField T="string" Label="Description" Variant="Variant.Outlined" @bind-Value="_description" />
-                <MudTextField T="string" Label="System instructions" Variant="Variant.Outlined"
-                              Lines="3" @bind-Value="_instructions" />
+                <MudTextField T="string" Label="Platform-managed instructions" Variant="Variant.Outlined"
+                              Lines="3" @bind-Value="_instructions" ReadOnly="true"
+                              HelperText="Read-only — seeded at startup (WithInstructions), hidden from end users." />
                 <MudTextField T="string" Label="Allowed components (comma-separated)"
                               HelperText="e.g. AgentForm, AgentDataGrid, AgentDialog"
                               Variant="Variant.Outlined" @bind-Value="_components" />
@@ -33,9 +34,10 @@
                               HelperText="e.g. /demo/agent-builder"
                               Variant="Variant.Outlined" @bind-Value="_routePrefixes" />
 
-                <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">Persona (system-prompt override)</MudText>
+                <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">Persona (user-managed instructions)</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
-                    Appended at runtime via the <Code>IAgentRuntimeCustomizer</Code> seam.
+                    Merged into the agent's system prompt at registry hydration — maintained here
+                    during authoring, never constructed at chat runtime.
                 </MudText>
                 <MudTextField T="string" Label="Persona" Variant="Variant.Outlined"
                               Lines="3" @bind-Value="_persona" />
@@ -100,12 +102,21 @@
                     <MudText Typo="Typo.h6" Class="mb-2">Chat with "@_selectedAgent"</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
                         Resolved at runtime through the database-backed registry. Persona + tools come
-                        from the Agent Builder customization above.
+                        from the Agent Builder customization above; user-scoped context comes from
+                        <Code>DemoUserContextProvider</Code>.
                     </MudText>
+                    <MudSelect T="string" Label="Chat as user" Variant="Variant.Outlined"
+                               @bind-Value="_chatUserId" Class="mb-2">
+                        @foreach (var user in DemoUserDirectory.All)
+                        {
+                            <MudSelectItem T="string" Value="@user.Id">@user.DisplayName (@user.Role)</MudSelectItem>
+                        }
+                    </MudSelect>
                     <AgentChatSurface Title="@_selectedAgent"
                                       Description="Built and persisted via the Agent Builder."
                                       DefaultAgentName="@_selectedAgent"
                                       SessionId="demo:agent-builder"
+                                      UserId="@_chatUserId"
                                       LockAgentToCurrentRoute="false"
                                       ShowAgentSelector="false"
                                       EnableGeneratedUi="true"
@@ -139,6 +150,7 @@
     private string _components = string.Empty;
     private string _routePrefixes = string.Empty;
     private string _persona = string.Empty;
+    private string _chatUserId = DemoUserDirectory.DefaultUserId;
     private bool _isNew = true;
 
     [Inject]
@@ -220,12 +232,15 @@
         _isNew = true;
     }
 
-    private void Edit(AgentRegistration agent)
+    private async Task Edit(AgentRegistration agent)
     {
         _isNew = false;
         _name = agent.Name;
         _description = agent.Description ?? string.Empty;
-        _instructions = agent.Instructions ?? string.Empty;
+        // Platform-managed instructions come from the ENTITY column, NOT the merged
+        // registration — the hydrated registration's Instructions already contains the
+        // persona, and re-typing it here would duplicate it on the next hydration.
+        _instructions = await Registry.GetPlatformInstructionsAsync(agent.Name) ?? string.Empty;
         _components = string.Join(", ", agent.AllowedComponents);
         _routePrefixes = string.Join(", ", Split(agent.Metadata.TryGetValue("route_prefixes", out var rp) ? rp : null));
         _persona = agent.Metadata.TryGetValue(DatabaseBackedAgentRegistry.PersonaKey, out var p) ? p : string.Empty;
@@ -252,8 +267,10 @@
             metadata["route_prefixes"] = string.Join(",", routes);
         }
 
-        // Persona + enabled tools are part of the runtime model — carry them in
-        // Metadata so a single AddOrUpdate persists everything (no SetCustomization).
+        // Persona (user-managed instructions) + enabled tools are carried in Metadata so a
+        // single AddOrUpdate persists everything (no SetCustomization). Instructions holds
+        // the PLATFORM-managed text (read-only field, sourced from the entity on Edit) —
+        // the persona is merged into it at hydration, so it must never be re-typed here.
         if (!string.IsNullOrWhiteSpace(_persona))
         {
             metadata[DatabaseBackedAgentRegistry.PersonaKey] = _persona.Trim();

@@ -6,25 +6,45 @@ namespace AgentBlazor.Demo.Services;
 
 /// <summary>
 /// Applies per-agent runtime customization from the database-backed agent registry
-/// (the Agent Builder). Returns <see langword="null"/> for unconfigured agents, so
-/// standard agents are unaffected.
+/// (the Agent Builder) plus user-scoped business context from
+/// <see cref="IDemoUserContextProvider"/>. Returns <see langword="null"/> for agents with
+/// neither a tool restriction nor user context, so standard agents are unaffected.
 /// </summary>
+/// <remarks>
+/// The agent persona is intentionally NOT part of this seam: it is user-managed instructions
+/// merged into <c>AgentRegistration.Instructions</c> at registry hydration, so it reaches the
+/// LLM system prompt without any runtime construction.
+/// </remarks>
 public sealed class DemoAgentCustomizer : IAgentRuntimeCustomizer
 {
     private readonly DatabaseBackedAgentRegistry _registry;
+    private readonly IDemoUserContextProvider _userContextProvider;
 
-    public DemoAgentCustomizer(DatabaseBackedAgentRegistry registry)
+    public DemoAgentCustomizer(
+        DatabaseBackedAgentRegistry registry,
+        IDemoUserContextProvider userContextProvider)
     {
         _registry = registry;
+        _userContextProvider = userContextProvider;
     }
 
-    public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+    public async Task<AgentRuntimeCustomization?> GetCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken = default)
     {
-        _ = request;
-        _ = cancellationToken;
-        return Task.FromResult(_registry.TryGetCustomization(registration.Name));
+        var tools = _registry.TryGetCustomization(registration.Name);
+        var userContext = await _userContextProvider
+            .BuildAsync(request.GetEffectiveUserId(), registration.Name, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (tools is null && (userContext is null || userContext.Count == 0))
+        {
+            return null;
+        }
+
+        return new AgentRuntimeCustomization(
+            EnabledToolIds: tools?.EnabledToolIds,
+            UserContext: userContext);
     }
 }

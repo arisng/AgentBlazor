@@ -221,6 +221,13 @@ builder.Services.AddSingleton<AgentBlazor.Agents.IAgentRegistry>(sp =>
 builder.Services.AddSingleton<AgentBlazor.Agents.IAsyncAgentRegistry>(sp =>
     sp.GetRequiredService<DatabaseBackedAgentRegistry>());
 
+// User-scoped business context for the Agent Builder showcase — singleton-safe (DB access
+// goes through IDbContextFactory; the domain layer resolves scoped workflow services from
+// IAgentExecutionScopeAccessor.Current at turn time). IMemoryCache backs the cache-aside
+// activity layer (short-TTL session counts).
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IDemoUserContextProvider, DemoUserContextProvider>();
+
 builder.Services.AddAgentBlazor(options =>
 {
     if (!string.IsNullOrWhiteSpace(openAiApiKey))

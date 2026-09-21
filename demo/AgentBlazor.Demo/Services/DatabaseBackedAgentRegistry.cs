@@ -111,7 +111,11 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
         entity.UpdatedAtUtc = now;
         db.SaveChanges();
 
-        _cache[registration.Name] = registration;
+        // Cache the HYDRATED (merged) registration — not the raw passed one — so the
+        // cache always matches what a restart / RefreshFromDatabase would produce
+        // (persona merged into Instructions at read time). Without this, a persona
+        // edit's visibility would be timing-dependent.
+        _cache[registration.Name] = ToRegistration(entity);
     }
 
     /// <inheritdoc />
@@ -146,7 +150,8 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
         entity.UpdatedAtUtc = now;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        _cache[registration.Name] = registration;
+        // Cache the HYDRATED (merged) registration — see the sync AddOrUpdate.
+        _cache[registration.Name] = ToRegistration(entity);
     }
 
     /// <summary>
@@ -203,9 +208,21 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
 
     /// <summary>
     /// Re-hydrates the in-memory cache from the database. Called by the database seeder
-    /// after it writes baseline agents on first boot.
+    /// after it writes baseline agents on first boot. Serialized with the async load lock so
+    /// a concurrent first read can never observe a partially rebuilt cache.
     /// </summary>
-    public void RefreshFromDatabase() => RefreshCache();
+    public void RefreshFromDatabase()
+    {
+        _loadLock.Wait();
+        try
+        {
+            RefreshCache();
+        }
+        finally
+        {
+            _loadLock.Release();
+        }
+    }
 
     /// <summary>
     /// Hydrates the cache once at startup, after EF Core migrations and agent seeding have
@@ -307,11 +324,19 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
         // are already in the metadata under PersonaKey / EnabledToolsKey.
         var metadata = AgentDefinitionEntity.DeserializeDictionary(entity.MetadataJson);
 
+        // Persona (user-managed instructions) is merged into Instructions at hydration:
+        // platform instructions (entity.Instructions column) first, then the persona
+        // appended — mirroring the adapter's historical registered→customizer ordering.
+        // The Metadata key is PRESERVED (non-destructive), so readers that consume
+        // PersonaKey directly keep working.
+        var platform = entity.Instructions;
+        var persona = metadata.TryGetValue(PersonaKey, out var p) ? p : null;
+
         return new AgentRegistration
         {
             Name = entity.Name,
             Description = entity.Description,
-            Instructions = entity.Instructions,
+            Instructions = MergeInstructions(platform, persona),
             AllowedComponents = AgentDefinitionEntity.DeserializeSet(entity.AllowedComponentsJson),
             AllowedActions = AgentDefinitionEntity.DeserializeSet(entity.AllowedActionsJson),
             // AllowedCapabilityActions is set only at construction (object
@@ -324,9 +349,32 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
     }
 
     /// <summary>
-    /// Returns the persisted <see cref="AgentRuntimeCustomization"/> (persona + enabled tools)
-    /// for an agent, or <see langword="null"/> if the agent has none. Used by a runtime customizer
-    /// so the Agent Builder and the customization seam share the same persisted source.
+    /// Merges platform-managed instructions with the user-managed persona, preserving the
+    /// adapter's historical ordering (registered instructions → custom persona).
+    /// </summary>
+    private static string? MergeInstructions(string? platform, string? persona)
+    {
+        if (string.IsNullOrWhiteSpace(platform))
+        {
+            return string.IsNullOrWhiteSpace(persona) ? null : persona.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(persona)
+            ? platform.Trim()
+            : $"{platform.Trim()}\n\n{persona.Trim()}";
+    }
+
+    /// <summary>
+    /// Returns the persisted <see cref="AgentRuntimeCustomization"/> (enabled-tools whitelist
+    /// only) for an agent, or <see langword="null"/> if the agent has no tool restriction.
+    /// Used by a runtime customizer so the Agent Builder and the customization seam share the
+    /// same persisted source.
+    /// <para>
+    /// The persona is intentionally NOT part of the customization: it is user-managed
+    /// instructions merged into <c>AgentRegistration.Instructions</c> at hydration
+    /// (see <see cref="ToRegistration"/>), so it is maintained during agent authoring, not
+    /// constructed at chat runtime.
+    /// </para>
     /// </summary>
     public AgentRuntimeCustomization? TryGetCustomization(string agentName)
     {
@@ -335,16 +383,54 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
             return null;
         }
 
-        var persona = registration.Metadata.TryGetValue(PersonaKey, out var p) ? p : null;
         IReadOnlySet<string>? enabledTools = null;
         if (registration.Metadata.TryGetValue(EnabledToolsKey, out var toolsRaw))
         {
             enabledTools = new HashSet<string>(toolsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries), StringComparer.OrdinalIgnoreCase);
         }
 
-        return persona is null && enabledTools is null
+        return enabledTools is null
             ? null
-            : new AgentRuntimeCustomization(persona, enabledTools);
+            : new AgentRuntimeCustomization(EnabledToolIds: enabledTools);
+    }
+
+    /// <summary>
+    /// Returns the platform-managed instructions for an agent (the <c>Instructions</c> column,
+    /// WITHOUT the user-managed persona). The hydrated registration's
+    /// <c>AgentRegistration.Instructions</c> is the MERGED platform + persona form, so builder
+    /// UIs must source the platform text from here — never from the merged registration — to
+    /// keep the persona from being duplicated on the next hydration.
+    /// </summary>
+    public string? GetPlatformInstructions(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        using var db = _dbFactory.CreateDbContext();
+        return db.AgentDefinitions.AsNoTracking()
+            .Where(e => e.Name.ToLower() == name.ToLower())
+            .Select(e => e.Instructions)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Asynchronous counterpart to <see cref="GetPlatformInstructions"/> — safe for
+    /// render-thread callers (e.g. the Agent Builder page's Edit handler).
+    /// </summary>
+    public async Task<string?> GetPlatformInstructionsAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var lookup = name.ToLower();
+        await using var db = await _dbFactory
+            .CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return await db.AgentDefinitions.AsNoTracking()
+            .Where(e => e.Name.ToLower() == lookup)
+            .Select(e => e.Instructions)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -372,6 +458,24 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
                 AllowedComponents = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 AllowedDataSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            };
+        }
+        else
+        {
+            // The cache holds the MERGED registration after hydration — re-source the
+            // platform-managed instructions from the entity column so the persona is
+            // never double-merged on the next hydration. (AgentRegistration is a class,
+            // so rebuild instead of using a `with` expression.)
+            registration = new AgentRegistration
+            {
+                Name = registration.Name,
+                Description = registration.Description,
+                Instructions = GetPlatformInstructions(agentName),
+                AllowedComponents = registration.AllowedComponents,
+                AllowedActions = registration.AllowedActions,
+                AllowedCapabilityActions = registration.AllowedCapabilityActions,
+                AllowedDataSchemas = registration.AllowedDataSchemas,
+                Metadata = registration.Metadata
             };
         }
 

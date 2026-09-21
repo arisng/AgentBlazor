@@ -108,7 +108,7 @@ internal sealed class SupplierComplianceCapabilities(SupplierComplianceWorkflowS
     }
 }
 
-internal sealed class SupplierComplianceWorkflowService
+internal sealed class SupplierComplianceWorkflowService : IProvideLiveUserContext
 {
     private readonly List<SupplierComplianceRow> _suppliers =
     [
@@ -146,6 +146,19 @@ internal sealed class SupplierComplianceWorkflowService
     public IReadOnlyCollection<string> HighlightedSupplierIds => _highlightedSupplierIds.ToArray();
 
     public IReadOnlyCollection<string> RecoveredSupplierIds => _recoveredSupplierIds.ToArray();
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, string?>> GetLiveUserContextAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyDictionary<string, string?>>(
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["supplier_compliance.at_risk"] = VisibleSuppliers.Count.ToString(),
+                ["supplier_compliance.recovered"] = RecoveredSupplierIds.Count.ToString(),
+            });
+    }
 
     public string FocusAtRiskSuppliers(int days)
     {

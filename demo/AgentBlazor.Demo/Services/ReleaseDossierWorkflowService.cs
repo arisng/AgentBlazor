@@ -45,7 +45,7 @@ internal sealed class ReleaseDossierCapabilities(ReleaseDossierWorkflowService w
 
 internal sealed class ReleaseDossierWorkflowService(
     DojoRecipeReleaseWorkflowService recipeWorkflow,
-    DemoFileWorkflowService fileWorkflow)
+    DemoFileWorkflowService fileWorkflow) : IProvideLiveUserContext
 {
     private const string OrchestrationRoute = "/demo/workflows/release-dossier";
     private const string DossierSource = "release-dossier";
@@ -67,6 +67,18 @@ internal sealed class ReleaseDossierWorkflowService(
     public bool IsDossierDialogOpen { get; private set; }
 
     public IReadOnlyList<string> LatestBlockers { get; private set; } = [];
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, string?>> GetLiveUserContextAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyDictionary<string, string?>>(
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["release_dossier.blockers"] = LatestBlockers.Count.ToString(),
+            });
+    }
 
     public IReadOnlyList<ReleaseDossierJourneyEvent> JourneyEvents => _journeyEvents.ToArray();
 

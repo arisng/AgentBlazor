@@ -140,7 +140,7 @@ internal sealed class SupportInboxCapabilities(SupportInboxWorkflowService workf
     }
 }
 
-internal sealed class SupportInboxWorkflowService
+internal sealed class SupportInboxWorkflowService : IProvideLiveUserContext
 {
     private readonly List<SupportTicketRow> _tickets =
     [
@@ -171,6 +171,20 @@ internal sealed class SupportInboxWorkflowService
         _tickets
             .Where(ticket => !_highlightedTicketIds.Any() || _highlightedTicketIds.Contains(ticket.Id) || !ShowOnlyHighlighted)
             .ToArray();
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, string?>> GetLiveUserContextAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyDictionary<string, string?>>(
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["support_inbox.open_tickets"] = VisibleTickets.Count.ToString(),
+                ["support_inbox.highlighted"] = HighlightedTicketIds.Count.ToString(),
+                ["support_inbox.escalated"] = EscalatedTicketIds.Count.ToString(),
+            });
+    }
 
     public string FocusOpenTickets(int days)
     {

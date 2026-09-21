@@ -46,7 +46,7 @@ internal sealed class ResponseOrchestrationCapabilities(ResponseOrchestrationWor
 internal sealed class ResponseOrchestrationWorkflowService(
     SupplierComplianceWorkflowService supplierWorkflow,
     DemoFileWorkflowService fileWorkflow,
-    IncidentEscalationWorkflowService incidentWorkflow)
+    IncidentEscalationWorkflowService incidentWorkflow) : IProvideLiveUserContext
 {
     private const string OrchestrationRoute = "/demo/workflows/response-orchestration";
     private const string ResponseSource = "response-orchestration";
@@ -66,6 +66,18 @@ internal sealed class ResponseOrchestrationWorkflowService(
     public bool IsPacketDialogOpen { get; private set; }
 
     public IReadOnlyList<string> LatestBlockers { get; private set; } = [];
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<string, string?>> GetLiveUserContextAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyDictionary<string, string?>>(
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["response_orchestration.blockers"] = LatestBlockers.Count.ToString(),
+            });
+    }
 
     public IReadOnlyList<ResponseOrchestrationJourneyEvent> JourneyEvents => _journeyEvents.ToArray();
 
