@@ -69,6 +69,7 @@ $report = [ordered]@{
     configGates    = @()
     runtimeCustomization = @()
     dynamicRegistry     = @()
+    userContextShowcase = @()
     }
 
 # --- Agents & workflows: now sourced from Program.cs seed function -----------
@@ -276,6 +277,35 @@ if (Test-Path $builderPage) {
     }
 }
 $report.dynamicRegistry = $dynamicRegistry
+
+# --- User-scoped runtime context showcase (identity/activity/domain layers) ----
+# The Agent Builder chat demonstrates user-scoped business context injected per turn:
+# DemoUserContextProvider (identity + activity + domain) is registered as the
+# IDemoUserContextProvider, the workflow services expose live state via
+# IProvideLiveUserContext (async), the activity layer is cache-aside (AddMemoryCache),
+# and the AgentBuilder page lets the user pick who they chat as (UserId).
+$userContextShowcase = [ordered]@{
+    providerRegistered   = [regex]::IsMatch($programText, 'AddSingleton<IDemoUserContextProvider')
+    memoryCacheWired     = [regex]::IsMatch($programText, 'AddMemoryCache')
+    providerTypes        = @()
+    liveContextProviders = @()
+    userPickerWired      = $false
+}
+foreach ($file in (Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | Sort-Object -Property Name)) {
+    $text = Get-Content $file.FullName -Raw
+    if ($text -match 'IDemoUserContextProvider|IProvideLiveUserContext') {
+        $userContextShowcase.providerTypes += $file.BaseName
+    }
+    if ($text -match 'IProvideLiveUserContext') {
+        $userContextShowcase.liveContextProviders += $file.BaseName
+    }
+}
+$builderPage = Join-Path $DemoRoot 'Components\Pages\Demo\AgentBuilder.razor'
+if (Test-Path $builderPage) {
+    $page = Get-Content $builderPage -Raw
+    $userContextShowcase.userPickerWired = $page -match 'UserId="@_chatUserId"'
+}
+$report.userContextShowcase = $userContextShowcase
 
 # --- Services (workflow services + infra) ----------------------------------------
 Get-ChildItem (Join-Path $DemoRoot 'Services') -Filter '*.cs' | ForEach-Object {
