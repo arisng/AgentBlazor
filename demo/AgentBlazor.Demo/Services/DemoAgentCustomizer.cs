@@ -28,23 +28,23 @@ public sealed class DemoAgentCustomizer : IAgentRuntimeCustomizer
         _userContextProvider = userContextProvider;
     }
 
-    public async Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+    public async Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken = default)
     {
-        var tools = _registry.TryGetCustomization(registration.Name);
+        var agentRuntimeCustomization = _registry.TryGetRuntimeCustomization(registration.Name);
         var userContext = await _userContextProvider
             .BuildAsync(request.GetEffectiveUserId(), registration.Name, cancellationToken)
             .ConfigureAwait(false);
 
-        if (tools is null && (userContext is null || userContext.Count == 0))
+        if (agentRuntimeCustomization is null && (userContext is null || userContext.Count == 0))
         {
             return null;
         }
 
         return new AgentRuntimeCustomization(
-            EnabledToolIds: tools?.EnabledToolIds,
+            EnabledToolIds: agentRuntimeCustomization?.EnabledToolIds,
             UserContext: userContext);
     }
 }

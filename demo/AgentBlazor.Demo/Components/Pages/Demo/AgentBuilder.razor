@@ -268,7 +268,7 @@
         }
 
         // Persona (user-managed instructions) + enabled tools are carried in Metadata so a
-        // single AddOrUpdate persists everything (no SetCustomization). Instructions holds
+        // single AddOrUpdate persists everything (no SetRuntimeCustomization). Instructions holds
         // the PLATFORM-managed text (read-only field, sourced from the entity on Edit) —
         // the persona is merged into it at hydration, so it must never be re-typed here.
         if (!string.IsNullOrWhiteSpace(_persona))

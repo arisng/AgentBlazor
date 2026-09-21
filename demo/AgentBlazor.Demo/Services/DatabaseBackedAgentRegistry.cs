@@ -32,11 +32,13 @@ namespace AgentBlazor.Demo.Services;
 /// </remarks>
 public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
 {
-    /// <summary>Metadata key that persists the runtime-customizer persona for an agent.</summary>
-    public const string PersonaKey = "agent_builder.persona";
+    /// <summary>Metadata key that persists the runtime-customizer persona for an agent
+    /// (canonical constant from the library — see <see cref="AgentRuntimeCustomizationKeys"/>).</summary>
+    public const string PersonaKey = AgentRuntimeCustomizationKeys.Persona;
 
-    /// <summary>Metadata key that persists the runtime-customizer enabled tool ids for an agent.</summary>
-    public const string EnabledToolsKey = "agent_builder.enabled_tools";
+    /// <summary>Metadata key that persists the runtime-customizer enabled tool ids for an agent
+    /// (canonical constant from the library — see <see cref="AgentRuntimeCustomizationKeys"/>).</summary>
+    public const string EnabledToolsKey = AgentRuntimeCustomizationKeys.EnabledToolIds;
 
     private readonly IDbContextFactory<DemoDbContext> _dbFactory;
     private readonly ConcurrentDictionary<string, AgentRegistration> _cache =
@@ -376,7 +378,7 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
     /// constructed at chat runtime.
     /// </para>
     /// </summary>
-    public AgentRuntimeCustomization? TryGetCustomization(string agentName)
+    public AgentRuntimeCustomization? TryGetRuntimeCustomization(string agentName)
     {
         if (!TryGet(agentName, out var registration))
         {
@@ -445,7 +447,7 @@ public sealed class DatabaseBackedAgentRegistry : IAsyncAgentRegistry
     /// <c>Metadata</c> under <see cref="PersonaKey"/> / <see cref="EnabledToolsKey"/>
     /// and call <see cref="AddOrUpdate"/> once (single write).
     /// </remarks>
-    public void SetCustomization(string agentName, string? persona, IReadOnlySet<string>? enabledToolIds)
+    public void SetRuntimeCustomization(string agentName, string? persona, IReadOnlySet<string>? enabledToolIds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
 
