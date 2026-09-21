@@ -6,7 +6,7 @@
 
   <!-- Common package metadata for all AgentBlazor packages -->
   <PropertyGroup>
-    <Version>0.2.26-internal.2</Version>
+    <Version>0.2.27-internal.1</Version>
     <Authors>Aris Nguyen</Authors>
     <Company>AgentBlazor</Company>
     <Copyright>Copyright (c) 2026 Aris Nguyen. Original work Copyright (c) 2026 Ash Peterson</Copyright>

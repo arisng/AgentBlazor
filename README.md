@@ -21,7 +21,7 @@ This fork ships packages to a private NuGet feed rather than the public nuget.or
 dotnet add package AgentBlazor --source agentblazor-local
 ```
 
-Use `0.2.26-internal.2` or later. Fork builds carry an `-internal.N` suffix so they never collide with upstream public versions. For local-feed setup and the per-version folder layout, see [Private feed publishing](docs/internal/private-feed-publishing.md).
+Use `0.2.27-internal.1` or later. Fork builds carry an `-internal.N` suffix so they never collide with upstream public versions. For local-feed setup and the per-version folder layout, see [Private feed publishing](docs/internal/private-feed-publishing.md).
 
 The CLI is optional. Keep it out of the critical path unless you want scaffold help for an existing app.
 
