@@ -477,7 +477,7 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
     /// intentionally NOT part of the customization — it is user-managed instructions
     /// merged into <c>AgentRegistration.Instructions</c> at hydration.
     /// </summary>
-    public AgentRuntimeCustomization? TryGetCustomization(string agentName)
+    public AgentRuntimeCustomization? TryGetRuntimeCustomization(string agentName)
     {
         if (!TryGet(agentName, out var registration))
         {
@@ -509,7 +509,7 @@ public sealed class SqlServerAgentRegistry : IAsyncAgentRegistry
     /// <c>Metadata</c> under <see cref="PersonaKey"/> / <see cref="EnabledToolsKey"/>
     /// and call <see cref="AddOrUpdate"/> once (single write).
     /// </remarks>
-    public void SetCustomization(string agentName, string? persona, IReadOnlySet<string>? enabledToolIds)
+    public void SetRuntimeCustomization(string agentName, string? persona, IReadOnlySet<string>? enabledToolIds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
 
@@ -744,12 +744,12 @@ public sealed class AgentBuilderCustomizer : IAgentRuntimeCustomizer
         _userContextProvider = userContextProvider;
     }
 
-    public async Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+    public async Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken cancellationToken = default)
     {
-        var tools = _registry.TryGetCustomization(registration.Name); // tools only
+        var tools = _registry.TryGetRuntimeCustomization(registration.Name); // tools only
         var userContext = await _userContextProvider
             .BuildAsync(request.GetEffectiveUserId(), registration.Name, cancellationToken)
             .ConfigureAwait(false);

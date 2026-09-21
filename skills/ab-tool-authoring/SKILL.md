@@ -153,7 +153,7 @@ options.ConfigureBuilder(builder =>
 
 public sealed class MyCustomizer : IAgentRuntimeCustomizer
 {
-    public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+    public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
         AgentRegistration registration,
         AgentTurnRequest request,
         CancellationToken ct = default)

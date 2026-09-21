@@ -50,8 +50,8 @@ The concrete class adds the out-of-band members the UI needs (the library
 interface has no remove/customization methods):
 
 - `RemoveAgent(name)` / `RemoveAgentAsync(name)` — delete + cache eviction; returns `false` if unknown.
-- `TryGetCustomization(name)` — enabled-tools whitelist for the runtime customizer (see `ab-context-assembly`); the persona is NOT part of it (it merges into `Instructions` at hydration).
-- `SetCustomization(name, persona, tools)` — convenience for a customization-only update path (e.g. a persona editor that does not touch the definition); re-sources platform instructions from the entity column so the persona is never double-merged.
+- `TryGetRuntimeCustomization(name)` — enabled-tools whitelist for the runtime customizer (see `ab-context-assembly`); the persona is NOT part of it (it merges into `Instructions` at hydration).
+- `SetRuntimeCustomization(name, persona, tools)` — convenience for a customization-only update path (e.g. a persona editor that does not touch the definition); re-sources platform instructions from the entity column so the persona is never double-merged.
 - `GetPlatformInstructions(name)` / `GetPlatformInstructionsAsync(name)` — platform-managed instructions from the entity column (WITHOUT the merged persona); the builder's Edit handler sources the read-only platform field from here.
 - `RefreshFromDatabase()` / `RefreshFromDatabaseAsync()` — re-hydrate the cache (used by the seeder).
 
@@ -71,8 +71,8 @@ Create/update builds the **full** `AgentRegistration` — persona + enabled
 tools placed in `Metadata` under `agent_builder.persona` /
 `agent_builder.enabled_tools` — and calls `AddOrUpdate` **once**; the
 runtime observes the change on the next turn that resolves that agent. Do
-**not** also call `SetCustomization` (the Demo's AgentBuilder follows this
-single-write contract). `SetCustomization` exists only as a convenience for
+**not** also call `SetRuntimeCustomization` (the Demo's AgentBuilder follows this
+single-write contract). `SetRuntimeCustomization` exists only as a convenience for
 a customization-only update path (e.g. a persona editor that does not touch
 the definition). The full save path is in
 [§10](#10-full-authoring-page-code-behind-scaffold).
@@ -408,7 +408,7 @@ private void Chat(AgentRegistration agent) => _selectedAgent = agent.Name;
 /// Single-write save: build the FULL <see cref="AgentRegistration"/> — persona
 /// + enabled tools carried in Metadata under PersonaKey / EnabledToolsKey —
 /// and call <see cref="SqlServerAgentRegistry.AddOrUpdate"/> ONCE. Do NOT also
-/// call SetCustomization (see §2). The read-only platform-instructions field is
+/// call SetRuntimeCustomization (see §2). The read-only platform-instructions field is
 /// sourced from the entity column (GetPlatformInstructions) so the persona is
 /// never duplicated on the next hydration.
 /// </summary>
@@ -422,7 +422,7 @@ private void SaveAsync()
     }
 
     // Persona (user-managed instructions) + enabled tools are carried in
-    // Metadata so a single AddOrUpdate persists everything (no SetCustomization).
+    // Metadata so a single AddOrUpdate persists everything (no SetRuntimeCustomization).
     // Instructions holds the PLATFORM-managed text — the persona merges into it
     // at hydration, so it must never be re-typed here.
     if (!string.IsNullOrWhiteSpace(_persona))

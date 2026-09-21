@@ -64,7 +64,7 @@ multiple areas and you need each skill's boundaries.
   subclass + DbContext (TPC, unique CI name index), the store-backed
   `IAsyncAgentRegistry` replacement (`SqlServerAgentRegistry` with lazy load,
   `AddOrUpdateAsync`/`RemoveAgentAsync`/`RefreshFromDatabaseAsync`/
-  `TryGetCustomization`), idempotent seeding, and the store-backed
+  `TryGetRuntimeCustomization`), idempotent seeding, and the store-backed
   `IAsyncAgentRegistry` as the authoring surface (the UI calls
   `GetAllAsync`/`AddOrUpdateAsync`/`RemoveAgentAsync` directly) with
   `UpdatedAtUtc` concurrency and capability/tool discovery seams.

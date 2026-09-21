@@ -173,7 +173,7 @@ The consumer-owned `IAsyncAgentRegistry` implementation IS the authoring surface
 — the UI resolves it from DI and calls `GetAllAsync()` / `AddOrUpdateAsync()` /
 `RemoveAgentAsync()` directly (no separate service interface; the Demo's
 `DatabaseBackedAgentRegistry` grounds this). Add out-of-band members
-(`RemoveAgent`, `TryGetCustomization`/`SetCustomization`) on the concrete
+(`RemoveAgent`, `TryGetRuntimeCustomization`/`SetRuntimeCustomization`) on the concrete
 class. Validation rules, error semantics, and concurrency:
 [references/authoring-service.md](references/authoring-service.md). Full
 copy-paste page code-behind (tool picker, save, edit, delete):

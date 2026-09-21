@@ -48,12 +48,12 @@ The customizer (`IAgentRuntimeCustomizer`) returns an `AgentRuntimeCustomization
 **`UserContext`** member carries the per-user business context for this turn:
 
 ```csharp
-public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
     AgentRegistration registration,
     AgentTurnRequest request,
     CancellationToken cancellationToken = default)
 {
-    var tools = _registry.TryGetCustomization(registration.Name);     // tool whitelist
+    var tools = _registry.TryGetRuntimeCustomization(registration.Name);     // tool whitelist
     var userContext = await _userContextProvider
         .BuildAsync(request.GetEffectiveUserId(), registration.Name, cancellationToken)
         .ConfigureAwait(false);
@@ -254,6 +254,25 @@ These are the contract, not style advice:
 3. **Best-effort / Never-Fabricate** — a failed query returns `null` for its keys (skipped by
    the merge) or leaves them absent; log the degradation. **The agent turn never fails because
    a context read failed**, and the LLM never sees fabricated numbers.
+
+### Why the disciplines are also a cost model
+
+`UserContext` lands in the **user message tail** (layer 5 of the context stack), never the
+system prompt — so per-user volatile data **never invalidates the LLM's cached
+system+schema+tools prefix** (layers 1–3, billed at the cached-token rate, ~5% of input in
+the Demo's pricing). The disciplines keep the tail cheap:
+
+| Discipline | Cost effect |
+|---|---|
+| **Bounded** | Small tail → fewer uncached input tokens per turn |
+| **Cache-aside** | Values stable within TTL → fewer cache misses on the tail |
+| **Byte-stable keys** | Deterministic block → the tail itself can hit the cache across turns |
+| **Best-effort** | Nulls skipped → no churn from failed reads |
+
+The old `Instructions`-in-system-prompt model broke the cached prefix on every persona
+change; the re-frame (persona merged at hydration, `UserContext` in the tail) is what makes
+per-user context cache-friendly. See the SKILL.md "KV cache & token cost" section for the
+full layer table.
 
 ---
 

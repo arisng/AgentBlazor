@@ -18,13 +18,58 @@ Consumer-side guidance for understanding and customizing how AgentBlazor builds 
 
 ## What is context assembly
 
-Every agent turn sends a composite prompt to the LLM. Three parts combine:
+Every agent turn sends a composite prompt to the LLM. Think of it as **layers stacked on
+each other** — each layer has a volatility (how often it changes between turns) and a cache
+posture (whether it can reuse the LLM's input-token cache). The `AgentRuntimeCustomization`
+seam touches specific layers:
 
-| Part | What it contains | Set by (consumer) |
-|---|---|---|
-| **System instructions** | Agent identity, behavioral rules, data schemas | `WithInstructions(string)`, `WithDataSchemas(...)` |
-| **User message** | The typed prompt + runtime context dictionary entries + generated-UI action context | Chat component input, `AgentRuntimeContextKeys`, middleware |
-| **Tool definitions** | Action/tool/capability descriptions (sent as native function-calling declarations, NOT in system prompt) | `AddTool(...)`, capability `[AgentAction]` methods |
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ 6. USER PROMPT (typed message)                                     │ volatile
+│ 5. RUNTIME CONTEXT ("Runtime context:" block)                      │ volatile ◄── UserContext (inject)
+│ 4. CHAT HISTORY (conversation turns)                               │ volatile
+│ 3. TOOL DEFINITIONS (function declarations)                        │ stable  ◄── EnabledToolIds (filter)
+│ 2. DATA SCHEMAS (READ-SAFE block)                                  │ stable
+│ 1. SYSTEM INSTRUCTIONS (persona + guardrails)                      │ stable  ◄── Instructions (obsolete)
+└────────────────────────────────────────────────────────────────────┘
+```
+
+| Layer | What it contains | Set by (consumer) | Volatility |
+|---|---|---|---|
+| **1. System instructions** | Agent identity, behavioral rules, guardrails | `WithInstructions(string)` + persona merged at hydration | **Stable** |
+| **2. Data schemas** | READ-SAFE entity schema documentation | `WithDataSchemas(...)` | **Stable** |
+| **3. Tool definitions** | Action/tool/capability descriptions (native function-calling, NOT in system prompt) | `AddTool(...)`, capability `[AgentAction]` methods; narrowed by `EnabledToolIds` | **Stable** |
+| **4. Chat history** | Conversation turns | `IConversationStore` (auto-managed) | Volatile |
+| **5. Runtime context** | Context dictionary entries + `UserContext` | `AgentRuntimeContextKeys`, middleware, `AgentRuntimeCustomization.UserContext` | **Volatile** |
+| **6. User prompt** | The typed message + generated-UI action context | Chat component input | Volatile |
+
+**Where the customization seam lands:** `UserContext` injects into **layer 5** (the user
+message tail); `EnabledToolIds` filters **layer 3**; the deprecated `Instructions` would have
+touched **layer 1** (system prompt) — which is exactly why it was deprecated (see below).
+
+## KV cache & token cost
+
+LLM input-token caching rewards a **byte-stable prefix**: the system prompt, data schemas,
+and tool definitions (layers 1–3) are identical across turns, so the provider can reuse the
+cached prefix and bill cached tokens at a fraction of the input rate (the Demo's pricing
+models this: `CachedInputTokenCostPerMillion` 0.0075 vs input 0.15 — ~5%).
+
+**The design rationale this exposes:** `UserContext` lives in the **user message (tail)**,
+not the system prompt — so per-user volatile data **never invalidates the cached
+system+tools prefix**. The old `Instructions`-in-system-prompt model broke that prefix on
+every change; the re-frame (persona merged at hydration, `UserContext` in the tail) fixed it.
+
+| Layer | Volatility | Cache posture | Cost impact |
+|---|---|---|---|
+| 1–3 (system + schemas + tools) | Stable | **Cached prefix** | Cached-token rate (~5% of input) |
+| 4 (history) | Volatile | Misses on change | Full input rate |
+| 5 (runtime context) | Volatile | Misses on change | Full input rate — **keep it small** |
+| 6 (user prompt) | Volatile | Misses on change | Full input rate |
+
+The user-context disciplines map directly to cost: **bounded** (small tail), **cache-aside**
+(values stable within TTL → fewer misses), **byte-stable keys** (deterministic block), and
+**best-effort** (nulls skipped → no churn). See
+[`references/user-context.md`](references/user-context.md) §4.
 
 Conversation history is managed automatically by the package — persisted via `IConversationStore`, applied to the live session internally.
 
@@ -101,7 +146,7 @@ the base type and the `IAsyncAgentRegistry` / `IAgentRuntimeCustomizer` seams.
    registration, so a save round-trip never duplicates the persona. The merge
    is idempotent: platform + persona saved twice still hydrates to
    `platform\n\npersona` exactly once.
-3. **Have a single registered `IAgentRuntimeCustomizer` resolve tool + user context from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`). **The customizer is optional for tools** — without it, agents run with all tools (the persisted tool whitelist is inert). The persona is NOT inert without the customizer: it lives in `Instructions` and reaches the system prompt regardless.
+3. **Have a single registered `IAgentRuntimeCustomizer` resolve tool + user context from that store.** Key it by `AgentRegistration.Name` (the runtime passes the resolved registration into `GetRuntimeCustomizationAsync`). Because the customizer seam is last-wins (one customizer registered), route both the Customization showcase and the Agent Builder through the same customizer, or implement a fallback chain (`storeA.Get(name) ?? storeB.Get(name)`). **The customizer is optional for tools** — without it, agents run with all tools (the persisted tool whitelist is inert). The persona is NOT inert without the customizer: it lives in `Instructions` and reaches the system prompt regardless.
 4. **Construct `AgentRuntimeCustomization` from the persisted values — tools only + user context.** The registry's `TryGetCustomization` reads the `agent_builder.enabled_tools` metadata key and returns an `AgentRuntimeCustomization` with `EnabledToolIds` only (the persona is NOT part of the customization):
    ```csharp
    // In the DB-backed registry — resolves the customizer payload for an agent
