@@ -31,8 +31,10 @@ public class RuntimeCustomizerPrototypeTests
             options.UseOpenAI("wire-key", WireModel, wire.EndpointUrl);
             options.ConfigureBuilder(builder =>
             {
-                builder.AddWorkflow<PrototypeCapabilities>("alpha-agent");
-                builder.AddWorkflow<PrototypeCapabilities>("beta-agent");
+                // Persona is user-managed instructions — authored at registration, not
+                // constructed at chat runtime by the customizer.
+                builder.AddWorkflow<PrototypeCapabilities>("alpha-agent", agent => agent.WithInstructions("ALPHA PERSONA"));
+                builder.AddWorkflow<PrototypeCapabilities>("beta-agent", agent => agent.WithInstructions("BETA PERSONA"));
                 builder.AddRuntimeCustomizer<PerAgentCustomizer>();
             });
         });
@@ -40,22 +42,22 @@ public class RuntimeCustomizerPrototypeTests
 
             using var provider = services.BuildServiceProvider();
             var store = provider.GetRequiredService<AgentCustomizationStore>();
-            store.Configure("alpha-agent", "ALPHA PERSONA", "prototype_workflow.do_alpha");
-            store.Configure("beta-agent", "BETA PERSONA", "prototype_workflow.do_beta");
+            store.Configure("alpha-agent", "prototype_workflow.do_alpha");
+            store.Configure("beta-agent", "prototype_workflow.do_beta");
 
             var runtimeAdapter = provider.GetRequiredService<IAgentRuntimeAdapter>();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
-        // alpha-agent: custom instructions + only do_alpha enabled.
+        // alpha-agent: persona from registration + only do_alpha enabled + user context.
         _ = await runtimeAdapter.RunTurnAsync(
-            new AgentTurnRequest("run", AgentName: "alpha-agent", SessionId: "proto-alpha"),
+            new AgentTurnRequest("run", AgentName: "alpha-agent", SessionId: "proto-alpha", UserId: "proto-user"),
             cts.Token);
                 var alphaFirstRequestIndex = 0;
                 var alphaCount = wire.RequestBodies.Count;
 
-                // beta-agent: custom instructions + only do_beta enabled.
+                // beta-agent: persona from registration + only do_beta enabled + user context.
                 _ = await runtimeAdapter.RunTurnAsync(
-                    new AgentTurnRequest("run", AgentName: "beta-agent", SessionId: "proto-beta"),
+                    new AgentTurnRequest("run", AgentName: "beta-agent", SessionId: "proto-beta", UserId: "proto-user"),
                     cts.Token);
                 var betaFirstRequestIndex = alphaCount;
 
@@ -75,6 +77,10 @@ public class RuntimeCustomizerPrototypeTests
 
         Assert.Contains("ALPHA PERSONA", GetSystemContent(alphaBody), StringComparison.Ordinal);
         Assert.Contains("BETA PERSONA", GetSystemContent(betaBody), StringComparison.Ordinal);
+
+        // User-scoped business context is injected into the user message per turn.
+        Assert.Contains("demo.user.id: proto-user", GetUserContent(alphaBody), StringComparison.Ordinal);
+        Assert.Contains("demo.user.id: proto-user", GetUserContent(betaBody), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -127,6 +133,14 @@ public class RuntimeCustomizerPrototypeTests
             .GetString() ?? string.Empty;
     }
 
+    private static string GetUserContent(JsonElement root)
+    {
+        return root.GetProperty("messages").EnumerateArray()
+            .Last(static m => string.Equals(m.GetProperty("role").GetString(), "user", StringComparison.Ordinal))
+            .GetProperty("content")
+            .GetString() ?? string.Empty;
+    }
+
     [AgentCapability("prototype_workflow", Name = "Prototype Workflow", Description = "Prototype test workflow.")]
     public sealed class PrototypeCapabilities
     {
@@ -142,10 +156,9 @@ public class RuntimeCustomizerPrototypeTests
     {
         private readonly Dictionary<string, AgentRuntimeCustomization> _byAgent = new(StringComparer.OrdinalIgnoreCase);
 
-        public void Configure(string agentName, string instructions, params string[] enabledToolIds)
+        public void Configure(string agentName, params string[] enabledToolIds)
         {
             _byAgent[agentName] = new AgentRuntimeCustomization(
-                Instructions: instructions,
                 EnabledToolIds: new HashSet<string>(enabledToolIds, StringComparer.OrdinalIgnoreCase));
         }
 
@@ -156,6 +169,8 @@ public class RuntimeCustomizerPrototypeTests
     /// <summary>
     /// Reads per-agent customization from a scoped service keyed by the resolved agent name.
     /// Returns null for agents with no customization (standard agents) — zero additional work.
+    /// Re-framed seam: tool whitelist + user-scoped business context (no persona — persona
+    /// lives in <c>AgentRegistration.Instructions</c> at hydration).
     /// </summary>
     public sealed class PerAgentCustomizer : IAgentRuntimeCustomizer
     {
@@ -171,7 +186,18 @@ public class RuntimeCustomizerPrototypeTests
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(_store.Get(registration.Name));
+            var customization = _store.Get(registration.Name);
+            if (customization is null)
+            {
+                return Task.FromResult<AgentRuntimeCustomization?>(null);
+            }
+
+            return Task.FromResult<AgentRuntimeCustomization?>(new AgentRuntimeCustomization(
+                EnabledToolIds: customization.EnabledToolIds,
+                UserContext: new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["demo.user.id"] = request.GetEffectiveUserId() ?? "anonymous"
+                }));
         }
     }
 }
