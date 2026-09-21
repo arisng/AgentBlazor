@@ -181,7 +181,7 @@ public class RuntimeCustomizerPrototypeTests
             _store = store;
         }
 
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)

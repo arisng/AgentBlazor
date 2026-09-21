@@ -158,7 +158,7 @@ public class DatabaseBackedAgentRegistryHydrationTests
     }
 
     [Fact]
-    public async Task TryGetCustomization_ReturnsToolsOnly_NotPersona()
+    public async Task TryGetRuntimeCustomization_ReturnsToolsOnly_NotPersona()
     {
         var registry = await CreateRegistryAsync();
 
@@ -168,7 +168,7 @@ public class DatabaseBackedAgentRegistryHydrationTests
             persona: "PERSONA",
             "support_inbox.show_open_tickets"));
 
-        var customization = registry.TryGetCustomization("support-agent");
+        var customization = registry.TryGetRuntimeCustomization("support-agent");
         Assert.NotNull(customization);
         Assert.Null(customization.UserContext);
         Assert.NotNull(customization.EnabledToolIds);
@@ -179,7 +179,7 @@ public class DatabaseBackedAgentRegistryHydrationTests
     }
 
     [Fact]
-    public async Task SetCustomization_OnExistingAgent_DoesNotDuplicatePersona()
+    public async Task SetRuntimeCustomization_OnExistingAgent_DoesNotDuplicatePersona()
     {
         var registry = await CreateRegistryAsync();
 
@@ -187,7 +187,7 @@ public class DatabaseBackedAgentRegistryHydrationTests
             "support-agent", platform: "PLATFORM", persona: "PERSONA"));
 
         // Customization-only update path re-sources platform from the entity column.
-        registry.SetCustomization("support-agent", "NEW PERSONA", new HashSet<string>(new[] { "tool_a" }, StringComparer.OrdinalIgnoreCase));
+        registry.SetRuntimeCustomization("support-agent", "NEW PERSONA", new HashSet<string>(new[] { "tool_a" }, StringComparer.OrdinalIgnoreCase));
 
         var agent = Assert.Single(registry.GetAll());
         Assert.Equal("PLATFORM\n\nNEW PERSONA", agent.Instructions);

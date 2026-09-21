@@ -184,7 +184,7 @@ public class RuntimeCustomizerWireTests
 
     public sealed class WireCustomizer : IAgentRuntimeCustomizer
     {
-        public Task<AgentRuntimeCustomization?> GetCustomizationAsync(
+        public Task<AgentRuntimeCustomization?> GetRuntimeCustomizationAsync(
             AgentRegistration registration,
             AgentTurnRequest request,
             CancellationToken cancellationToken = default)
