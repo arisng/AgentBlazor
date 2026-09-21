@@ -132,6 +132,7 @@ public sealed class ChatClientRuntimeAdapter(
         traceBuilder.RecordEntry(request, registration.Name);
         var capabilityPolicy = ResolveAllowedCapabilityPolicy(registration);
         var customization = await ResolveCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        var effectiveContext = MergeUserContext(request.Context, customization?.UserContext);
         var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, customization, cancellationToken).ConfigureAwait(false);
         if (projectedTools.Count == 0)
         {
@@ -160,9 +161,9 @@ public sealed class ChatClientRuntimeAdapter(
             runId,
             request.UserMessage,
             request.GeneratedUiAction,
-            request.Context is null
+            effectiveContext is null
                 ? null
-                : new Dictionary<string, string>(request.Context, StringComparer.OrdinalIgnoreCase));
+                : new Dictionary<string, string>(effectiveContext, StringComparer.OrdinalIgnoreCase));
         try
         {
             ApplyContextSharedState(registration.Name, request, turnState.RunId);
@@ -183,7 +184,7 @@ public sealed class ChatClientRuntimeAdapter(
             var agent = await CreateAgentAsync(registration, request, turnState, customization, effectiveCancellationToken).ConfigureAwait(false);
             CurrentTurnState.Value = turnState;
             var response = await agent.RunAsync(
-                new ChatMessage(ChatRole.User, BuildUserMessage(request)),
+                new ChatMessage(ChatRole.User, BuildUserMessage(request, effectiveContext)),
                 sessionState.Session,
                 options: null,
                 effectiveCancellationToken).ConfigureAwait(false);
@@ -343,6 +344,7 @@ public sealed class ChatClientRuntimeAdapter(
         traceBuilder.RecordEntry(request, registration.Name);
         var capabilityPolicy = ResolveAllowedCapabilityPolicy(registration);
         var customization = await ResolveCustomizationAsync(registration, request, cancellationToken).ConfigureAwait(false);
+        var effectiveContext = MergeUserContext(request.Context, customization?.UserContext);
         var projectedTools = await ResolveToolsAsync(registration, request, turnState: null, customization, cancellationToken).ConfigureAwait(false);
         if (projectedTools.Count == 0)
         {
@@ -379,9 +381,9 @@ public sealed class ChatClientRuntimeAdapter(
             runId,
             request.UserMessage,
             request.GeneratedUiAction,
-            request.Context is null
+            effectiveContext is null
                 ? null
-                : new Dictionary<string, string>(request.Context, StringComparer.OrdinalIgnoreCase));
+                : new Dictionary<string, string>(effectiveContext, StringComparer.OrdinalIgnoreCase));
 
         try
         {
@@ -423,7 +425,7 @@ public sealed class ChatClientRuntimeAdapter(
             var usage = new UsageDetails();
             var hasUsage = false;
             await foreach (var update in agent.RunStreamingAsync(
-                               new ChatMessage(ChatRole.User, BuildUserMessage(request)),
+                               new ChatMessage(ChatRole.User, BuildUserMessage(request, effectiveContext)),
                                sessionState.Session,
                                options: null,
                                effectiveCancellationToken).ConfigureAwait(false))
@@ -2088,10 +2090,12 @@ public sealed class ChatClientRuntimeAdapter(
             parts.Add(registration.Instructions.Trim());
         }
 
+#pragma warning disable CS0618 // Type or member is obsolete — compat shim: still honored for one version
         if (!string.IsNullOrWhiteSpace(customization?.Instructions))
         {
             parts.Add(customization.Instructions.Trim());
         }
+#pragma warning restore CS0618
 
         if (!string.IsNullOrWhiteSpace(dataSchemaInstructions))
         {
@@ -3088,9 +3092,9 @@ CancellationToken cancellationToken)
         }
     }
 
-    private static string BuildUserMessage(AgentTurnRequest request)
+    private static string BuildUserMessage(AgentTurnRequest request, IDictionary<string, string>? effectiveContext)
     {
-        if ((request.Context is null || request.Context.Count == 0) &&
+        if ((effectiveContext is null || effectiveContext.Count == 0) &&
             request.GeneratedUiAction is null)
         {
             return request.UserMessage;
@@ -3116,18 +3120,49 @@ CancellationToken cancellationToken)
             }
         }
 
-        if (request.Context is { Count: > 0 })
+        if (effectiveContext is { Count: > 0 })
         {
             builder.AppendLine();
             builder.AppendLine();
             builder.AppendLine("Runtime context:");
-            foreach (var pair in request.Context.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            foreach (var pair in effectiveContext.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
             {
                 builder.Append("- ").Append(pair.Key).Append(": ").AppendLine(pair.Value);
             }
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Merges the customizer's user-scoped context into the channel-supplied request context.
+    /// Channel-supplied keys win on collision; <see langword="null"/> or empty user values are
+    /// skipped. Returns the original context when there is nothing to merge.
+    /// </summary>
+    private static IDictionary<string, string>? MergeUserContext(
+        IDictionary<string, string>? requestContext,
+        IReadOnlyDictionary<string, string?>? userContext)
+    {
+        if (userContext is null || userContext.Count == 0)
+        {
+            return requestContext;
+        }
+
+        var merged = requestContext is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(requestContext, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pair in userContext)
+        {
+            if (string.IsNullOrEmpty(pair.Value) || merged.ContainsKey(pair.Key))
+            {
+                continue;
+            }
+
+            merged[pair.Key] = pair.Value;
+        }
+
+        return merged;
     }
 
     private sealed class SessionState(AgentSession session)

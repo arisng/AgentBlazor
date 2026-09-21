@@ -20,7 +20,9 @@ namespace AgentBlazor.Core.Persistence;
 /// <strong>AgentBlazor features:</strong>
 /// <list type="bullet">
 ///   <item><description>Dynamic agent registration — Name, Instructions, tool/component/action/capability-action collections</description></item>
-///   <item><description>Agent persona customization — custom persona + enabled tools carried in MetadataJson (agent_builder.persona / agent_builder.enabled_tools)</description></item>
+///   <item><description>Agent persona customization — custom persona (user-managed instructions, merged into
+///   <c>AgentRegistration.Instructions</c> at hydration) + enabled tools carried in MetadataJson
+///   (agent_builder.persona / agent_builder.enabled_tools)</description></item>
 ///   <item><description>Token cost management — metadata JSON carries pricing configuration</description></item>
 /// </list>
 /// </remarks>
@@ -37,7 +39,12 @@ public abstract class AgentDefinitionEntity
     /// <summary>Agent description for the Agent Builder UI.</summary>
     public string? Description { get; set; }
 
-    /// <summary>System instructions for the agent.</summary>
+    /// <summary>
+    /// Platform-managed system instructions for the agent — seeded at startup, hidden from end
+    /// users. The user-authored persona (Metadata <c>agent_builder.persona</c>) is merged into
+    /// <c>AgentRegistration.Instructions</c> at hydration, so this column must stay platform-only
+    /// for the merge to be idempotent.
+    /// </summary>
     public string? Instructions { get; set; }
 
     /// <summary>JSON array of allowed component IDs, e.g. <c>["AgentForm","AgentDialog"]</c>.</summary>
@@ -59,7 +66,10 @@ public abstract class AgentDefinitionEntity
     /// JSON object of agent metadata (e.g. route_prefixes). Persona and enabled
     /// tools are carried here under the <c>agent_builder.persona</c> /
     /// <c>agent_builder.enabled_tools</c> keys, mirroring
-    /// <c>AgentRegistration.Metadata</c> 1:1.
+    /// <c>AgentRegistration.Metadata</c> 1:1. The persona is user-managed
+    /// instructions: store-backed registries merge it into
+    /// <c>AgentRegistration.Instructions</c> at hydration (non-destructive — the
+    /// key is preserved).
     /// </summary>
     public string MetadataJson { get; set; } = "{}";
 
